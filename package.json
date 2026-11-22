@@ -1,6 +1,6 @@
 {
   "name": "tabherd",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "A dashboard for your Claude Code sessions: which ones need you, which are working, and what they last said",
   "private": true,
   "main": "server.js",
