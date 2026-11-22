@@ -2,6 +2,13 @@
 
 Notable changes in each release. Version numbers follow [Semantic Versioning](https://semver.org). The release build takes each release's notes from its section here.
 
+## 0.3.2 - 2026-11-22
+
+- A to-do can start without a folder: it starts in Settings → To-dos → *Start in*, your repos folder unless you set another, where Claude can make a new project. **Choose folder** is there for picking one first. The card says where it will start.
+- On macOS and Linux, the dashboard shows Go to window, Catch up, a to-do's Start and Choose folder, and History's Resume. They were still shown on Windows only, although the terminal drivers had been added.
+- A session started from a to-do is named after it, with Claude's `--name`, so its tab's title and Claude's session list show the to-do's title.
+- Sessions the dashboard opens no longer take on the variables of a Claude Code session the dashboard was started from. They ran as that session's children: plain, unattended, unseen by the dashboard, and holding its messaging pipe and token.
+
 ## 0.3.1 - 2026-11-21
 
 - Tabherd can be installed with Homebrew on macOS and Linux: `brew install tleeadams/tap/tabherd`.

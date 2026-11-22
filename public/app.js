@@ -163,7 +163,8 @@ async function renewToken() {
 
 const post = (agent, action) => api(`/api/agents/${agent.id}/${action}`);
 
-const canFocus = (a) => snap?.platform === 'win32' && (!a.kind || a.kind === 'interactive');
+// The server says whether this computer has a terminal it can drive.
+const canFocus = (a) => Boolean(snap?.terminals) && (!a.kind || a.kind === 'interactive');
 
 async function goToWindow(a, button) {
   if (button) button.disabled = true;
@@ -456,12 +457,13 @@ function editTodo(t) {
   $('todo-title').focus();
 }
 
+// A to-do with no folder starts in the one Settings names, where Claude can
+// make a new project.
 async function startTodo(t, button) {
-  if (!t.cwd) return chooseTodoFolder(t, true, button);
   if (button) button.disabled = true;
   try {
     await api(`/api/todos/${t.id}/start`);
-    toast(`Starting Claude in ${shortPath(t.cwd)}`);
+    toast(`Starting Claude in ${shortPath(t.cwd || snap?.todoStartsIn || '')}`);
   } catch (err) {
     toast(err.message, true);
   } finally {
@@ -470,7 +472,7 @@ async function startTodo(t, button) {
   refresh();
 }
 
-// From the repo menu or Windows' folder picker, as Settings says. With
+// From the repo menu or the folder picker, as Settings says. With
 // `start`, Claude starts there once it's chosen.
 async function chooseTodoFolder(t, start, button) {
   if (serverSettings?.todoFolderSource !== 'picker') {
@@ -516,7 +518,8 @@ async function deleteTodo(t, button) {
 
 function todoCard(t) {
   const btn = (label, onclick, cls = '', props = {}) => el('button', { type: 'button', class: `btn ${cls}`, onclick, ...props }, label);
-  const win = snap?.platform === 'win32';
+  const drivable = Boolean(snap?.terminals);
+  const startsIn = shortPath(t.cwd || snap?.todoStartsIn || '');
   // Started, but no session with its ID has turned up.
   const stalled = t.startedAt && !t.starting;
   return el(
@@ -532,7 +535,9 @@ function todoCard(t) {
     el(
       'div',
       { class: 'where' },
-      t.cwd ? el('span', { class: 'path', title: t.cwd, text: shortPath(t.cwd) }) : el('span', { class: 'no-folder', text: 'No folder chosen yet' }),
+      t.cwd
+        ? el('span', { class: 'path', title: t.cwd, text: shortPath(t.cwd) })
+        : el('span', { class: 'no-folder', title: 'No folder chosen: it starts here, where Claude can make a new project', text: `Starts in ${startsIn}` }),
     ),
     el(
       'div',
@@ -541,7 +546,7 @@ function todoCard(t) {
         'div',
         { class: 'activity' },
         t.starting
-          ? el('div', { class: 'now' }, el('div', { class: 'now-row' }, el('span', { class: 'what', text: 'Opening Claude' }), el('span', { class: 'detail', text: 'in a new Windows Terminal tab' })))
+          ? el('div', { class: 'now' }, el('div', { class: 'now-row' }, el('span', { class: 'what', text: 'Opening Claude' }), el('span', { class: 'detail', text: 'in a new terminal tab' })))
           : null,
         stalled
           ? el(
@@ -556,13 +561,13 @@ function todoCard(t) {
     el(
       'div',
       { class: 'actions' },
-      win
+      drivable
         ? btn(stalled ? 'Start again' : 'Start', (e) => startTodo(t, e.currentTarget), 'btn-primary', {
             disabled: t.starting,
-            title: t.cwd ? `Open a Windows Terminal tab in ${shortPath(t.cwd)} running Claude` : 'Choose a folder, then start Claude there',
+            title: `Open a terminal tab in ${startsIn} running Claude`,
           })
         : null,
-      win ? btn(t.cwd ? 'Change folder' : 'Choose folder', (e) => chooseTodoFolder(t, false, e.currentTarget), '', { disabled: t.starting }) : null,
+      drivable ? btn(t.cwd ? 'Change folder' : 'Choose folder', (e) => chooseTodoFolder(t, false, e.currentTarget), '', { disabled: t.starting }) : null,
       btn('Copy', () => copyTodo(t), '', { title: 'Copy the title and notes, to paste into Claude' }),
       btn('Edit', () => editTodo(t)),
       btn('Delete', (e) => deleteTodo(t, e.currentTarget), 'btn-stop'),
@@ -1164,7 +1169,7 @@ function pastItem(s) {
     el(
       'div',
       { class: 'past-actions' },
-      snap?.platform === 'win32'
+      snap?.terminals
         ? el('button', { type: 'button', class: 'btn btn-primary', title: 'Open a terminal tab in its folder and continue the conversation', onclick: (e) => resumePast(s, e.currentTarget) }, 'Resume')
         : null,
       el(
@@ -1257,7 +1262,7 @@ function radioSetting(name, values, apply) {
   update();
 }
 
-// System follows Windows' light or dark mode; Light and Dark override it.
+// System follows the system's light or dark mode; Light and Dark override it.
 radioSetting('theme', ['system', 'light', 'dark'], (theme) => {
   if (theme === 'system') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = theme;

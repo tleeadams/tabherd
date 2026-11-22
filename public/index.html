@@ -86,7 +86,7 @@
       <input id="repos-filter" type="search" placeholder="Filter repos" aria-label="Filter repos" autocomplete="off" spellcheck="false">
     </div>
     <nav id="repos-tree" class="tree" aria-label="Repositories"></nav>
-    <p id="repos-foot" class="drawer-foot">Click a repo to open a Windows Terminal tab there running <code id="repos-command">claude</code>.</p>
+    <p id="repos-foot" class="drawer-foot">Click a repo to open a terminal tab there running <code id="repos-command">claude</code>.</p>
     <p id="repos-pick-foot" class="drawer-foot" hidden></p>
   </dialog>
 
@@ -102,7 +102,7 @@
       <input id="history-filter" type="search" placeholder="Filter closed sessions" aria-label="Filter closed sessions" autocomplete="off" spellcheck="false">
     </div>
     <div id="history-list" class="history-list"></div>
-    <p class="drawer-foot">Sessions closed in the last 30 days. Resume opens a Windows Terminal tab in the session's folder and continues the conversation.</p>
+    <p class="drawer-foot">Sessions closed in the last 30 days. Resume opens a terminal tab in the session's folder and continues the conversation.</p>
   </dialog>
 
   <dialog id="settings" class="settings" aria-labelledby="settings-title">
@@ -166,7 +166,7 @@
       </fieldset>
       <fieldset>
         <legend>To-dos</legend>
-        <p class="settings-help">Where a to-do's folder is chosen from when you start it.</p>
+        <p class="settings-help">A to-do starts Claude in its folder. Without one, it starts in the folder below, where Claude can make a new project. <b>Choose folder</b> on a to-do picks one from:</p>
         <div class="segmented">
           <label><input type="radio" name="todo-source" value="repos">Repo menu</label>
           <label><input type="radio" name="todo-source" value="picker">Any folder</label>
@@ -175,7 +175,7 @@
           <span>Start in</span>
           <input id="todo-start" type="text" autocomplete="off" spellcheck="false">
         </label>
-        <p class="settings-help">The repo menu opens at this folder, or the folder picker starts in it. Leave it empty for the repos folder.</p>
+        <p class="settings-help">Where to-dos without a folder start, and where the repo menu and folder picker open. Leave it empty for the repos folder.</p>
       </fieldset>
       <fieldset>
         <legend>Repo menu</legend>
