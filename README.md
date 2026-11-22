@@ -111,7 +111,7 @@ The filters in the header show every session, or only those in one state. **Todo
 
 **+ To-do** in the header adds a card with a title and notes, for work you want to give Claude later. To-do cards sit at the top of the grid, with a dashed border, and count under All and Todo. Ctrl+Enter saves from the notes box.
 
-**Start** opens Claude in the to-do's folder, in your terminal, running `claude --session-id <new id>`. With no folder chosen yet, it asks for one first; **Choose folder** sets one without starting. Settings → To-dos says where the folder comes from:
+**Start** opens Claude in the to-do's folder, in your terminal, running `claude --session-id <new id> --name "<the to-do's title>"`, so the session is named after the to-do in its tab's title and Claude's session list. With no folder chosen yet, it asks for one first; **Choose folder** sets one without starting. Settings → To-dos says where the folder comes from:
 
 - **Repo menu** (the default): the ☰ menu opens for choosing. Click a repo.
 - **Any folder**: the system's folder picker (zenity or kdialog on Linux), which the server opens in front of the dashboard.

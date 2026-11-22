@@ -4,6 +4,7 @@ Notable changes in each release. Version numbers follow [Semantic Versioning](ht
 
 ## Unreleased
 
+- A session started from a to-do is named after it, with Claude's `--name`, so its tab's title and Claude's session list show the to-do's title.
 - Sessions the dashboard opens no longer take on the variables of a Claude Code session the dashboard was started from. They ran as that session's children: plain, unattended, unseen by the dashboard, and holding its messaging pipe and token.
 
 ## 0.3.1 - 2026-11-21

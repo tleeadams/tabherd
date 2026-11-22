@@ -194,7 +194,11 @@ async function todoAction(res, id, name, body) {
     if (!todo.cwd) return send(res, 400, { ok: false, error: 'Choose a folder first.' });
     if (!fs.existsSync(todo.cwd)) return send(res, 400, { ok: false, error: `Its folder no longer exists: ${todo.cwd}` });
     const sessionId = crypto.randomUUID();
-    const opened = await openClaude(todo.cwd, `${claudeCommand()} --session-id ${sessionId}`);
+    // Named after the to-do, which Claude shows in its tab's title and its
+    // session list. Straight double quotes become curly ones: Windows
+    // PowerShell 5.1 mangles them in a program's arguments.
+    const name = terminals.quote(todo.title.replace(/"/g, '”'));
+    const opened = await openClaude(todo.cwd, `${claudeCommand()} --session-id ${sessionId} --name ${name}`);
     if (!opened.ok) return send(res, 500, opened);
     result = todos.started(id, sessionId);
   }
