@@ -9,7 +9,7 @@ const crypto = require('crypto');
 const { snapshot, findAgent, sessionFile } = require('./lib/agents');
 const terminals = require('./lib/terminals');
 const { openDashboard } = require('./lib/open-dashboard');
-const { scanRepos, resolveRepo } = require('./lib/repos');
+const { scanRepos, resolveRepo, SOURCE_DIR } = require('./lib/repos');
 const settings = require('./lib/settings');
 const history = require('./lib/history');
 const todos = require('./lib/todos');
@@ -26,6 +26,9 @@ const CATCH_UP_PROMPT = (
 // What new tabs run: plain `claude`, so Claude asks before acting, unless
 // Settings says to skip its permission prompts.
 const claudeCommand = () => (settings.get().skipPermissions ? 'claude --dangerously-skip-permissions' : 'claude');
+// Where a to-do with no folder of its own starts: the Start in folder from
+// Settings, else the repos folder. Claude can make a new project there.
+const todoStartsIn = () => settings.get().todoStartFolder || SOURCE_DIR;
 const SNAPSHOT_TTL_MS = 1000;
 // With --exit-when-idle (as the desktop launcher starts it), the server stops
 // once no dashboard has been open for this long.
@@ -57,6 +60,10 @@ function currentSnapshot() {
         // into the history when the session closes.
         todos.observe(snap.agents, snap.now);
         snap.todos = todos.pending(snap.now);
+        snap.todoStartsIn = todoStartsIn();
+        // Whether this computer has a terminal the dashboard can drive, for
+        // Go to window, Catch up, Start, Resume and the repo menu.
+        snap.terminals = terminals.terminals().some((t) => t.available);
         history.observe(snap.agents, snap.now);
         cached = snap;
         cachedAt = Date.now();
@@ -175,7 +182,7 @@ async function todoAction(res, id, name, body) {
   else if (name === 'folder') {
     let dir;
     if (body.pick) {
-      const start = todo.cwd || settings.get().todoStartFolder || scanRepos(false).root;
+      const start = todo.cwd || todoStartsIn();
       const picked = await terminals.pickFolder(start, `Choose a folder for “${todo.title}”`);
       if (!picked.ok || picked.cancelled) return send(res, picked.ok ? 200 : 500, picked);
       dir = typeof picked.path === 'string' ? picked.path : '';
@@ -191,14 +198,17 @@ async function todoAction(res, id, name, body) {
     if (result.ok) result.cwd = dir;
   } else if (name === 'start') {
     if (todos.isLive(id)) return send(res, 409, { ok: false, error: 'Its session is already running.' });
-    if (!todo.cwd) return send(res, 400, { ok: false, error: 'Choose a folder first.' });
-    if (!fs.existsSync(todo.cwd)) return send(res, 400, { ok: false, error: `Its folder no longer exists: ${todo.cwd}` });
+    const cwd = todo.cwd || todoStartsIn();
+    if (!fs.existsSync(cwd)) {
+      const which = todo.cwd ? 'Its folder' : 'The folder to-dos start in';
+      return send(res, 400, { ok: false, error: `${which} doesn't exist: ${cwd}` });
+    }
     const sessionId = crypto.randomUUID();
     // Named after the to-do, which Claude shows in its tab's title and its
     // session list. Straight double quotes become curly ones: Windows
     // PowerShell 5.1 mangles them in a program's arguments.
     const name = terminals.quote(todo.title.replace(/"/g, '”'));
-    const opened = await openClaude(todo.cwd, `${claudeCommand()} --session-id ${sessionId} --name ${name}`);
+    const opened = await openClaude(cwd, `${claudeCommand()} --session-id ${sessionId} --name ${name}`);
     if (!opened.ok) return send(res, 500, opened);
     result = todos.started(id, sessionId);
   }
