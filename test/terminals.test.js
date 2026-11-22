@@ -15,6 +15,21 @@ test('a new tab runs the command in its folder, then stays at a shell', () => {
   assert.equal(unix.titleKey('✳ Fix the build'), 'Fix the build');
 });
 
+test("sessions opened from inside a Claude session don't inherit its variables", () => {
+  const { forgetParentSession } = require('../lib/terminals');
+  const env = forgetParentSession({
+    CLAUDECODE: '1',
+    CLAUDE_CODE_CHILD_SESSION: '1',
+    CLAUDE_CODE_MESSAGING_TOKEN: 'secret',
+    CLAUDE_PID: '42',
+    CLAUDE_CONFIG_DIR: '/home/a/.claude',
+    CLAUDEX: 'not a Claude Code variable',
+    ANTHROPIC_BASE_URL: 'https://example.invalid',
+    PATH: '/usr/bin',
+  });
+  assert.deepEqual(Object.keys(env).sort(), ['ANTHROPIC_BASE_URL', 'CLAUDEX', 'CLAUDE_CONFIG_DIR', 'PATH']);
+});
+
 // A session (pid 30) in a shell (20) in a terminal (10), with no tmux.
 const TABLE = new Map([
   [1, { pid: 1, ppid: 0, tty: null, name: 'init' }],
