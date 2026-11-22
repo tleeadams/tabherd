@@ -2,6 +2,10 @@
 
 Notable changes in each release. Version numbers follow [Semantic Versioning](https://semver.org). The release build takes each release's notes from its section here.
 
+## Unreleased
+
+- Sessions the dashboard opens no longer take on the variables of a Claude Code session the dashboard was started from. They ran as that session's children: plain, unattended, unseen by the dashboard, and holding its messaging pipe and token.
+
 ## 0.3.1 - 2026-11-21
 
 - Tabherd can be installed with Homebrew on macOS and Linux: `brew install tleeadams/tap/tabherd`.
