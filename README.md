@@ -4,7 +4,7 @@
 
 **A dashboard for your Claude Code sessions.** Tabherd lists every [Claude Code](https://code.claude.com) session running on your computer and shows what each one is doing: which ones need you, which are working, and what they last said. It watches the sessions you start anyway, in any terminal, with nothing to set up in Claude Code. It runs entirely on your computer and has no dependencies beyond Node.
 
-Tabherd is an independent project. It isn't made or endorsed by Anthropic. It was called Claude Agents up to version 0.1.2.
+Tabherd is an independent project. It isn't made or endorsed by Anthropic. It was called Claude Agents up to version 0.1.2. Say it "Tab Herd" or "tabberd": both are right.
 
 ## Install
 
