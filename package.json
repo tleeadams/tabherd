@@ -1,7 +1,7 @@
 {
   "name": "tabherd",
   "version": "0.4.0",
-  "description": "A dashboard for your Claude Code sessions: which ones need you, which are working, and what they last said",
+  "description": "A dashboard for your Claude Code and Codex sessions: which ones need you, which are working, and what they last said",
   "private": true,
   "main": "server.js",
   "bin": {

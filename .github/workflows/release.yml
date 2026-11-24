@@ -130,7 +130,7 @@ jobs:
           # program does and to link the code signing policy.
           repo="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
           {
-            printf '**Tabherd** is a dashboard for your Claude Code sessions: which ones need you, which are working, and what they last said. The [README](%s#readme) says what it shows and how to install it.\n\n' "$repo"
+            printf '**Tabherd** is a dashboard for your Claude Code and Codex sessions: which ones need you, which are working, and what they last said. The [README](%s#readme) says what it shows and how to install it.\n\n' "$repo"
             cat dist/RELEASE_NOTES.md
             printf '\n[Code signing policy](%s#code-signing-policy)\n' "$repo"
           } > dist/notes.md
