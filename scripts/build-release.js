@@ -57,11 +57,13 @@ const windows = {
   os: 'win32',
   archive: 'zip',
   // The app, built as it's installed: Tabherd.exe and node.exe side by side,
-  // the server in server/ and Node's licence in node/.
+  // the server in server/ and Node's licence beside them, as node-LICENSE.
+  // (Not node/LICENSE: on macOS and Linux a node folder would be beside the
+  // node program, which can't share its name.)
   build(stage, node) {
     stageApp({ node, needLicense: true });
     tauri(['build', '--no-bundle']);
-    for (const name of ['Tabherd.exe', 'node.exe', 'server', 'node', 'LICENSE']) {
+    for (const name of ['Tabherd.exe', 'node.exe', 'server', 'node-LICENSE', 'LICENSE']) {
       fs.cpSync(path.join(APP_BUILT, name), path.join(stage, name), { recursive: true });
     }
     for (const rel of APP_SOURCE) fs.cpSync(path.join(ROOT, rel), path.join(stage, rel), { recursive: true });

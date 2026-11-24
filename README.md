@@ -366,4 +366,4 @@ Privacy: this program will not transfer any information to other networked syste
 
 ## License
 
-Tabherd is free software under the [GNU General Public License, version 3](LICENSE) or later. Releases include Node.js, which has its own licence, in `node/LICENSE`.
+Tabherd is free software under the [GNU General Public License, version 3](LICENSE) or later. Releases include Node.js, which has its own licence: in `node/LICENSE`, or `node-LICENSE` beside the Windows app.
