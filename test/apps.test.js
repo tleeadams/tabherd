@@ -70,6 +70,11 @@ test("each ComfyUI Comfy Desktop runs is found from its records, and a crashed o
     ],
     "and the usual port, for a ComfyUI run some other way",
   );
+  assert.deepEqual(
+    comfy.instances([dir], 'http://127.0.0.1:9000').map((f) => f.url),
+    ['http://127.0.0.1:8189', 'http://127.0.0.1:9000'],
+    "or the address in Settings",
+  );
 });
 
 // ---- LocalAI --------------------------------------------------------------------

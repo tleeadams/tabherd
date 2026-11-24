@@ -1849,8 +1849,12 @@ function renderTerminalChoice() {
 // The settings kept on the server, other than the repo menu's. The to-do
 // folder box isn't changed under someone typing in it.
 function renderServerSettings() {
-  const url = $('localai-url');
-  if (document.activeElement !== url) url.value = serverSettings?.localaiUrl || '';
+  for (const [id, key] of [
+    ['comfy-url', 'comfyUrl'],
+    ['localai-url', 'localaiUrl'],
+  ]) {
+    if (document.activeElement !== $(id)) $(id).value = serverSettings?.[key] || '';
+  }
   const key = $('localai-key');
   key.placeholder = serverSettings?.localaiKeySet ? 'Set. Type a new one to change it' : 'None';
   $('app-setting').hidden = !snap?.codexInstalled;
@@ -1879,8 +1883,13 @@ async function saveServerSetting(changes) {
 }
 
 $('skip-permissions').addEventListener('change', (e) => saveServerSetting({ skipPermissions: e.currentTarget.checked }));
-$('localai-url').addEventListener('change', (e) => saveServerSetting({ localaiUrl: e.currentTarget.value }));
-$('localai-url').addEventListener('keydown', noSubmit((input) => input.blur()));
+for (const [id, key] of [
+  ['comfy-url', 'comfyUrl'],
+  ['localai-url', 'localaiUrl'],
+]) {
+  $(id).addEventListener('change', (e) => saveServerSetting({ [key]: e.currentTarget.value }));
+  $(id).addEventListener('keydown', noSubmit((input) => input.blur()));
+}
 // The key box is left empty; what's typed replaces the key, and it's cleared
 // once saved, so the key is never shown.
 $('localai-key').addEventListener('change', async (e) => {

@@ -133,7 +133,7 @@ A background run doesn't wait at a prompt when it's done: it exits. When one the
 
 The dashboard also shows what ComfyUI and LocalAI are doing, as cards marked **Comfy** and **LocalAI**. They join the app list in the header once they have something to show. Nothing needs setting up in either, unless LocalAI has an API key.
 
-**ComfyUI.** Comfy Desktop keeps a record of each ComfyUI it runs, with its port, so every installation that's running is found, and a ComfyUI run some other way is looked for on its usual port, 8188. Each job gets a card:
+**ComfyUI.** Comfy Desktop keeps a record of each ComfyUI it runs, with its port, so every installation that's running is found, whatever its port. A ComfyUI run some other way is looked for at Settings → Other apps → *ComfyUI address*, `http://127.0.0.1:8188` unless you set another. Each job gets a card:
 
 - **Working**, the job running now. Comfy Desktop's window title gives its progress, which goes on the card as a bar on Windows. ComfyUI only sends progress to the window that queued a job, so there's no other way to see it.
 - **Queued**, with its place in the queue.
@@ -195,7 +195,7 @@ The gear button in the header opens Settings.
 
 **Groups**: each group's name, colour and folders, and *Sections by group*. See [Groups](#groups).
 
-**Other apps**: LocalAI's address and API key. The key is kept in `~/.tabherd/settings.json` and never sent back to the page. See [ComfyUI and LocalAI](#comfyui-and-localai).
+**Other apps**: ComfyUI's and LocalAI's addresses, and LocalAI's API key. The key is kept in `~/.tabherd/settings.json` and never sent back to the page. See [ComfyUI and LocalAI](#comfyui-and-localai).
 
 **To-dos**: where a to-do's folder is chosen from (the repo menu or any folder), and the folder that choice starts at. See [To-dos](#to-dos).
 

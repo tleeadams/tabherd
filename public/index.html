@@ -193,7 +193,12 @@
       </fieldset>
       <fieldset>
         <legend>Other apps</legend>
-        <p class="settings-help">ComfyUI's jobs and LocalAI's models, downloads and agent chats show as cards while they run. Comfy Desktop's ComfyUI is found by itself, as is one on port 8188.</p>
+        <p class="settings-help">ComfyUI's jobs and LocalAI's models, downloads and agent chats show as cards while they run.</p>
+        <label class="field">
+          <span>ComfyUI address</span>
+          <input id="comfy-url" type="text" placeholder="http://127.0.0.1:8188" autocomplete="off" spellcheck="false">
+        </label>
+        <p class="settings-help">For a ComfyUI that Comfy Desktop didn't start. Comfy Desktop's are found by themselves, whatever their port.</p>
         <label class="field">
           <span>LocalAI address</span>
           <input id="localai-url" type="text" placeholder="http://127.0.0.1:8080" autocomplete="off" spellcheck="false">

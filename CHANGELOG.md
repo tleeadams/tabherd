@@ -4,7 +4,7 @@ Notable changes in each release. Version numbers follow [Semantic Versioning](ht
 
 ## Unreleased
 
-- ComfyUI's jobs and LocalAI's models, downloads, agent chats and agent jobs show as cards, marked **Comfy** and **LocalAI**, and join the app list in the header. A ComfyUI job shows as Working, with its progress on Windows, Queued with its place, or Finished with its output image, and has Stop or Cancel and Go to window. A LocalAI model shows the memory it's using and has Unload; downloads show their progress and have Cancel; agent chats show as Working, or Needs you when paused, and have Stop. Finishing dings. Settings → Other apps has LocalAI's address and API key. See [ComfyUI and LocalAI](README.md#comfyui-and-localai).
+- ComfyUI's jobs and LocalAI's models, downloads, agent chats and agent jobs show as cards, marked **Comfy** and **LocalAI**, and join the app list in the header. A ComfyUI job shows as Working, with its progress on Windows, Queued with its place, or Finished with its output image, and has Stop or Cancel and Go to window. A LocalAI model shows the memory it's using and has Unload; downloads show their progress and have Cancel; agent chats show as Working, or Needs you when paused, and have Stop. Finishing dings. Settings → Other apps has ComfyUI's and LocalAI's addresses, and LocalAI's API key; Comfy Desktop's ComfyUIs are found by themselves, on whatever port. See [ComfyUI and LocalAI](README.md#comfyui-and-localai).
 - On Windows, the title-reading helper also reads the main window title of apps without a console, which is how Comfy Desktop's progress is read.
 
 ## 0.4.0 - 2026-11-23

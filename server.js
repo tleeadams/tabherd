@@ -148,6 +148,7 @@ const forPage = (s) => ({ ...s, localaiKey: '', localaiKeySet: Boolean(s.localai
 // Other apps' addresses and keys, from Settings.
 function configureApps() {
   const s = settings.get();
+  comfy.configure({ url: s.comfyUrl });
   localai.configure({ url: s.localaiUrl, key: s.localaiKey });
 }
 configureApps();
