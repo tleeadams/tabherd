@@ -5,6 +5,8 @@ Notable changes in each release. Version numbers follow [Semantic Versioning](ht
 ## Unreleased
 
 - Codex sessions show on the dashboard beside Claude's, and each card says which app it is. A Codex card has its status, with *Needs you* when it's waiting for an approval or an answer, what it's doing, its last reply, model and tokens, and Go to window. Closed Codex sessions are in History, where Resume runs `codex resume`. Catch up, Stop and starting Codex sessions are still to come. See [Codex](README.md#codex).
+- Groups, each with a name and one of eight colours, gather sessions by folder: a session or to-do is in the group with the nearest folder that holds it. The group button on a card moves it to another group, or none, by hand, and **New group for** makes a group for its folder. A group shows as a coloured line along the top of its cards and its name on the button, in History, and as a dot on its folders in the repo menu. Make and change groups in Settings → Groups, where *Sections by group* puts each group's cards under its name. See [Groups](README.md#groups).
+- The header has a list for showing one app's sessions, Claude or Codex, once a Codex session is running, and one for showing one group, once there are groups. The counts on the status filters follow them.
 - Tabs the dashboard opens no longer take on the variables of a Codex session the dashboard was started from, which turn off colour and give them that session's IDs.
 
 ## 0.3.2 - 2026-11-22

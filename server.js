@@ -13,6 +13,7 @@ const { scanRepos, resolveRepo, SOURCE_DIR } = require('./lib/repos');
 const settings = require('./lib/settings');
 const history = require('./lib/history');
 const todos = require('./lib/todos');
+const groups = require('./lib/groups');
 
 const PORT = Number(process.env.PORT) || 4317;
 const HOST = '127.0.0.1';
@@ -61,6 +62,11 @@ function currentSnapshot() {
         todos.observe(snap.agents, snap.now);
         snap.todos = todos.pending(snap.now);
         snap.todoStartsIn = todoStartsIn();
+        // Each card's group, worked out here so every browser agrees. A to-do
+        // with no folder is in the group of the folder it will start in.
+        snap.groups = groups.list();
+        for (const a of snap.agents) Object.assign(a, groups.groupOf(a));
+        for (const t of snap.todos) Object.assign(t, groups.groupOf({ id: t.id, cwd: t.cwd || snap.todoStartsIn }));
         // Whether this computer has a terminal the dashboard can drive, for
         // Go to window, Catch up, Start, Resume and the repo menu.
         snap.terminals = terminals.terminals().some((t) => t.available);
@@ -132,7 +138,8 @@ function readJson(req) {
     req.setEncoding('utf8');
     req.on('data', (chunk) => {
       body += chunk;
-      if (body.length > 16384) req.destroy();
+      // Room for every group's folders, at their most.
+      if (body.length > 262144) req.destroy();
     });
     req.on('end', () => {
       try {
@@ -218,6 +225,7 @@ async function todoAction(res, id, name, body) {
     const name = terminals.quote(todo.title.replace(/"/g, '”'));
     const opened = await openClaude(cwd, `${claudeCommand()} --session-id ${sessionId} --name ${name}`);
     if (!opened.ok) return send(res, 500, opened);
+    groups.carry(id, sessionId);
     result = todos.started(id, sessionId);
   }
   if (result.ok) {
@@ -267,7 +275,7 @@ const server = http.createServer(async (req, res) => {
       // A fresh snapshot first, so running sessions aren't mistaken for closed ones.
       await currentSnapshot();
       await history.backfill();
-      return send(res, 200, { ok: true, sessions: history.list() });
+      return send(res, 200, { ok: true, sessions: history.list().map((s) => ({ ...s, ...groups.groupOf(s) })), groups: groups.list() });
     }
 
     const resume = url.pathname.match(/^\/api\/history\/([0-9a-f-]{36})\/resume$/i);
@@ -282,6 +290,20 @@ const server = http.createServer(async (req, res) => {
       const command = past.app === 'codex' ? `codex resume ${past.id}` : `${claudeCommand()} --resume ${past.id}`;
       const result = await openClaude(past.cwd, command);
       return send(res, result.ok ? 200 : 500, result);
+    }
+
+    // Every group at once, from the Settings editor; or one session or to-do
+    // put in a group by hand.
+    if (url.pathname === '/api/groups' || url.pathname === '/api/groups/place') {
+      if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
+      if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
+      const body = await readJson(req);
+      const result = url.pathname === '/api/groups' ? groups.setGroups(body.groups) : groups.place(body.id, body.group === undefined ? 'auto' : body.group);
+      if (result.ok) {
+        cached = null;
+        pushSnapshot();
+      }
+      return send(res, result.ok ? 200 : 400, result);
     }
 
     if (url.pathname === '/api/todos') {

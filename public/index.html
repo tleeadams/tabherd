@@ -28,6 +28,14 @@
       <button type="button" data-filter="working" aria-pressed="false">Working <b id="n-working">0</b></button>
       <button type="button" data-filter="idle" aria-pressed="false">Idle <b id="n-idle">0</b></button>
     </nav>
+    <div class="view-filters">
+      <select id="app-filter" class="view-select" aria-label="Show sessions from" hidden>
+        <option value="all">All apps</option>
+        <option value="claude">Claude</option>
+        <option value="codex">Codex</option>
+      </select>
+      <select id="group-filter" class="view-select" aria-label="Show a group" hidden></select>
+    </div>
     <button type="button" id="todo-new" class="todo-new" title="New to-do: a task to start a Claude session for later" aria-haspopup="dialog" aria-controls="todo-dialog">
       <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path d="M10 4.25v11.5M4.25 10h11.5"/></svg>
       To-do
@@ -68,8 +76,8 @@
   <main>
     <div id="list" class="list"></div>
     <div id="empty" class="empty" hidden>
-      <p class="empty-title">No Claude Code sessions are running.</p>
-      <p>Start one with <code>claude</code> in any terminal and it will appear here within a few seconds.</p>
+      <p class="empty-title">No Claude Code or Codex sessions are running.</p>
+      <p>Start one with <code>claude</code> or <code>codex</code> in any terminal and it will appear here within a few seconds.</p>
     </div>
   </main>
 
@@ -150,6 +158,17 @@
           <span class="choice-text"><b>Keep the list after a reload</b><span>Reloading or reopening the dashboard keeps the notifications you haven't cleared.</span></span>
         </label>
       </fieldset>
+      <fieldset id="groups-setting">
+        <legend>Groups</legend>
+        <p class="settings-help">A session is in the group with a folder that holds it, the nearest one if several do. The group button on a card moves it by hand.</p>
+        <div id="group-editor" class="group-editor"></div>
+        <button type="button" id="group-add" class="btn">Add group</button>
+        <datalist id="group-folders"></datalist>
+        <label class="choice">
+          <input type="checkbox" id="group-sections">
+          <span class="choice-text"><b>Sections by group</b><span>Each group's cards together under its name, and the rest after them.</span></span>
+        </label>
+      </fieldset>
       <fieldset>
         <legend>New sessions</legend>
         <label class="choice">
@@ -189,7 +208,7 @@
           <ul id="excluded-list" class="excluded"></ul>
         </div>
       </fieldset>
-      <p class="settings-foot">Theme, Card size and Notifications are saved in this browser. The rest are saved on this computer, for every browser.</p>
+      <p class="settings-foot">Theme, Card size, Notifications and Sections by group are saved in this browser. The rest are saved on this computer, for every browser.</p>
     </form>
   </dialog>
 
@@ -236,6 +255,8 @@
     <ul id="notes-list" class="notes-list"></ul>
     <p id="notes-empty" class="notes-empty">Nothing waiting. When an agent needs you or finishes, it's listed here until you clear it or the agent gets back to work.</p>
   </div>
+
+  <div id="group-menu" class="menu" popover role="menu" aria-label="Group"></div>
 
   <div id="toast" class="toast" role="status" aria-live="polite" popover="manual"></div>
   <script src="/app.js"></script>

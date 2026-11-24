@@ -107,6 +107,8 @@ Checked that way so far: Windows Terminal; tmux, kitty, WezTerm, GNOME Terminal 
 
 The filters in the header show every session, or only those in one state. **Todo** shows *Needs you* and *Idle* together, along with the to-do cards: everything whose turn it is. *Shell running* counts as Working, not Todo.
 
+Each card says which app the session is, **Claude** or **Codex**. Once a Codex session is running, a list beside the filters shows only one app's sessions, and once there are [groups](#groups), another shows one group, or the sessions in none. The counts on the filters follow both lists, and both are remembered in the browser.
+
 ## Codex
 
 Codex sessions get cards like Claude's, marked **Codex** (Claude's are marked **Claude**). Nothing needs setting up in Codex, and nothing changes if Codex isn't installed. Support is new: the dashboard watches Codex sessions, but doesn't yet drive them.
@@ -117,6 +119,17 @@ Codex sessions get cards like Claude's, marked **Codex** (Claude's are marked **
 - **History** lists closed Codex sessions too, and **Resume** opens your terminal in the session's folder running `codex resume <id>`.
 
 Not yet for Codex: Catch up, Stop, and starting Codex from a to-do or the repo menu. A session Codex runs outside its background service, such as one in an Administrator terminal or started with `--profile` or most `-c` options, isn't shown. After a Codex window closes, its card can stay a short while, until Codex unloads the session.
+
+## Groups
+
+Groups gather sessions by project, client or anything else, each with a name and a colour. Make them in Settings → **Groups**, or from a card: its group button, which reads *No group* while the card is pointed at, has **New group for** the card's folder.
+
+- **By folder.** A group has folders, and a session or to-do in one of them, or in a folder inside it, is in that group. If several groups' folders hold it, the nearest folder wins. New sessions there join with nothing to do. A to-do without a folder goes by the folder it will start in.
+- **By hand.** The group button on a card moves that session or to-do to another group, or to none. It stays there, kept by its session ID so it's still there when resumed, until **Follow its folder again**. A to-do moved by hand passes its group on to the session it starts.
+- **On the card.** The group's colour runs along the top of the card, and its name is on the button. The left edge still shows the status. History shows each session's group, and the repo menu marks a group's folders with a dot in its colour.
+- **Sections.** Settings → Groups → **Sections by group** puts each group's cards under its name, in the order the groups are listed, with the sessions in no group last.
+
+The colours are a set of eight, each tuned for light and dark and kept apart from the status colours. In Settings, a group's folder box suggests the folders and repos from the repo menu, and takes any full path, with `~` for your home folder. Groups are saved in `~/.tabherd/groups.json`, for every browser.
 
 ## To-dos
 
@@ -150,11 +163,13 @@ The gear button in the header opens Settings.
 
 **Notifications**: *Keep the list after a reload* (on by default) saves the notification list, so reloading or reopening the dashboard keeps it.
 
+**Groups**: each group's name, colour and folders, and *Sections by group*. See [Groups](#groups).
+
 **To-dos**: where a to-do's folder is chosen from (the repo menu or any folder), and the folder that choice starts at. See [To-dos](#to-dos).
 
 **Repo menu**: every folder and repo under the repos folder, nested as in the ☰ menu, each with a tick box. Untick one to hide it, and everything inside it, from the menu. What's inside a hidden folder is greyed out but keeps its own setting, so ticking the folder again brings back exactly what was shown before. A folder with some repos hidden says how many, in amber. The filter box works like the menu's. A hidden path that's no longer in the repos folder is listed underneath, with ✕ to remove it.
 
-Theme, Card size and Notifications are saved in the browser, so each browser profile remembers its own choice. The rest are saved by the server, in `~/.tabherd/settings.json`, so every browser shares them.
+Theme, Card size, Notifications and Sections by group are saved in the browser, so each browser profile remembers its own choice. The rest are saved by the server, in `~/.tabherd/settings.json` and `~/.tabherd/groups.json`, so every browser shares them.
 
 ## Catch up
 
@@ -232,7 +247,7 @@ All of it is read-only, from files Claude Code and Codex already write, and from
 
 A session file whose process has exited, or whose PID now belongs to another process, is ignored.
 
-The only files the server writes are its own, in `~/.tabherd`: `settings.json` holds the settings that aren't kept in the browser, `history.json` the closed sessions and `todos.json` the to-dos.
+The only files the server writes are its own, in `~/.tabherd`: `settings.json` holds the settings that aren't kept in the browser, `history.json` the closed sessions, `todos.json` the to-dos and `groups.json` the groups, with the sessions moved between them by hand.
 
 ## Safety
 
