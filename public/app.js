@@ -1247,9 +1247,41 @@ new ResizeObserver(([entry]) => document.documentElement.style.setProperty('--to
   document.querySelector('.top'),
 );
 
-// A group's heading, when the cards are in sections by group.
+// A group's heading, when the cards are in sections by group. It closes the
+// section, hiding its cards, and opens it again. A closed one says how many
+// of its sessions need you.
 function sectionHead(s) {
-  return el('h2', { class: `section-head${s.color ? ` g-${s.color}` : ' none'}` }, el('span', { class: 'dot' }), s.name, el('b', { text: String(s.count) }));
+  return el(
+    'h2',
+    { class: `section-head${s.color ? ` g-${s.color}` : ' none'}` },
+    el(
+      'button',
+      { type: 'button', class: 'section-toggle', 'data-section': s.key, 'aria-expanded': String(!s.closed), onclick: () => toggleSection(s.key) },
+      el('span', { class: 'chev' }),
+      el('span', { class: 'dot' }),
+      s.name,
+      el('b', { text: String(s.count) }),
+    ),
+    s.waiting ? el('span', { class: 'badge s-waiting' }, el('span', { class: 'dot' }), trn(s.waiting, '{n} needs you', '{n} need you')) : null,
+  );
+}
+
+// The sections closed, by group, or "none" for the one of cards in no group.
+// Kept in this browser, like Sections by group.
+const CLOSED_SECTIONS_KEY = 'tabherd:closed-sections';
+let closedSections = new Set();
+try {
+  closedSections = new Set(JSON.parse(localStorage.getItem(CLOSED_SECTIONS_KEY) || '[]'));
+} catch {}
+
+function toggleSection(key) {
+  if (!closedSections.delete(key)) closedSections.add(key);
+  try {
+    localStorage.setItem(CLOSED_SECTIONS_KEY, JSON.stringify([...closedSections]));
+  } catch {}
+  render();
+  // The heading is made again, so the keyboard stays on it.
+  list.querySelector(`.section-toggle[data-section="${CSS.escape(key)}"]`)?.focus();
 }
 
 // The app and group chosen in the header narrow everything, the filters'
@@ -1278,7 +1310,7 @@ function render() {
     ...agents.filter((a) => matchesFilter(f, a, false)).map((a) => [a.id, a, card]),
   ];
   // In sections: each group's cards under its heading, in the groups' order,
-  // then those in no group.
+  // then those in no group. A closed section is its heading alone.
   if (sectionsOn && snap.groups?.length) {
     const items = shown;
     shown = [];
@@ -1286,7 +1318,11 @@ function render() {
       const inGroup = items.filter(([, d]) => (d.group || null) === id);
       if (!inGroup.length) continue;
       const g = groupDef(id);
-      shown.push([`section:${id}`, { name: g ? g.name : tr('No group'), color: g?.color || null, count: inGroup.length }, sectionHead], ...inGroup);
+      const key = id || 'none';
+      const closed = closedSections.has(key);
+      const waiting = closed ? inGroup.filter(([, d]) => d.status === 'waiting').length : 0;
+      shown.push([`section:${id}`, { key, name: g ? g.name : tr('No group'), color: g?.color || null, count: inGroup.length, closed, waiting }, sectionHead]);
+      if (!closed) shown.push(...inGroup);
     }
   }
   // The memory card comes first, whatever the filter.

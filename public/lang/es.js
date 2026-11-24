@@ -297,6 +297,8 @@
   '{n} notifications': '{n} notificaciones',
   '{n} needing you': '{n} te necesitan',
   '{n} agents need you': '{n} agentes te necesitan',
+  '{n} needs you': '{n} te necesita',
+  '{n} need you': '{n} te necesitan',
   '{name} needs you': '{name} te necesita',
   '{name} needs you: {what}': '{name} te necesita: {what}',
   '{n} agents finished': '{n} agentes terminaron',

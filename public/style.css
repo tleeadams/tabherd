@@ -990,9 +990,26 @@ button:focus-visible, a:focus-visible, summary:focus-visible, .msg .text:focus-v
   color: var(--group, var(--muted));
 }
 .section-head:first-child { margin-top: 0; }
-.section-head .dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
-.section-head.none .dot { background: none; border: 1.5px solid currentColor; }
+.section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: -3px 0 -3px -6px;
+  padding: 3px 8px 3px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.section-toggle:hover { background: var(--panel-2); }
+.section-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.section-toggle[aria-expanded='true'] .chev { transform: rotate(45deg); }
+.section-head > .section-toggle > .dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+.section-head.none > .section-toggle > .dot { background: none; border: 1.5px solid currentColor; }
 .section-head b { font-weight: 600; color: var(--faint); }
+.section-head .badge { font-size: 12px; }
 
 /* The memory and models card, across the top of the grid. */
 .memory-card { grid-column: 1 / -1; border-left-color: var(--accent); }
