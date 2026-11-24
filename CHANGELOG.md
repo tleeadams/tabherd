@@ -12,6 +12,7 @@ Notable changes in each release. Version numbers follow [Semantic Versioning](ht
 - Background runs, with `claude -p`, such as a background PR review or a scheduled job, are marked **Background**, without Go to window or Catch up, which they have no window for. When one finishes, the dashboard dings and adds *Finished in the background* to the notifications, where its name resumes it in a terminal. History lists them, tagged, with a switch to hide them. Claude registers them like sessions in a terminal, so before this they looked like ones, with buttons that couldn't work, and ended without a ding. See [Background runs](README.md#background-runs).
 - A session's registry file caught while Claude rewrites it keeps its last reading, so the session no longer drops off the dashboard for a moment.
 - `server.js --once` exits once it has listed the sessions, instead of waiting on the dashboard's helper processes.
+- On Linux, Claude Code running on Node 24 is recognised. Node 24 gives its process the name MainThread, so those sessions were left off the dashboard.
 - Tabs the dashboard opens no longer take on the variables of a Codex session the dashboard was started from, which turn off colour and give them that session's IDs.
 
 ## 0.3.2 - 2026-11-22
