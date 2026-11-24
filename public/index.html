@@ -92,6 +92,10 @@
     </div>
     <div class="drawer-search">
       <input id="repos-filter" type="search" placeholder="Filter repos" aria-label="Filter repos" autocomplete="off" spellcheck="false">
+      <div id="repos-app" class="segmented repos-app" role="radiogroup" aria-label="Open in" hidden>
+        <label><input type="radio" name="repos-app" value="claude">Claude</label>
+        <label><input type="radio" name="repos-app" value="codex">Codex</label>
+      </div>
     </div>
     <nav id="repos-tree" class="tree" aria-label="Repositories"></nav>
     <p id="repos-foot" class="drawer-foot">Click a repo to open a terminal tab there running <code id="repos-command">claude</code>.</p>
@@ -171,9 +175,16 @@
       </fieldset>
       <fieldset>
         <legend>New sessions</legend>
+        <div id="app-setting" hidden>
+          <div class="segmented">
+            <label><input type="radio" name="new-app" value="claude">Claude</label>
+            <label><input type="radio" name="new-app" value="codex">Codex</label>
+          </div>
+          <p class="settings-help">The app the repo menu opens, and to-dos start in unless they name one.</p>
+        </div>
         <label class="choice">
           <input type="checkbox" id="skip-permissions">
-          <span class="choice-text"><b>Skip permission prompts</b><span>Sessions the dashboard opens run <code>claude --dangerously-skip-permissions</code>, so Claude edits files and runs commands without asking. Only for folders you trust.</span></span>
+          <span class="choice-text"><b>Skip permission prompts</b><span>Sessions the dashboard opens run <code>claude --dangerously-skip-permissions</code>, or <code>codex --dangerously-bypass-approvals-and-sandbox</code>, so they edit files and run commands without asking. Only for folders you trust.</span></span>
         </label>
         <div id="terminal-setting" hidden>
           <label class="field">
@@ -226,7 +237,15 @@
         <span>Notes</span>
         <textarea id="todo-notes" rows="7" maxlength="20000"></textarea>
       </label>
-      <p class="settings-help">Nothing here is sent to Claude. To use it as a prompt, copy it into the session once it's started.</p>
+      <label id="todo-app-field" class="field" hidden>
+        <span>Start with</span>
+        <select id="todo-app">
+          <option value="" id="todo-app-default">As in Settings</option>
+          <option value="claude">Claude</option>
+          <option value="codex">Codex</option>
+        </select>
+      </label>
+      <p class="settings-help">Nothing here is sent to the session. To use it as a prompt, copy it in once it's started.</p>
       <div class="confirm-actions">
         <button type="button" id="todo-cancel" class="btn">Cancel</button>
         <button type="submit" id="todo-save" class="btn btn-primary">Add to-do</button>
@@ -237,7 +256,7 @@
   <dialog id="confirm" class="confirm">
     <form method="dialog">
       <h2>Stop <span id="confirm-name"></span>?</h2>
-      <p>This force-ends PID <span id="confirm-pid"></span> along with its shells and MCP servers. Anything the current turn hasn't saved is lost.</p>
+      <p id="confirm-what"></p>
       <p>You can reopen the conversation later with:</p>
       <pre id="confirm-resume"></pre>
       <div class="confirm-actions">

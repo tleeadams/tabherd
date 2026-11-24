@@ -7,9 +7,13 @@ const os = require('os');
 const path = require('path');
 const { EventEmitter } = require('events');
 const { PassThrough } = require('stream');
-const { Rollout, describeCall } = require('../lib/codex-rollout');
+
+// An empty Codex folder, so nothing here talks to a real Codex service.
+process.env.CODEX_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'tabherd-codex-home-'));
+const { Rollout, describeCall, subagentOf } = require('../lib/codex-rollout');
 const { CodexClient, encodeFrame, decodeFrames, mapStatus } = require('../lib/codex-client');
-const { isSessionWindow, matchWindows, titleParts } = require('../lib/codex');
+const codex = require('../lib/codex');
+const { isSessionWindow, matchWindows, titleParts } = codex;
 
 const ID = '01900000-0000-7000-8000-000000000001';
 const at = (s) => `2026-01-02T03:04:${String(s).padStart(2, '0')}.000Z`;
@@ -223,4 +227,56 @@ test("tabs opened from inside Codex don't get its session's variables or plain o
   });
   assert.deepEqual(env, { CODEX_HOME: '/home/a/.codex', CODEX_API_KEY: 'kept', PATH: '/usr/bin' });
   assert.deepEqual(forgetParentSession({ NO_COLOR: '1', TERM: 'xterm-256color' }), { NO_COLOR: '1', TERM: 'xterm-256color' }, "someone's own NO_COLOR stays");
+});
+
+test('new tabs run codex, skipping approvals and the sandbox only when asked', () => {
+  assert.equal(codex.command(), 'codex');
+  assert.equal(codex.command({ skipPermissions: true }), 'codex --dangerously-bypass-approvals-and-sandbox');
+  assert.equal(codex.command({ resume: ID }), `codex resume ${ID}`);
+  assert.equal(codex.command({ skipPermissions: true, resume: ID }), `codex resume --dangerously-bypass-approvals-and-sandbox ${ID}`);
+});
+
+test("a subagent's source names its parent, in either case style", () => {
+  assert.deepEqual(subagentOf({ subagent: { thread_spawn: { parent_thread_id: 'p', agent_nickname: 'Ada', agent_role: 'explorer' } } }), { parentThreadId: 'p', nickname: 'Ada', role: 'explorer' });
+  assert.deepEqual(subagentOf({ subAgent: { threadSpawn: { parentThreadId: 'p' } } }), { parentThreadId: 'p', nickname: null, role: null });
+  assert.deepEqual(subagentOf({ subagent: 'review' }), { parentThreadId: null, nickname: null, role: null });
+  assert.equal(subagentOf('cli'), null);
+  assert.equal(subagentOf({ custom: 'mine' }), null);
+});
+
+const now = () => Math.floor(Date.now() / 1000);
+const thread = (id, extra) => ({ id, cwd: path.join(os.tmpdir(), 'proj'), status: { type: 'idle' }, source: 'cli', createdAt: now(), updatedAt: now(), ...extra });
+
+test("a tab Tabherd opened is matched to the session that starts in its folder", () => {
+  const dir = path.join(os.tmpdir(), 'proj');
+  const older = '01900000-0000-7000-8000-0000000000a1';
+  const fresh = '01900000-0000-7000-8000-0000000000a2';
+  codex.client.threads.clear();
+  codex.client.threads.set(older, thread(older, { createdAt: now() - 600 }));
+  let found = null;
+  codex.expect(dir, (id) => (found = id));
+  codex.snapshot();
+  assert.equal(found, null, "a session from before the tab opened isn't it");
+  codex.client.threads.set(fresh, thread(fresh, { cwd: process.platform === 'win32' ? dir.toUpperCase() : dir }));
+  codex.snapshot();
+  assert.equal(found, fresh);
+  found = null;
+  codex.snapshot();
+  assert.equal(found, null, 'each tab is matched once');
+});
+
+test("a Codex session's subagents are on its card, and stay listed once finished", () => {
+  const parent = '01900000-0000-7000-8000-0000000000b1';
+  const sub = '01900000-0000-7000-8000-0000000000b2';
+  codex.client.threads.clear();
+  codex.client.threads.set(parent, thread(parent, { status: { type: 'active', activeFlags: [] } }));
+  codex.client.threads.set(sub, thread(sub, { status: { type: 'active', activeFlags: [] }, source: { subagent: { thread_spawn: { parent_thread_id: parent, agent_nickname: 'Ada', agent_role: 'explorer' } } } }));
+  let agents = codex.snapshot().agents;
+  assert.deepEqual(agents.map((a) => a.id), [parent], "a subagent doesn't get its own card");
+  assert.deepEqual(agents[0].subagents.running.map((s) => [s.type, s.description, s.status]), [['explorer', 'Ada', 'running']]);
+  codex.client.threads.delete(sub);
+  agents = codex.snapshot().agents;
+  assert.equal(agents[0].subagents.running.length, 0);
+  assert.deepEqual(agents[0].subagents.finished.map((s) => [s.description, s.status]), [['Ada', 'done']]);
+  assert.equal(agents[0].subagents.finishedTotal, 1);
 });

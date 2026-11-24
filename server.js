@@ -14,6 +14,7 @@ const settings = require('./lib/settings');
 const history = require('./lib/history');
 const todos = require('./lib/todos');
 const groups = require('./lib/groups');
+const codex = require('./lib/codex');
 
 const PORT = Number(process.env.PORT) || 4317;
 const HOST = '127.0.0.1';
@@ -24,9 +25,17 @@ const CATCH_UP_PROMPT = (
   process.env.CATCH_UP_PROMPT ||
   "Catch me up: where do things stand? Briefly cover what's done, what's in progress, and anything you need from me."
 ).replace(/\s+/g, ' ');
-// What new tabs run: plain `claude`, so Claude asks before acting, unless
-// Settings says to skip its permission prompts.
+// What new tabs run: plain `claude` or `codex`, so it asks before acting,
+// unless Settings says to skip permission prompts. With `resume`, they carry
+// on that session.
 const claudeCommand = () => (settings.get().skipPermissions ? 'claude --dangerously-skip-permissions' : 'claude');
+function sessionCommand(app, resume = null) {
+  if (app === 'codex') return codex.command({ skipPermissions: settings.get().skipPermissions, resume });
+  return resume ? `${claudeCommand()} --resume ${resume}` : claudeCommand();
+}
+// The app new sessions start in, from Settings: Claude unless Codex is chosen
+// and installed.
+const newSessionApp = () => (settings.get().newSessionApp === 'codex' && codex.installed() ? 'codex' : 'claude');
 // Where a to-do with no folder of its own starts: the Start in folder from
 // Settings, else the repos folder. Claude can make a new project there.
 const todoStartsIn = () => settings.get().todoStartFolder || SOURCE_DIR;
@@ -70,6 +79,9 @@ function currentSnapshot() {
         // Whether this computer has a terminal the dashboard can drive, for
         // Go to window, Catch up, Start, Resume and the repo menu.
         snap.terminals = terminals.terminals().some((t) => t.available);
+        // Whether Codex can be chosen for new sessions, and which app they start in.
+        snap.codexInstalled = codex.installed();
+        snap.newSessionApp = newSessionApp();
         history.observe(snap.agents, snap.now);
         cached = snap;
         cachedAt = Date.now();
@@ -128,9 +140,9 @@ function send(res, status, body, type = 'application/json; charset=utf-8') {
   res.end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
 }
 
-// Opens a tab running Claude in `dir`, in the terminal chosen in Settings.
+// Opens a tab running `command` in `dir`, in the terminal chosen in Settings.
 // The command is always built here, never sent by the page.
-const openClaude = (dir, command = claudeCommand()) => terminals.open(dir, command, { terminal: settings.get().terminal });
+const openTab = (dir, command) => terminals.open(dir, command, { terminal: settings.get().terminal });
 
 function readJson(req) {
   return new Promise((resolve) => {
@@ -161,19 +173,31 @@ async function action(res, sessionId, name) {
     terminals.openFolder(agent.cwd);
     return send(res, 200, { ok: true });
   }
-  // Codex's window is only known when its tab's title names the session, and
-  // typing into it or ending it waits for a way that goes through Codex.
-  if (agent.app === 'codex' && name !== 'focus') {
-    return send(res, 400, { ok: false, error: `${name === 'stop' ? 'Stop' : 'Catch up'} isn't available for Codex sessions yet.` });
-  }
+  // A Codex session's window is only known once its tab's title names it.
   if (name === 'focus' && !agent.pid) {
     return send(res, 409, { ok: false, error: `Couldn't tell which window ${agent.title || agent.name} is in.` });
   }
+  if (name === 'catch-up' && agent.status === 'waiting') {
+    const label = agent.terminalTitle || agent.title || agent.name;
+    return send(res, 409, { ok: false, error: `${label} is waiting on a prompt or dialog. Use Go to window and answer it first.` });
+  }
+  // Codex takes Catch up's prompt through its service, so nothing is typed
+  // into its window, which comes forward if it's known. Stop interrupts the
+  // turn it's running, then ends the Codex in its window.
+  if (agent.app === 'codex' && name === 'catch-up') {
+    const queued = await codex.queuePrompt(agent.id, CATCH_UP_PROMPT);
+    if (!queued.ok) return send(res, 500, queued);
+    const shown = agent.pid ? await terminals.focus(agent.pid) : null;
+    return send(res, 200, { ok: true, queued: true, raised: Boolean(shown?.raised), window: shown?.window || null });
+  }
+  if (agent.app === 'codex' && name === 'stop') {
+    const stopped = await codex.interrupt(agent.id);
+    if (!stopped.ok) return send(res, 500, stopped);
+    if (!agent.pid) return send(res, 200, { ok: true, interrupted: stopped.interrupted, windowLeft: true });
+    const result = await terminals.stop(agent.pid);
+    return send(res, result.ok ? 200 : 500, { ...result, interrupted: stopped.interrupted });
+  }
   if (name === 'focus' || name === 'catch-up') {
-    if (name === 'catch-up' && agent.status === 'waiting') {
-      const label = agent.terminalTitle || agent.name;
-      return send(res, 409, { ok: false, error: `${label} is waiting on a prompt or dialog. Use Go to window and answer it first.` });
-    }
     const prompt = name === 'catch-up' ? CATCH_UP_PROMPT : null;
     const result = await terminals.focus(agent.pid, { send: prompt, statusFile: sessionFile(agent.pid) });
     return send(res, result.ok ? 200 : 500, result);
@@ -218,15 +242,29 @@ async function todoAction(res, id, name, body) {
       const which = todo.cwd ? 'Its folder' : 'The folder to-dos start in';
       return send(res, 400, { ok: false, error: `${which} doesn't exist: ${cwd}` });
     }
-    const sessionId = crypto.randomUUID();
-    // Named after the to-do, which Claude shows in its tab's title and its
-    // session list. Straight double quotes become curly ones: Windows
-    // PowerShell 5.1 mangles them in a program's arguments.
-    const name = terminals.quote(todo.title.replace(/"/g, '”'));
-    const opened = await openClaude(cwd, `${claudeCommand()} --session-id ${sessionId} --name ${name}`);
-    if (!opened.ok) return send(res, 500, opened);
-    groups.carry(id, sessionId);
-    result = todos.started(id, sessionId);
+    if ((todo.app || newSessionApp()) === 'codex') {
+      if (!codex.installed()) return send(res, 400, { ok: false, error: "Codex isn't installed on this computer." });
+      const opened = await openTab(cwd, sessionCommand('codex'));
+      if (!opened.ok) return send(res, 500, opened);
+      // Codex picks its session's ID itself, so the to-do is linked to the
+      // session once it starts, and the session is named after the to-do then.
+      codex.expect(cwd, (threadId) => {
+        todos.linked(id, threadId);
+        groups.carry(id, threadId);
+        codex.rename(threadId, todo.title);
+      });
+      result = todos.started(id, null);
+    } else {
+      const sessionId = crypto.randomUUID();
+      // Named after the to-do, which Claude shows in its tab's title and its
+      // session list. Straight double quotes become curly ones: Windows
+      // PowerShell 5.1 mangles them in a program's arguments.
+      const name = terminals.quote(todo.title.replace(/"/g, '”'));
+      const opened = await openTab(cwd, `${claudeCommand()} --session-id ${sessionId} --name ${name}`);
+      if (!opened.ok) return send(res, 500, opened);
+      groups.carry(id, sessionId);
+      result = todos.started(id, sessionId);
+    }
   }
   if (result.ok) {
     cached = null;
@@ -250,7 +288,8 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/api/repos') {
       const { root, tree, all, count, excludedFolders } = scanRepos(url.searchParams.has('refresh'));
-      return send(res, 200, { root, home: os.homedir(), tree, all, count, excluded: excludedFolders.length, command: claudeCommand() });
+      const app = newSessionApp();
+      return send(res, 200, { root, home: os.homedir(), tree, all, count, excluded: excludedFolders.length, app, command: sessionCommand(app) });
     }
 
     if (url.pathname === '/api/settings') {
@@ -267,7 +306,7 @@ const server = http.createServer(async (req, res) => {
       if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
       const dir = resolveRepo((await readJson(req)).path);
       if (!dir) return send(res, 404, { ok: false, error: 'That repo is not in the list. Rescan and try again.' });
-      const result = await openClaude(dir);
+      const result = await openTab(dir, sessionCommand(newSessionApp()));
       return send(res, result.ok ? 200 : 500, result);
     }
 
@@ -287,8 +326,7 @@ const server = http.createServer(async (req, res) => {
       if (history.isLive(past.id)) return send(res, 409, { ok: false, error: 'That session is already running.' });
       if (!fs.existsSync(past.cwd)) return send(res, 400, { ok: false, error: `Its folder no longer exists: ${past.cwd}` });
       // The ID comes from the history's own records, which only hold UUIDs.
-      const command = past.app === 'codex' ? `codex resume ${past.id}` : `${claudeCommand()} --resume ${past.id}`;
-      const result = await openClaude(past.cwd, command);
+      const result = await openTab(past.cwd, sessionCommand(past.app || 'claude', past.id));
       return send(res, result.ok ? 200 : 500, result);
     }
 

@@ -111,14 +111,17 @@ Each card says which app the session is, **Claude** or **Codex**. Once a Codex s
 
 ## Codex
 
-Codex sessions get cards like Claude's, marked **Codex** (Claude's are marked **Claude**). Nothing needs setting up in Codex, and nothing changes if Codex isn't installed. Support is new: the dashboard watches Codex sessions, but doesn't yet drive them.
+Codex sessions get cards like Claude's, marked **Codex** (Claude's are marked **Claude**), and the dashboard does the same for them as for Claude's. Nothing needs setting up in Codex, and nothing changes if Codex isn't installed.
 
-- **Status** comes from Codex's background service, which runs your Codex sessions and reports each one's state as it changes: *Needs you* when it's waiting for an approval or an answer, *Working* or *Idle*. Tabherd connects to it through `codex app-server proxy`, only once the service is running, and only listens: it starts, resumes and answers nothing.
-- **Activity, model and tokens** come from the session's file in `~/.codex/sessions` (or `$CODEX_HOME/sessions`), read a few new bytes at a time like a Claude transcript.
+- **Status** comes from Codex's background service, which runs your Codex sessions and reports each one's state as it changes: *Needs you* when it's waiting for an approval or an answer, *Working* or *Idle*. Tabherd connects to it through `codex app-server proxy`, and only once the service is running, so it never starts the service itself. It never answers an approval: Codex asks those in the session's window.
+- **Activity, model and tokens** come from the session's file in `~/.codex/sessions` (or `$CODEX_HOME/sessions`), read a few new bytes at a time like a Claude transcript. A session's subagents are listed on its card, as Claude's are.
 - **Go to window** finds the session's tab by its title, which Codex sets to the session's name. A session Codex hasn't named yet is matched only when it's the one unmatched Codex window, so until then its card has no Go to window.
+- **Catch up** sends the question with `codex queue`, through Codex's service, and brings the window forward if it's known. Nothing is typed into the window, so nothing there can be answered by it. An idle session starts on it at once, a busy one after its current turn.
+- **Stop** interrupts the turn the session is running, then ends the Codex in its window. If the window isn't known, it interrupts the turn and says to close the window yourself.
+- **Starting Codex**: the repo menu and to-dos start Claude or Codex, as Settings → New sessions says. The repo menu has the same choice at its top, and a to-do can name its own. A Codex to-do opens `codex` in its folder. Codex chooses its session's ID itself, so the dashboard links the to-do to the first session that starts in that folder within a minute, and names that session after the to-do.
 - **History** lists closed Codex sessions too, and **Resume** opens your terminal in the session's folder running `codex resume <id>`.
 
-Not yet for Codex: Catch up, Stop, and starting Codex from a to-do or the repo menu. A session Codex runs outside its background service, such as one in an Administrator terminal or started with `--profile` or most `-c` options, isn't shown. After a Codex window closes, its card can stay a short while, until Codex unloads the session.
+With *Skip permission prompts* on, Codex sessions the dashboard opens or resumes run with `--dangerously-bypass-approvals-and-sandbox`. A session Codex runs outside its background service, such as one in an Administrator terminal or started with `--profile` or most `-c` options, isn't shown. When a Codex window closes, its card goes at once if the dashboard knew the window, or within about a minute, when Codex unloads the session, if it didn't.
 
 ## Groups
 
@@ -135,7 +138,7 @@ The colours are a set of eight, each tuned for light and dark and kept apart fro
 
 **+ To-do** in the header adds a card with a title and notes, for work you want to give Claude later. To-do cards sit at the top of the grid, with a dashed border, and count under All and Todo. Ctrl+Enter saves from the notes box.
 
-**Start** opens Claude in the to-do's folder, in your terminal, running `claude --session-id <new id> --name "<the to-do's title>"`, so the session is named after the to-do in its tab's title and Claude's session list. A to-do doesn't need a folder: without one, it starts in Settings → To-dos → **Start in**, your repos folder unless you set another, where Claude can make a new project. The card says where it will start.
+**Start** opens Claude in the to-do's folder, in your terminal, running `claude --session-id <new id> --name "<the to-do's title>"`, so the session is named after the to-do in its tab's title and Claude's session list. Once Codex is installed, the to-do's **Start with** chooses Claude or Codex, or leaves it to Settings; for Codex, see [Codex](#codex). A to-do doesn't need a folder: without one, it starts in Settings → To-dos → **Start in**, your repos folder unless you set another, where Claude can make a new project. The card says where it will start.
 
 **Choose folder** picks one first, from where Settings → To-dos says:
 
@@ -152,7 +155,7 @@ When the session closes, the to-do goes too. Its title and notes stay with the s
 
 The gear button in the header opens Settings.
 
-**New sessions**: *Skip permission prompts* (off by default) makes every session the dashboard opens, from the repo menu, Resume or a to-do, run `claude --dangerously-skip-permissions`. Claude then edits files and runs commands without asking first. Only turn it on if you'd run Claude that way yourself in those folders. *Terminal* chooses which terminal they open in, where there's more than one; see [Platform support](#platform-support).
+**New sessions**: once Codex is installed, *Claude* or *Codex* chooses the app the repo menu opens, and to-dos start in unless they name one. *Skip permission prompts* (off by default) makes every session the dashboard opens, from the repo menu, Resume or a to-do, run `claude --dangerously-skip-permissions`, or `codex --dangerously-bypass-approvals-and-sandbox`. They then edit files and run commands without asking first. Only turn it on if you'd run them that way yourself in those folders. *Terminal* chooses which terminal they open in, where there's more than one; see [Platform support](#platform-support).
 
 **Theme**: *System* (the default) follows the system's light or dark mode. *Light* or *Dark* sets one regardless.
 
@@ -178,6 +181,8 @@ Theme, Card size, Notifications and Sections by group are saved in the browser, 
 The keystrokes go to that session only, never to whichever window has focus, so they can't land in the wrong place. On Windows they go straight into the session's console input, with Enter sent on its own a moment after the text. On macOS and Linux the terminal's own scripting, or tmux, types into the session's tab: the prompt is marked as a paste and Enter follows it. Either way Claude Code submits the prompt rather than treating Enter as part of a paste. If the session is busy, Claude Code queues the question until its current step finishes.
 
 Catch up is disabled while a session is waiting on a permission prompt or dialog, where typing and Enter could answer it. The script checks the session's status again just before typing. If you've half-typed something in that session's prompt box, the question is added to the end of it and sent with it.
+
+A Codex session gets the question through Codex's own service instead, without typing; see [Codex](#codex).
 
 ## Dings
 
@@ -251,7 +256,7 @@ The only files the server writes are its own, in `~/.tabherd`: `settings.json` h
 
 ## Safety
 
-The server listens on `127.0.0.1` only and rejects requests with any other `Host` header, so other web pages can't read your prompts through DNS rebinding. The session actions, opening a repo, resuming a closed session, the to-do actions and saving settings all need a per-run token that only the served page has. A to-do's title reaches the folder picker only as an environment variable, never as part of a command. The session actions also work only on a session that is currently verified as live. **Stop** ends the session and its child processes, after you confirm: `taskkill /T /F` on Windows; on macOS and Linux, SIGTERM and then SIGKILL two seconds later for any still running. Sessions the dashboard opens ask before acting, as Claude Code does by default, unless you turn on *Skip permission prompts*.
+The server listens on `127.0.0.1` only and rejects requests with any other `Host` header, so other web pages can't read your prompts through DNS rebinding. The session actions, opening a repo, resuming a closed session, the to-do actions and saving settings all need a per-run token that only the served page has. A to-do's title reaches the folder picker only as an environment variable, never as part of a command. The session actions also work only on a session that is currently verified as live. **Stop** ends the session and its child processes, after you confirm: `taskkill /T /F` on Windows; on macOS and Linux, SIGTERM and then SIGKILL two seconds later for any still running. For a Codex session, it first interrupts the session's turn through Codex's service. Sessions the dashboard opens ask before acting, as Claude Code does by default, unless you turn on *Skip permission prompts*.
 
 To report a security problem, see [SECURITY.md](SECURITY.md).
 

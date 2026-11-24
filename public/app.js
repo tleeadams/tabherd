@@ -173,8 +173,11 @@ const post = (agent, action) => api(`/api/agents/${agent.id}/${action}`);
 // The server says whether this computer has a terminal it can drive. A Codex
 // session's window is known once its tab's title names it.
 const canFocus = (a) => Boolean(snap?.terminals) && (!a.kind || a.kind === 'interactive') && Boolean(a.pid);
-// Catch up and Stop for Codex are still to come.
-const canDrive = (a) => canFocus(a) && a.app !== 'codex';
+// Codex takes Catch up's prompt through its own service, so it doesn't need
+// the window; Claude's is typed into the window.
+const canCatchUp = (a) => (a.app === 'codex' ? !a.kind || a.kind === 'interactive' : canFocus(a));
+// The app a to-do starts: its own choice, or the one Settings names.
+const todoApp = (t) => t.app || snap?.newSessionApp || 'claude';
 
 async function goToWindow(a, button) {
   if (button) button.disabled = true;
@@ -194,10 +197,12 @@ async function catchUp(a, button) {
   button.disabled = true;
   try {
     const r = await post(a, 'catch-up');
-    const where = r.raised ? '' : ' Its window stayed in the background.';
+    // A Codex session's window may not be known, which isn't worth a mention.
+    const where = r.raised || (a.app === 'codex' && !a.pid) ? '' : ' Its window stayed in the background.';
+    const after = a.app === 'codex' ? 'turn' : 'step';
     toast(
       a.status === 'busy'
-        ? `Queued for ${displayName(a)}. It will answer after its current step.${where}`
+        ? `Queued for ${displayName(a)}. It will answer after its current ${after}.${where}`
         : `Asked ${displayName(a)} to catch you up.${where}`,
     );
     refresh();
@@ -469,7 +474,7 @@ function actions(a) {
     'div',
     { class: 'actions' },
     canFocus(a) ? btn('Go to window', (e) => goToWindow(a, e.currentTarget), 'btn-primary') : null,
-    canDrive(a)
+    canCatchUp(a)
       ? btn('Catch up', (e) => catchUp(a, e.currentTarget), 'btn-accent', {
           disabled: waiting,
           title: waiting
@@ -493,7 +498,7 @@ function actions(a) {
       await copy(resumeCommand(a));
       toast('Resume command copied');
     }),
-    a.app !== 'codex' ? btn('Stop…', () => confirmStop(a), 'btn-stop') : null,
+    btn('Stop…', () => confirmStop(a), 'btn-stop'),
   );
 }
 
@@ -575,17 +580,21 @@ function editTodo(t) {
   $('todo-save').textContent = t ? 'Save' : 'Add to-do';
   $('todo-title').value = t?.title || '';
   $('todo-notes').value = t?.notes || '';
+  // Which app it starts in, once Codex is installed too.
+  $('todo-app-field').hidden = !snap?.codexInstalled;
+  $('todo-app-default').textContent = `As in Settings (${APPS[snap?.newSessionApp] || APPS.claude})`;
+  $('todo-app').value = t?.app || '';
   $('todo-dialog').showModal();
   $('todo-title').focus();
 }
 
-// A to-do with no folder starts in the one Settings names, where Claude can
-// make a new project.
+// A to-do with no folder starts in the one Settings names, where Claude or
+// Codex can make a new project.
 async function startTodo(t, button) {
   if (button) button.disabled = true;
   try {
     await api(`/api/todos/${t.id}/start`);
-    toast(`Starting Claude in ${shortPath(t.cwd || snap?.todoStartsIn || '')}`);
+    toast(`Starting ${APPS[todoApp(t)]} in ${shortPath(t.cwd || snap?.todoStartsIn || '')}`);
   } catch (err) {
     toast(err.message, true);
   } finally {
@@ -655,6 +664,8 @@ function todoCard(t) {
       since(t.starting ? t.startedAt : t.createdAt),
       el('span', { class: 'spacer' }),
       groupChip(t, t.cwd || snap?.todoStartsIn),
+      // The app it will start, once there's a choice.
+      snap?.codexInstalled ? appTag({ app: todoApp(t) }) : null,
     ),
     el('h2', { class: 'name', text: t.title }),
     el(
@@ -671,7 +682,7 @@ function todoCard(t) {
         'div',
         { class: 'activity' },
         t.starting
-          ? el('div', { class: 'now' }, el('div', { class: 'now-row' }, el('span', { class: 'what', text: 'Opening Claude' }), el('span', { class: 'detail', text: 'in a new terminal tab' })))
+          ? el('div', { class: 'now' }, el('div', { class: 'now-row' }, el('span', { class: 'what', text: `Opening ${APPS[todoApp(t)]}` }), el('span', { class: 'detail', text: 'in a new terminal tab' })))
           : null,
         stalled
           ? el(
@@ -689,7 +700,7 @@ function todoCard(t) {
       drivable
         ? btn(stalled ? 'Start again' : 'Start', (e) => startTodo(t, e.currentTarget), 'btn-primary', {
             disabled: t.starting,
-            title: `Open a terminal tab in ${startsIn} running Claude`,
+            title: `Open a terminal tab in ${startsIn} running ${APPS[todoApp(t)]}`,
           })
         : null,
       drivable ? btn(t.cwd ? 'Change folder' : 'Choose folder', (e) => chooseTodoFolder(t, false, e.currentTarget), '', { disabled: t.starting }) : null,
@@ -706,7 +717,7 @@ $('todo-form').addEventListener('submit', async (e) => {
   const save = $('todo-save');
   save.disabled = true;
   try {
-    const body = { title: $('todo-title').value, notes: $('todo-notes').value };
+    const body = { title: $('todo-title').value, notes: $('todo-notes').value, app: $('todo-app').value || null };
     await api(editingTodo ? `/api/todos/${editingTodo.id}` : '/api/todos', body);
     $('todo-dialog').close();
     refresh();
@@ -1083,14 +1094,19 @@ function connect() {
 function confirmStop(a) {
   const dialog = $('confirm');
   $('confirm-name').textContent = displayName(a);
-  $('confirm-pid').textContent = a.pid;
+  // Codex runs the session in its background service: Stop interrupts its
+  // turn there, then ends the Codex in its window, if that's known.
+  $('confirm-what').textContent =
+    a.app === 'codex'
+      ? `This interrupts its current turn${a.pid ? ` and ends Codex in its window, PID ${a.pid}` : ''}. What the turn hasn't finished is lost.${a.pid ? '' : " Its window isn't known, so close that yourself."}`
+      : `This force-ends PID ${a.pid} along with its shells and MCP servers. Anything the current turn hasn't saved is lost.`;
   $('confirm-resume').textContent = resumeCommand(a);
   dialog.returnValue = '';
   dialog.onclose = async () => {
     if (dialog.returnValue !== 'stop') return;
     try {
-      await post(a, 'stop');
-      toast(`Stopped ${displayName(a)}`);
+      const r = await post(a, 'stop');
+      toast(r.windowLeft ? `Interrupted ${displayName(a)}. Close its window to end it.` : `Stopped ${displayName(a)}`);
     } catch (err) {
       toast(err.message, true);
     }
@@ -1158,7 +1174,7 @@ function repoItem(node, terms) {
         type: 'button',
         class: 'repo',
         'data-path': node.path,
-        title: repoPick ? `Use ${node.path}` : `Open Claude in ${node.path}`,
+        title: repoPick ? `Use ${node.path}` : `Open ${APPS[repoData.app] || APPS.claude} in ${node.path}`,
         onclick: (e) => (repoPick ? pickRepo(node, e.currentTarget) : openRepo(node, e.currentTarget)),
       },
       el('span', { class: 'repo-name', text: node.name }),
@@ -1223,6 +1239,9 @@ async function loadRepos(refresh) {
     $('repos-root').textContent = `${shortPath(repoData.root)} · ${repoData.count} repos${excluded}`;
     $('repos-root').title = excluded ? 'Change what is hidden in Settings' : '';
     $('repos-command').textContent = repoData.command;
+    // Claude or Codex, once Codex is installed; it's the setting in Settings.
+    $('repos-app').hidden = !snap?.codexInstalled;
+    for (const r of document.querySelectorAll('input[name="repos-app"]')) r.checked = r.value === repoData.app;
     renderRepos();
     renderExcluded();
     renderServerSettings();
@@ -1237,7 +1256,7 @@ async function openRepo(node, button) {
   try {
     await api('/api/repos/open', { path: node.path });
     $('repos').close();
-    toast(`Opening Claude in ${node.name}`);
+    toast(`Opening ${APPS[repoData.app] || APPS.claude} in ${node.name}`);
   } catch (err) {
     toast(err.message, true);
   } finally {
@@ -1678,6 +1697,9 @@ function renderTerminalChoice() {
 // The settings kept on the server, other than the repo menu's. The to-do
 // folder box isn't changed under someone typing in it.
 function renderServerSettings() {
+  $('app-setting').hidden = !snap?.codexInstalled;
+  const app = serverSettings?.newSessionApp || 'claude';
+  for (const r of document.querySelectorAll('input[name="new-app"]')) r.checked = r.value === app;
   $('skip-permissions').checked = Boolean(serverSettings?.skipPermissions);
   const source = serverSettings?.todoFolderSource || 'repos';
   for (const r of document.querySelectorAll('input[name="todo-source"]')) r.checked = r.value === source;
@@ -1701,6 +1723,16 @@ async function saveServerSetting(changes) {
 }
 
 $('skip-permissions').addEventListener('change', (e) => saveServerSetting({ skipPermissions: e.currentTarget.checked }));
+for (const r of document.querySelectorAll('input[name="new-app"]')) {
+  r.addEventListener('change', () => saveServerSetting({ newSessionApp: r.value }).then(() => refresh()));
+}
+// The repo menu's own Claude or Codex choice is the same setting.
+for (const r of document.querySelectorAll('input[name="repos-app"]')) {
+  r.addEventListener('change', async () => {
+    if (await saveServerSetting({ newSessionApp: r.value })) await loadRepos(false);
+    refresh();
+  });
+}
 $('terminal-choice').addEventListener('change', (e) => saveServerSetting({ terminal: e.currentTarget.value }));
 for (const r of document.querySelectorAll('input[name="todo-source"]')) {
   r.addEventListener('change', () => saveServerSetting({ todoFolderSource: r.value }));

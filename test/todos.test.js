@@ -91,3 +91,31 @@ test('to-dos are saved to disk', () => {
   const saved = JSON.parse(fs.readFileSync(path.join(process.env.TABHERD_DATA_DIR, 'todos.json'), 'utf8'));
   assert.ok(saved.todos.some((t) => t.id === todo.id && t.title === 'Saved'));
 });
+
+test("a to-do can name the app it starts in, and a Codex one is linked once its session starts", () => {
+  const { todo } = todos.create({ title: 'Try it in Codex', app: 'codex' });
+  assert.equal(todo.app, 'codex');
+  assert.equal(todos.create({ title: 'Anything', app: 'bash' }).todo.app, null, 'only Claude or Codex, else as in Settings');
+  todos.started(todo.id, null);
+  assert.ok(todos.pending(Date.now()).find((t) => t.id === todo.id).starting, 'waiting for Codex to start');
+  const session = '01900000-0000-7000-8000-0000000000c1';
+  todos.linked(todo.id, session);
+  // A Codex session whose window isn't known has no PID.
+  const agent = { id: session, pid: null, startedAt: 1, prompts: 0, app: 'codex' };
+  todos.observe([agent], Date.now());
+  assert.equal(agent.todo.title, 'Try it in Codex', 'on its session card');
+  assert.ok(!todos.pending(Date.now()).some((t) => t.id === todo.id));
+});
+
+test('a Codex to-do whose session closes unused comes back to start again', () => {
+  const { todo } = todos.create({ title: 'Closed unused', app: 'codex' });
+  const session = '01900000-0000-7000-8000-0000000000c2';
+  todos.started(todo.id, null);
+  todos.linked(todo.id, session);
+  todos.observe([{ id: session, pid: null, startedAt: 1, prompts: 0, app: 'codex' }], Date.now());
+  assert.ok(todos.isLive(todo.id));
+  todos.observe([], Date.now());
+  assert.ok(!todos.isLive(todo.id));
+  const back = todos.pending(Date.now()).find((t) => t.id === todo.id);
+  assert.ok(back && !back.startedAt, 'its own card again, ready to start');
+});

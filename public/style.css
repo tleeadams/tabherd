@@ -999,3 +999,9 @@ button:focus-visible, a:focus-visible, summary:focus-visible, .msg .text:focus-v
   font-size: 13px;
 }
 #group-add { margin-bottom: 6px; }
+
+/* Claude or Codex for new sessions, in the repo menu and Settings. */
+.repos-app { margin-top: 8px; }
+.drawer-search .repos-app input { padding: 0; border: 0; }
+#app-setting { margin-bottom: 10px; }
+#app-setting .settings-help { margin-top: 6px; }
