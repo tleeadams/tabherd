@@ -969,6 +969,56 @@ for (const id of ['todo-cancel', 'todo-close']) $(id).addEventListener('click', 
 
 // ---- page ------------------------------------------------------------------
 
+// ---- memory and models ----------------------------------------------------------
+
+// In binary gigabytes, as Task Manager and nvidia-smi count memory.
+const gb = (n) => (n >= 2 ** 30 ? `${(n / 2 ** 30).toFixed(1)} GB` : `${Math.round(n / 2 ** 20)} MB`);
+
+// A bar for memory in use, of what there is: amber past three quarters, red
+// past nine tenths.
+function memoryBar(label, used, total, extra) {
+  const pct = total ? Math.min(100, (used / total) * 100) : 0;
+  const fill = el('i');
+  fill.style.width = `${pct.toFixed(1)}%`;
+  const figure = `${gb(used)} of ${gb(total)}${extra ? ` · ${extra}` : ''}`;
+  return el(
+    'div',
+    { class: 'mem-row', title: `${label}: ${figure}, ${Math.round(pct)}% used` },
+    el('span', { class: 'mem-label', text: label }),
+    el('span', { class: `bar${pct > 90 ? ' high' : pct > 75 ? ' mid' : ''}` }, fill),
+    el('span', { class: 'mem-figure', text: figure }),
+  );
+}
+
+// The card at the top: the computer's RAM and each graphics card's memory,
+// used against what there is, and the models loaded in LocalAI, Ollama and LM
+// Studio, each with Unload.
+function memoryCard({ memory, models }) {
+  const rows = [memoryBar('RAM', memory.ram.used, memory.ram.total)];
+  for (const g of memory.gpus || []) rows.push(memoryBar(g.name, g.used, g.total, Number.isFinite(g.busy) ? `${g.busy}% busy` : null));
+  const modelRows = models.map((m) =>
+    el(
+      'li',
+      { class: 'mem-model' },
+      appTag(m),
+      el('span', { class: 'mem-model-name', text: m.name, title: [m.name, m.where].filter(Boolean).join(' · ') }),
+      el('span', { class: 'mem-model-facts', text: (m.facts || []).map(([k, v]) => `${k} ${v}`).join(' · ') }),
+      (m.actions || []).includes('unload')
+        ? el('button', { type: 'button', class: 'btn btn-stop', onclick: (e) => itemAction(m, 'unload', e.currentTarget) }, 'Unload')
+        : null,
+    ),
+  );
+  return el(
+    'article',
+    { class: 'card memory-card', 'data-id': 'memory' },
+    el('div', { class: 'card-head' }, el('h2', { class: 'mem-title', text: 'Memory and models' })),
+    el('div', { class: 'mem-bars' }, rows),
+    modelRows.length
+      ? el('ul', { class: 'mem-models' }, modelRows)
+      : el('p', { class: 'mem-none', text: 'No models loaded in LocalAI, Ollama or LM Studio.' }),
+  );
+}
+
 // A group's heading, when the cards are in sections by group.
 function sectionHead(s) {
   return el('h2', { class: `section-head${s.color ? ` g-${s.color}` : ' none'}` }, el('span', { class: 'dot' }), s.name, el('b', { text: String(s.count) }));
@@ -981,7 +1031,11 @@ function render() {
   // counts included. To-dos start Claude, so they count as Claude's.
   const inView = (x) =>
     (appFilter === 'all' || (x.app || 'claude') === appFilter) && (groupFilter === 'all' || (groupFilter === 'none' ? !x.group : x.group === groupFilter));
-  const agents = snap.agents.filter(inView).sort((x, y) => status(x).rank - status(y).rank || x.startedAt - y.startedAt);
+  // Loaded models go on the memory card, not in the grid.
+  const models = snap.agents.filter((a) => a.kind === 'model' && inView(a));
+  const agents = snap.agents
+    .filter((a) => a.kind !== 'model' && inView(a))
+    .sort((x, y) => status(x).rank - status(y).rank || x.startedAt - y.startedAt);
   const todos = (snap.todos || []).filter(inView).sort((x, y) => x.createdAt - y.createdAt);
   const counts = { all: agents.length + todos.length, todo: 0, needs: 0, working: 0, idle: 0 };
   for (const a of agents) counts[status(a).group]++;
@@ -1011,6 +1065,8 @@ function render() {
       shown.push([`section:${id}`, { name: g ? g.name : 'No group', color: g?.color || null, count: inGroup.length }, sectionHead], ...inGroup);
     }
   }
+  // The memory card comes first, whatever the filter.
+  if (snap.memory) shown.unshift(['memory', { memory: snap.memory, models }, memoryCard]);
   const seen = new Set();
   shown.forEach(([id, data, make], i) => {
     seen.add(id);

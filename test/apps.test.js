@@ -268,3 +268,13 @@ test('LM Studio is found on the port its server last used', () => {
   fs.writeFileSync(path.join(home, '.lmstudio', '.internal', 'http-server-config.json'), JSON.stringify({ port: 1235, networkInterface: '127.0.0.1' }));
   assert.equal(lmstudio.lastPort(home), 'http://127.0.0.1:1235');
 });
+
+test("nvidia-smi's lines give each graphics card's memory and load", () => {
+  const memory = require('../lib/memory');
+  assert.deepEqual(memory.parseSmi('0, NVIDIA GeForce RTX 5090 Laptop GPU, 2533, 24463, 3\r\n\r\n'), [
+    { index: 0, name: 'GeForce RTX 5090 Laptop GPU', used: 2533 * 1048576, total: 24463 * 1048576, busy: 3 },
+  ]);
+  assert.deepEqual(memory.parseSmi('No devices were found'), []);
+  const s = memory.snapshot();
+  assert.ok(s.ram.total > 0 && s.ram.used > 0 && s.ram.used <= s.ram.total);
+});
