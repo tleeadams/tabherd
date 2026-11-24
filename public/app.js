@@ -29,7 +29,14 @@ const PERMISSION_MODES = {
   plan: 'plan mode',
   auto: 'auto',
   dontAsk: "don't ask",
+  'never-ask': 'never asks',
 };
+// Which app each session is, on its card and in the history.
+const APPS = { claude: 'Claude', codex: 'Codex' };
+const appTag = (x) => el('span', { class: `app app-${x.app || 'claude'}`, title: x.app === 'codex' ? 'A Codex session' : 'A Claude Code session' }, APPS[x.app] || APPS.claude);
+// The colours a group can have, as the server knows them. Each is set for
+// light and dark in the stylesheet, as .g-<name>.
+const GROUP_COLORS = { rose: 'Rose', orange: 'Orange', olive: 'Olive', teal: 'Teal', indigo: 'Indigo', plum: 'Plum', brown: 'Brown', slate: 'Slate' };
 
 const $ = (id) => document.getElementById(id);
 const list = $('list');
@@ -102,7 +109,7 @@ function shortPath(p) {
 const status = (a) => STATUS[a.status] || STATUS.unknown;
 // What the terminal tab shows, falling back to Claude's own names.
 const displayName = (a) => a.terminalTitle || a.title || a.name;
-const resumeCommand = (a) => `cd "${a.cwd}"; claude --resume ${a.id}`;
+const resumeCommand = (a) => `cd "${a.cwd}"; ${a.app === 'codex' ? 'codex resume' : 'claude --resume'} ${a.id}`;
 
 function toast(message, isError) {
   const t = $('toast');
@@ -163,8 +170,15 @@ async function renewToken() {
 
 const post = (agent, action) => api(`/api/agents/${agent.id}/${action}`);
 
-// The server says whether this computer has a terminal it can drive.
-const canFocus = (a) => Boolean(snap?.terminals) && (!a.kind || a.kind === 'interactive');
+// The server says whether this computer has a terminal it can drive. A Codex
+// session's window is known once its tab's title names it.
+// A background run, with `claude -p`, has no window.
+const canFocus = (a) => Boolean(snap?.terminals) && (!a.kind || a.kind === 'interactive') && !a.background && Boolean(a.pid);
+// Codex takes Catch up's prompt through its own service, so it doesn't need
+// the window; Claude's is typed into the window.
+const canCatchUp = (a) => (a.app === 'codex' ? !a.kind || a.kind === 'interactive' : canFocus(a));
+// The app a to-do starts: its own choice, or the one Settings names.
+const todoApp = (t) => t.app || snap?.newSessionApp || 'claude';
 
 async function goToWindow(a, button) {
   if (button) button.disabled = true;
@@ -184,10 +198,12 @@ async function catchUp(a, button) {
   button.disabled = true;
   try {
     const r = await post(a, 'catch-up');
-    const where = r.raised ? '' : ' Its window stayed in the background.';
+    // A Codex session's window may not be known, which isn't worth a mention.
+    const where = r.raised || (a.app === 'codex' && !a.pid) ? '' : ' Its window stayed in the background.';
+    const after = a.app === 'codex' ? 'turn' : 'step';
     toast(
       a.status === 'busy'
-        ? `Queued for ${displayName(a)}. It will answer after its current step.${where}`
+        ? `Queued for ${displayName(a)}. It will answer after its current ${after}.${where}`
         : `Asked ${displayName(a)} to catch you up.${where}`,
     );
     refresh();
@@ -196,6 +212,114 @@ async function catchUp(a, button) {
   } finally {
     button.disabled = false;
   }
+}
+
+// ---- groups ------------------------------------------------------------------
+
+// The server says which group each session and to-do is in, and whether it
+// was put there by hand (`placed`) or is there by its folder.
+const groupDef = (id) => (id && (snap?.groups || []).find((g) => g.id === id)) || null;
+
+// The group button on a card. Without a group it reads "No group" and only
+// shows while the card is pointed at or focused.
+function groupChip(x, cwd) {
+  const g = groupDef(x.group);
+  const how = x.placed ? 'put there by hand' : 'by its folder';
+  return el(
+    'button',
+    {
+      type: 'button',
+      class: g ? `group-chip g-${g.color}` : 'group-chip none',
+      title: g ? `In ${g.name}, ${how}. Click to change.` : `In no group${x.placed ? ', put there by hand' : ''}. Click to choose one.`,
+      'aria-haspopup': 'menu',
+      onclick: (e) => openGroupMenu(x, cwd, e.currentTarget),
+    },
+    el('span', { class: 'dot' }),
+    g ? g.name : 'No group',
+  );
+}
+
+// The group's name in its colour, where it can't be changed, as in History.
+function groupTag(x) {
+  const g = groupDef(x.group);
+  return g ? el('span', { class: `group-chip static g-${g.color}`, title: `In ${g.name}` }, el('span', { class: 'dot' }), g.name) : null;
+}
+
+async function placeIn(x, group) {
+  try {
+    await api('/api/groups/place', { id: x.id, group });
+    const g = groupDef(group);
+    toast(group === 'auto' ? 'Following its folder again' : g ? `Moved to ${g.name}` : 'Moved out of its group');
+  } catch (err) {
+    toast(err.message, true);
+  }
+  refresh();
+}
+
+// The next colour no group has yet, so new groups look different.
+function freeColor(groups) {
+  const used = new Set(groups.map((g) => g.color));
+  return Object.keys(GROUP_COLORS).find((c) => !used.has(c)) || Object.keys(GROUP_COLORS)[groups.length % 8];
+}
+
+const baseName = (p) => (p || '').split(/[\\/]/).filter(Boolean).pop() || p || '';
+
+// The menu under a card's group button: each group, No group, Follow its
+// folder again (once moved by hand), a new group for the card's folder, and
+// the group settings.
+function openGroupMenu(x, cwd, button) {
+  const menu = $('group-menu');
+  const groups = snap?.groups || [];
+  const close = () => menu.hidePopover();
+  const item = (label, checked, onclick, extra = {}) =>
+    el('button', { type: 'button', class: 'menu-item', role: checked === null ? 'menuitem' : 'menuitemradio', 'aria-checked': checked === null ? null : String(checked), onclick, ...extra }, label);
+  const choose = (group) => () => {
+    close();
+    placeIn(x, group);
+  };
+  const name = el('input', { type: 'text', value: baseName(cwd), maxlength: '40', 'aria-label': 'New group name', autocomplete: 'off', spellcheck: 'false' });
+  const create = async (e) => {
+    e.preventDefault();
+    const g = { id: crypto.randomUUID(), name: name.value.trim(), color: freeColor(groups), folders: [cwd] };
+    if (!g.name) return name.focus();
+    try {
+      await api('/api/groups', { groups: [...groups, g] });
+      // Moved by hand before, it now follows its folder into the new group.
+      if (x.placed) await api('/api/groups/place', { id: x.id, group: 'auto' });
+      close();
+      toast(`Made ${g.name} for ${shortPath(cwd)}`);
+    } catch (err) {
+      toast(err.message, true);
+    }
+    refresh();
+  };
+  const items = [
+    ...groups.map((g) => item([el('span', { class: `dot g-${g.color}` }), g.name], x.group === g.id, choose(g.id))),
+    item([el('span', { class: 'dot none' }), 'No group'], !x.group, choose(null)),
+    x.placed ? item('Follow its folder again', null, choose('auto'), { title: 'Go back to the group its folder is in' }) : null,
+    el('hr'),
+    cwd
+      ? el(
+          'form',
+          { class: 'menu-new', onsubmit: create },
+          el('label', { text: `New group for ${shortPath(cwd)}` }),
+          el('div', { class: 'menu-new-row' }, name, el('button', { type: 'submit', class: 'btn btn-primary' }, 'Make')),
+        )
+      : null,
+    item('Edit groups…', null, () => {
+      close();
+      openSettings('groups-setting');
+    }),
+  ];
+  menu.replaceChildren(...items.filter(Boolean));
+  menu.showPopover();
+  // Under the button, kept on screen.
+  const r = button.getBoundingClientRect();
+  const w = menu.offsetWidth;
+  const h = menu.offsetHeight;
+  menu.style.left = `${Math.max(8, Math.min(r.left, innerWidth - w - 8))}px`;
+  menu.style.top = `${r.bottom + 4 + h > innerHeight - 8 ? Math.max(8, r.top - h - 4) : r.bottom + 4}px`;
+  menu.querySelector('[aria-checked="true"]')?.focus();
 }
 
 // ---- card ------------------------------------------------------------------
@@ -351,7 +475,7 @@ function actions(a) {
     'div',
     { class: 'actions' },
     canFocus(a) ? btn('Go to window', (e) => goToWindow(a, e.currentTarget), 'btn-primary') : null,
-    canFocus(a)
+    canCatchUp(a)
       ? btn('Catch up', (e) => catchUp(a, e.currentTarget), 'btn-accent', {
           disabled: waiting,
           title: waiting
@@ -384,25 +508,30 @@ function card(a) {
   const tags = [];
   if (a.gitBranch) tags.push(el('span', { class: 'tag branch', title: 'Git branch', text: `⎇ ${a.gitBranch}` }));
   if (a.kind && a.kind !== 'interactive') tags.push(el('span', { class: 'tag', text: a.kind }));
-  if (a.entrypoint && a.entrypoint !== 'cli') tags.push(el('span', { class: 'tag', text: a.entrypoint }));
+  if (a.background) tags.push(el('span', { class: 'tag background', title: `Running in the background (${a.entrypoint}), with no window`, text: 'Background' }));
+  else if (a.entrypoint && a.entrypoint !== 'cli') tags.push(el('span', { class: 'tag', text: a.entrypoint }));
   const perm = PERMISSION_MODES[a.permissionMode];
   if (perm) tags.push(el('span', { class: 'tag', title: `Permission mode: ${a.permissionMode}`, text: perm }));
   if (a.version) tags.push(el('span', { text: `v${a.version}` }));
 
   const heading = displayName(a);
   const subtitle = a.title && a.title.toLowerCase() !== heading.toLowerCase() ? a.title : null;
-  const proc = [a.name, `PID ${a.pid}`];
+  const proc = a.app === 'codex' ? [] : [a.name];
+  if (a.pid) proc.push(`PID ${a.pid}`);
   if (a.memBytes) proc.push(`${Math.round(a.memBytes / 1048576)} MB`);
 
+  const g = groupDef(a.group);
   return el(
     'article',
-    { class: `card s-${a.status}`, 'data-id': a.id },
+    { class: `card s-${a.status}${g ? ` grouped g-${g.color}` : ''}`, 'data-id': a.id },
     el(
       'div',
       { class: 'card-head' },
       el('span', { class: `badge s-${a.status}`, title: st.hint }, el('span', { class: 'dot' }), st.label),
       since(a.statusSince),
       el('span', { class: 'spacer' }),
+      groupChip(a, a.cwd),
+      appTag(a),
       el('span', { class: 'proc', title: `Session ${a.id}\nStarted ${new Date(a.startedAt).toLocaleString()}`, text: proc.join(' · ') }),
     ),
     el(
@@ -453,17 +582,21 @@ function editTodo(t) {
   $('todo-save').textContent = t ? 'Save' : 'Add to-do';
   $('todo-title').value = t?.title || '';
   $('todo-notes').value = t?.notes || '';
+  // Which app it starts in, once Codex is installed too.
+  $('todo-app-field').hidden = !snap?.codexInstalled;
+  $('todo-app-default').textContent = `As in Settings (${APPS[snap?.newSessionApp] || APPS.claude})`;
+  $('todo-app').value = t?.app || '';
   $('todo-dialog').showModal();
   $('todo-title').focus();
 }
 
-// A to-do with no folder starts in the one Settings names, where Claude can
-// make a new project.
+// A to-do with no folder starts in the one Settings names, where Claude or
+// Codex can make a new project.
 async function startTodo(t, button) {
   if (button) button.disabled = true;
   try {
     await api(`/api/todos/${t.id}/start`);
-    toast(`Starting Claude in ${shortPath(t.cwd || snap?.todoStartsIn || '')}`);
+    toast(`Starting ${APPS[todoApp(t)]} in ${shortPath(t.cwd || snap?.todoStartsIn || '')}`);
   } catch (err) {
     toast(err.message, true);
   } finally {
@@ -522,14 +655,19 @@ function todoCard(t) {
   const startsIn = shortPath(t.cwd || snap?.todoStartsIn || '');
   // Started, but no session with its ID has turned up.
   const stalled = t.startedAt && !t.starting;
+  const g = groupDef(t.group);
   return el(
     'article',
-    { class: 'card todo-card', 'data-id': TODO_PREFIX + t.id },
+    { class: `card todo-card${g ? ` grouped g-${g.color}` : ''}`, 'data-id': TODO_PREFIX + t.id },
     el(
       'div',
       { class: 'card-head' },
       el('span', { class: `badge s-todo${t.starting ? ' starting' : ''}` }, el('span', { class: 'dot' }), t.starting ? 'Starting' : 'To-do'),
       since(t.starting ? t.startedAt : t.createdAt),
+      el('span', { class: 'spacer' }),
+      groupChip(t, t.cwd || snap?.todoStartsIn),
+      // The app it will start, once there's a choice.
+      snap?.codexInstalled ? appTag({ app: todoApp(t) }) : null,
     ),
     el('h2', { class: 'name', text: t.title }),
     el(
@@ -546,7 +684,7 @@ function todoCard(t) {
         'div',
         { class: 'activity' },
         t.starting
-          ? el('div', { class: 'now' }, el('div', { class: 'now-row' }, el('span', { class: 'what', text: 'Opening Claude' }), el('span', { class: 'detail', text: 'in a new terminal tab' })))
+          ? el('div', { class: 'now' }, el('div', { class: 'now-row' }, el('span', { class: 'what', text: `Opening ${APPS[todoApp(t)]}` }), el('span', { class: 'detail', text: 'in a new terminal tab' })))
           : null,
         stalled
           ? el(
@@ -564,7 +702,7 @@ function todoCard(t) {
       drivable
         ? btn(stalled ? 'Start again' : 'Start', (e) => startTodo(t, e.currentTarget), 'btn-primary', {
             disabled: t.starting,
-            title: `Open a terminal tab in ${startsIn} running Claude`,
+            title: `Open a terminal tab in ${startsIn} running ${APPS[todoApp(t)]}`,
           })
         : null,
       drivable ? btn(t.cwd ? 'Change folder' : 'Choose folder', (e) => chooseTodoFolder(t, false, e.currentTarget), '', { disabled: t.starting }) : null,
@@ -581,7 +719,7 @@ $('todo-form').addEventListener('submit', async (e) => {
   const save = $('todo-save');
   save.disabled = true;
   try {
-    const body = { title: $('todo-title').value, notes: $('todo-notes').value };
+    const body = { title: $('todo-title').value, notes: $('todo-notes').value, app: $('todo-app').value || null };
     await api(editingTodo ? `/api/todos/${editingTodo.id}` : '/api/todos', body);
     $('todo-dialog').close();
     refresh();
@@ -602,36 +740,62 @@ for (const id of ['todo-cancel', 'todo-close']) $(id).addEventListener('click', 
 
 // ---- page ------------------------------------------------------------------
 
+// A group's heading, when the cards are in sections by group.
+function sectionHead(s) {
+  return el('h2', { class: `section-head${s.color ? ` g-${s.color}` : ' none'}` }, el('span', { class: 'dot' }), s.name, el('b', { text: String(s.count) }));
+}
+
 function render() {
   if (!snap) return;
-  const agents = [...snap.agents].sort((x, y) => status(x).rank - status(y).rank || x.startedAt - y.startedAt);
-  const todos = [...(snap.todos || [])].sort((x, y) => x.createdAt - y.createdAt);
+  renderViewFilters();
+  // The app and group chosen in the header narrow everything, the status
+  // counts included. To-dos start Claude, so they count as Claude's.
+  const inView = (x) =>
+    (appFilter === 'all' || (x.app || 'claude') === appFilter) && (groupFilter === 'all' || (groupFilter === 'none' ? !x.group : x.group === groupFilter));
+  const agents = snap.agents.filter(inView).sort((x, y) => status(x).rank - status(y).rank || x.startedAt - y.startedAt);
+  const todos = (snap.todos || []).filter(inView).sort((x, y) => x.createdAt - y.createdAt);
   const counts = { all: agents.length + todos.length, todo: 0, needs: 0, working: 0, idle: 0 };
   for (const a of agents) counts[status(a).group]++;
   counts.todo = counts.needs + counts.idle + todos.length;
   for (const [k, v] of Object.entries(counts)) $(`n-${k}`).textContent = v;
   for (const k of ['todo', 'needs']) document.querySelector(`[data-filter="${k}"]`).classList.toggle('has', counts.needs > 0);
-  document.title = counts.needs ? `(${counts.needs}) Tabherd` : 'Tabherd';
+  // The tab's title counts every session that needs you, whatever's shown.
+  const needsYou = snap.agents.filter((a) => a.status === 'waiting').length;
+  document.title = needsYou ? `(${needsYou}) Tabherd` : 'Tabherd';
   $('host').textContent = snap.host;
 
   const groups = FILTER_GROUPS[filter] || [filter];
   // To-do cards come first, under All and Todo.
-  const shown = [
+  let shown = [
     ...(filter === 'all' || filter === 'todo' ? todos.map((t) => [TODO_PREFIX + t.id, t, todoCard]) : []),
     ...agents.filter((a) => filter === 'all' || groups.includes(status(a).group)).map((a) => [a.id, a, card]),
   ];
+  // In sections: each group's cards under its heading, in the groups' order,
+  // then those in no group.
+  if (sectionsOn && snap.groups?.length) {
+    const items = shown;
+    shown = [];
+    for (const id of [...snap.groups.map((g) => g.id), null]) {
+      const inGroup = items.filter(([, d]) => (d.group || null) === id);
+      if (!inGroup.length) continue;
+      const g = groupDef(id);
+      shown.push([`section:${id}`, { name: g ? g.name : 'No group', color: g?.color || null, count: inGroup.length }, sectionHead], ...inGroup);
+    }
+  }
   const seen = new Set();
   shown.forEach(([id, data, make], i) => {
     seen.add(id);
-    const key = JSON.stringify(data) + subsOpen.get(id);
+    // A group's name or colour can change without the card changing.
+    const key = JSON.stringify(data) + subsOpen.get(id) + JSON.stringify(groupDef(data.group));
     let entry = cards.get(id);
     if (!entry || entry.key !== key) {
       const node = make(data);
       if (entry) {
         // Keep the card where it was scrolled to, so updates don't jump it.
-        const scrolled = entry.node.querySelector('.card-body').scrollTop;
+        const scrolled = entry.node.querySelector('.card-body')?.scrollTop;
         entry.node.replaceWith(node);
-        node.querySelector('.card-body').scrollTop = scrolled;
+        const body = node.querySelector('.card-body');
+        if (body && scrolled) body.scrollTop = scrolled;
       }
       entry = { key, node };
       cards.set(id, entry);
@@ -644,13 +808,58 @@ function render() {
       cards.delete(id);
     }
   }
-  $('empty').hidden = agents.length + todos.length > 0;
-  if (!agents.length && !todos.length) $('empty').querySelector('.empty-title').textContent = 'No Claude Code sessions are running.';
-  else if (!shown.length) {
-    $('empty').hidden = false;
-    $('empty').querySelector('.empty-title').textContent = 'No sessions match this filter.';
-  }
+  const nothing = !snap.agents.length && !snap.todos?.length;
+  $('empty').hidden = !nothing && shown.length > 0;
+  $('empty').querySelector('.empty-title').textContent = nothing ? 'No Claude Code or Codex sessions are running.' : 'No sessions match this filter.';
 }
+
+// The app and group filters in the header. Each shows once there's a choice:
+// the app filter once a Codex session is running, the group filter once
+// there are groups. Kept in this browser.
+const VIEW_KEY = 'tabherd:view';
+let appFilter = 'all';
+let groupFilter = 'all';
+try {
+  const saved = JSON.parse(localStorage.getItem(VIEW_KEY) || '{}');
+  if (['all', 'claude', 'codex'].includes(saved.app)) appFilter = saved.app;
+  if (typeof saved.group === 'string') groupFilter = saved.group;
+} catch {}
+
+function saveView() {
+  try {
+    localStorage.setItem(VIEW_KEY, JSON.stringify({ app: appFilter, group: groupFilter }));
+  } catch {}
+}
+
+function renderViewFilters() {
+  const groups = snap?.groups || [];
+  if (!['all', 'none'].includes(groupFilter) && !groups.some((g) => g.id === groupFilter)) groupFilter = 'all';
+  const app = $('app-filter');
+  app.hidden = appFilter === 'all' && !snap.agents.some((a) => a.app === 'codex');
+  app.value = appFilter;
+  const select = $('group-filter');
+  select.hidden = !groups.length && groupFilter === 'all';
+  const options = [['all', 'All groups'], ...groups.map((g) => [g.id, g.name]), ['none', 'No group']];
+  const signature = JSON.stringify(options);
+  if (select.dataset.signature !== signature) {
+    select.replaceChildren(...options.map(([value, text]) => el('option', { value, text })));
+    select.dataset.signature = signature;
+  }
+  select.value = groupFilter;
+  const g = groupDef(groupFilter);
+  select.className = `view-select${g ? ` chosen g-${g.color}` : ''}`;
+}
+
+$('app-filter').addEventListener('change', (e) => {
+  appFilter = e.currentTarget.value;
+  saveView();
+  render();
+});
+$('group-filter').addEventListener('change', (e) => {
+  groupFilter = e.currentTarget.value;
+  saveView();
+  render();
+});
 
 // ---- updates and dings ---------------------------------------------------------
 
@@ -662,7 +871,10 @@ try {
 } catch {}
 let audio = null;
 let lastDingAt = 0;
-let lastStatus = null;
+// The agents in the last update, to see what changed.
+let lastAgents = null;
+// Background runs stopped from here, which haven't finished on their own.
+const stoppedHere = new Set();
 
 function audioContext() {
   if (!audio) {
@@ -732,15 +944,20 @@ function unlockAudio() {
 function notableChanges(agents) {
   const needs = [];
   const done = [];
-  if (lastStatus) {
+  if (lastAgents) {
     for (const a of agents) {
-      const before = lastStatus.get(a.id);
+      const before = lastAgents.get(a.id)?.status;
       if (before === undefined || before === a.status) continue;
       if (a.status === 'waiting') needs.push(a);
       else if (before === 'busy' && (a.status === 'idle' || a.status === 'shell')) done.push(a);
     }
+    // A background run doesn't wait at a prompt when it's done: it exits.
+    const running = new Set(agents.map((a) => a.id));
+    for (const [id, a] of lastAgents) {
+      if (a.background && !running.has(id) && !stoppedHere.delete(id)) done.push(a);
+    }
   }
-  lastStatus = new Map(agents.map((a) => [a.id, a.status]));
+  lastAgents = new Map(agents.map((a) => [a.id, a]));
   return { needs, done };
 }
 
@@ -795,7 +1012,7 @@ function updateNotes(agents, { needs, done }) {
   });
   const added = [
     ...needs.map((a) => ({ id: a.id, kind: 'needs', name: displayName(a), detail: a.waitingFor || '', at: snap.now })),
-    ...done.map((a) => ({ id: a.id, kind: 'done', name: displayName(a), detail: '', at: snap.now })),
+    ...done.map((a) => ({ id: a.id, kind: 'done', name: displayName(a), detail: '', background: Boolean(a.background), at: snap.now })),
   ];
   if (added.length) notes = [...added, ...notes.filter((n) => !added.some((x) => x.id === n.id))];
   if (added.length || notes.length !== before) saveNotes();
@@ -814,14 +1031,16 @@ function renderNotes() {
     const a = live.get(n.id);
     return { n, a, name: a ? displayName(a) : n.name, focus: Boolean(a && canFocus(a)) };
   });
+  // A finished background run is picked up again from the history.
+  const resumable = (n) => n.background && Boolean(snap?.terminals);
   // Rebuilt only when something shown changes, so an open list doesn't flicker.
-  const key = JSON.stringify(rows.map((r) => [r.n.id, r.n.kind, r.n.at, r.name, Boolean(r.a), r.focus]));
+  const key = JSON.stringify(rows.map((r) => [r.n.id, r.n.kind, r.n.at, r.name, Boolean(r.a), r.focus, resumable(r.n)]));
   if (key === notesKey) return;
   notesKey = key;
   $('notes-list').replaceChildren(
     ...rows.map(({ n, a, name, focus }) => {
-      const what = [n.kind === 'needs' ? `Needs you${n.detail ? `: ${n.detail}` : ''}` : 'Finished'];
-      if (!a) what.push('session closed');
+      const what = [n.kind === 'needs' ? `Needs you${n.detail ? `: ${n.detail}` : ''}` : n.background ? 'Finished in the background' : 'Finished'];
+      if (!a && !n.background) what.push('session closed');
       return el(
         'li',
         { class: `note k-${n.kind}` },
@@ -831,7 +1050,9 @@ function renderNotes() {
           { class: 'note-text' },
           focus
             ? el('button', { type: 'button', class: 'name-link note-name', title: 'Go to this session’s window', onclick: (e) => goToWindow(a, e.currentTarget) }, name)
-            : el('span', { class: 'note-name', text: name }),
+            : !a && resumable(n)
+              ? el('button', { type: 'button', class: 'name-link note-name', title: 'Open a terminal tab in its folder and continue the conversation', onclick: (e) => resumeNote(n, e.currentTarget) }, name)
+              : el('span', { class: 'note-name', text: name }),
           el('span', { class: 'note-what', text: what.join(' · '), title: what.join(' · ') }),
         ),
         since(n.at, ' ago'),
@@ -850,6 +1071,20 @@ function renderNotes() {
 }
 
 $('notes-clear').addEventListener('click', () => clearNotes());
+
+// Resumes a finished background run from its notification, as History does.
+async function resumeNote(n, button) {
+  button.disabled = true;
+  try {
+    await api(`/api/history/${n.id}/resume`);
+    toast(`Resuming ${n.name}`);
+    clearNotes(n);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
 
 function apply(next) {
   snap = next;
@@ -887,14 +1122,20 @@ function connect() {
 function confirmStop(a) {
   const dialog = $('confirm');
   $('confirm-name').textContent = displayName(a);
-  $('confirm-pid').textContent = a.pid;
+  // Codex runs the session in its background service: Stop interrupts its
+  // turn there, then ends the Codex in its window, if that's known.
+  $('confirm-what').textContent =
+    a.app === 'codex'
+      ? `This interrupts its current turn${a.pid ? ` and ends Codex in its window, PID ${a.pid}` : ''}. What the turn hasn't finished is lost.${a.pid ? '' : " Its window isn't known, so close that yourself."}`
+      : `This force-ends PID ${a.pid} along with its shells and MCP servers. Anything the current turn hasn't saved is lost.`;
   $('confirm-resume').textContent = resumeCommand(a);
   dialog.returnValue = '';
   dialog.onclose = async () => {
     if (dialog.returnValue !== 'stop') return;
     try {
-      await post(a, 'stop');
-      toast(`Stopped ${displayName(a)}`);
+      if (a.background) stoppedHere.add(a.id);
+      const r = await post(a, 'stop');
+      toast(r.windowLeft ? `Interrupted ${displayName(a)}. Close its window to end it.` : `Stopped ${displayName(a)}`);
     } catch (err) {
       toast(err.message, true);
     }
@@ -940,6 +1181,16 @@ function repoMatches(node, terms) {
   return terms.every((t) => p.includes(t)) && terms.some((t) => name.includes(t));
 }
 
+// A dot in the colour of the group that has this folder or repo among its
+// folders, if one does.
+function folderGroupDot(node) {
+  if (!repoData) return null;
+  const sep = repoSep();
+  const full = `${repoData.root}${sep}${node.path.split('/').join(sep)}`.toLowerCase();
+  const g = (snap?.groups || []).find((x) => x.folders.some((f) => f.toLowerCase() === full));
+  return g ? el('span', { class: `group-dot g-${g.color}`, title: `Group: ${g.name}` }) : null;
+}
+
 function repoItem(node, terms) {
   if (terms.length && !repoMatches(node, terms)) return null;
   const live = sessionsIn(node.path);
@@ -952,12 +1203,13 @@ function repoItem(node, terms) {
         type: 'button',
         class: 'repo',
         'data-path': node.path,
-        title: repoPick ? `Use ${node.path}` : `Open Claude in ${node.path}`,
+        title: repoPick ? `Use ${node.path}` : `Open ${APPS[repoData.app] || APPS.claude} in ${node.path}`,
         onclick: (e) => (repoPick ? pickRepo(node, e.currentTarget) : openRepo(node, e.currentTarget)),
       },
       el('span', { class: 'repo-name', text: node.name }),
+      folderGroupDot(node),
       live
-        ? el('span', { class: 'repo-live', title: `${live} Claude session${live === 1 ? '' : 's'} running here` }, el('span', { class: 'dot' }), String(live))
+        ? el('span', { class: 'repo-live', title: `${live} session${live === 1 ? '' : 's'} running here` }, el('span', { class: 'dot' }), String(live))
         : null,
     ),
   );
@@ -987,6 +1239,7 @@ function folderItem(node, terms) {
         {},
         el('span', { class: 'chev' }),
         el('span', { class: 'folder-name', text: node.name }),
+        folderGroupDot(node),
         el('span', { class: 'folder-count', text: String(list.querySelectorAll('.repo').length) }),
       ),
       list,
@@ -1015,9 +1268,13 @@ async function loadRepos(refresh) {
     $('repos-root').textContent = `${shortPath(repoData.root)} · ${repoData.count} repos${excluded}`;
     $('repos-root').title = excluded ? 'Change what is hidden in Settings' : '';
     $('repos-command').textContent = repoData.command;
+    // Claude or Codex, once Codex is installed; it's the setting in Settings.
+    $('repos-app').hidden = !snap?.codexInstalled;
+    for (const r of document.querySelectorAll('input[name="repos-app"]')) r.checked = r.value === repoData.app;
     renderRepos();
     renderExcluded();
     renderServerSettings();
+    renderFolderSuggestions();
   } catch (err) {
     toast(err.message, true);
   }
@@ -1028,7 +1285,7 @@ async function openRepo(node, button) {
   try {
     await api('/api/repos/open', { path: node.path });
     $('repos').close();
-    toast(`Opening Claude in ${node.name}`);
+    toast(`Opening ${APPS[repoData.app] || APPS.claude} in ${node.name}`);
   } catch (err) {
     toast(err.message, true);
   } finally {
@@ -1156,7 +1413,7 @@ function pastItem(s) {
   return el(
     'li',
     { class: 'past' },
-    el('div', { class: 'past-head' }, el('span', { class: 'past-name', text: name, title: name }), since(s.closedAt, ' ago')),
+    el('div', { class: 'past-head' }, el('span', { class: 'past-name', text: name, title: name }), groupTag(s), appTag(s), since(s.closedAt, ' ago')),
     subtitle ? el('p', { class: 'past-title', text: subtitle, title: subtitle }) : null,
     s.todo ? el('p', { class: 'past-title', title: todoText(s.todo) }, el('b', {}, 'To-do · '), s.todo.title) : null,
     el(
@@ -1164,6 +1421,7 @@ function pastItem(s) {
       { class: 'where' },
       el('span', { class: 'path', text: shortPath(s.cwd), title: s.cwd }),
       s.gitBranch ? el('span', { class: 'tag branch', title: 'Git branch', text: `⎇ ${s.gitBranch}` }) : null,
+      s.background ? el('span', { class: 'tag background', title: 'Ran in the background, with claude -p', text: 'Background' }) : null,
     ),
     s.lastPrompt ? el('p', { class: 'past-prompt', title: s.lastPrompt.text }, el('b', {}, 'Last prompt · '), s.lastPrompt.text) : null,
     el(
@@ -1193,14 +1451,18 @@ function pastItem(s) {
 function renderHistory() {
   if (!historyData) return;
   const terms = $('history-filter').value.toLowerCase().split(/\s+/).filter(Boolean);
+  const background = $('history-background').checked;
   const shown = historyData.filter((s) => {
+    if (s.background && !background) return false;
     const text = [pastName(s), s.title, s.name, s.cwd, s.gitBranch, s.firstPrompt?.text, s.lastPrompt?.text, s.todo?.title, s.todo?.notes]
       .join(' ')
       .toLowerCase();
     return terms.every((t) => text.includes(t));
   });
   const n = historyData.length;
-  $('history-sub').textContent = `${n} closed session${n === 1 ? '' : 's'}${terms.length ? ` · ${shown.length} shown` : ''}`;
+  $('history-sub').textContent = `${n} closed session${n === 1 ? '' : 's'}${shown.length < n ? ` · ${shown.length} shown` : ''}`;
+  // The switch for background runs only shows once there are some.
+  $('history-background-label').hidden = !historyData.some((s) => s.background);
   const days = [];
   for (const s of shown) {
     const day = dayLabel(s.closedAt);
@@ -1232,6 +1494,17 @@ $('history-button').addEventListener('click', () => {
 });
 $('history-close').addEventListener('click', () => $('history').close());
 $('history-filter').addEventListener('input', renderHistory);
+// Whether History lists background runs, such as `claude -p` reviews. Kept in this browser.
+const HISTORY_BACKGROUND_KEY = 'tabherd:history-background';
+try {
+  $('history-background').checked = localStorage.getItem(HISTORY_BACKGROUND_KEY) !== 'off';
+} catch {}
+$('history-background').addEventListener('change', (e) => {
+  try {
+    localStorage.setItem(HISTORY_BACKGROUND_KEY, e.currentTarget.checked ? 'on' : 'off');
+  } catch {}
+  renderHistory();
+});
 $('history').addEventListener('click', (e) => e.target === e.currentTarget && e.currentTarget.close());
 
 // ---- settings ----------------------------------------------------------------
@@ -1469,6 +1742,9 @@ function renderTerminalChoice() {
 // The settings kept on the server, other than the repo menu's. The to-do
 // folder box isn't changed under someone typing in it.
 function renderServerSettings() {
+  $('app-setting').hidden = !snap?.codexInstalled;
+  const app = serverSettings?.newSessionApp || 'claude';
+  for (const r of document.querySelectorAll('input[name="new-app"]')) r.checked = r.value === app;
   $('skip-permissions').checked = Boolean(serverSettings?.skipPermissions);
   const source = serverSettings?.todoFolderSource || 'repos';
   for (const r of document.querySelectorAll('input[name="todo-source"]')) r.checked = r.value === source;
@@ -1492,6 +1768,16 @@ async function saveServerSetting(changes) {
 }
 
 $('skip-permissions').addEventListener('change', (e) => saveServerSetting({ skipPermissions: e.currentTarget.checked }));
+for (const r of document.querySelectorAll('input[name="new-app"]')) {
+  r.addEventListener('change', () => saveServerSetting({ newSessionApp: r.value }).then(() => refresh()));
+}
+// The repo menu's own Claude or Codex choice is the same setting.
+for (const r of document.querySelectorAll('input[name="repos-app"]')) {
+  r.addEventListener('change', async () => {
+    if (await saveServerSetting({ newSessionApp: r.value })) await loadRepos(false);
+    refresh();
+  });
+}
 $('terminal-choice').addEventListener('change', (e) => saveServerSetting({ terminal: e.currentTarget.value }));
 for (const r of document.querySelectorAll('input[name="todo-source"]')) {
   r.addEventListener('change', () => saveServerSetting({ todoFolderSource: r.value }));
@@ -1531,6 +1817,181 @@ $('excluded-filter').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') e.preventDefault();
 });
 
+// ---- group settings ------------------------------------------------------------
+
+// Sections by group is kept in this browser, like the card size.
+const SECTIONS_KEY = 'tabherd:group-sections';
+let sectionsOn = false;
+try {
+  sectionsOn = localStorage.getItem(SECTIONS_KEY) === 'on';
+} catch {}
+$('group-sections').checked = sectionsOn;
+$('group-sections').addEventListener('change', (e) => {
+  sectionsOn = e.currentTarget.checked;
+  try {
+    localStorage.setItem(SECTIONS_KEY, sectionsOn ? 'on' : 'off');
+  } catch {}
+  render();
+});
+
+// The groups as edited here. Every change saves the whole list, one save at a
+// time, in order; only the latest save's reply is shown.
+let groupsDraft = null;
+let groupsSaving = Promise.resolve();
+let groupSaves = 0;
+
+const editedGroups = () => groupsDraft || snap?.groups || [];
+
+function saveGroups(next, focusKey) {
+  const n = ++groupSaves;
+  groupsDraft = next;
+  renderGroupEditor(focusKey);
+  groupsSaving = groupsSaving.then(async () => {
+    try {
+      const saved = (await api('/api/groups', { groups: next })).groups;
+      if (n === groupSaves) {
+        groupsDraft = saved;
+        if (snap) snap = { ...snap, groups: saved };
+      }
+    } catch (err) {
+      toast(err.message, true);
+      if (n === groupSaves) groupsDraft = null;
+    }
+    if (n === groupSaves) {
+      renderGroupEditor();
+      refresh();
+    }
+  });
+}
+
+const changeGroup = (g, changes, focusKey) => saveGroups(editedGroups().map((x) => (x.id === g.id ? { ...x, ...changes } : x)), focusKey);
+
+function addGroupFolder(g, input) {
+  const folder = input.value.trim();
+  if (!folder) return;
+  changeGroup(g, { folders: [...g.folders, folder] }, `add:${g.id}`);
+}
+
+// Asks for a second click, like a to-do's Delete.
+function deleteGroup(g, button) {
+  if (!button.classList.contains('btn-danger')) {
+    button.classList.add('btn-danger');
+    button.textContent = 'Delete?';
+    setTimeout(() => {
+      button.classList.remove('btn-danger');
+      button.textContent = 'Delete';
+    }, 3000);
+    return;
+  }
+  saveGroups(editedGroups().filter((x) => x.id !== g.id));
+}
+
+// Enter in a text box would otherwise submit the Settings form, which closes it.
+const noSubmit = (then) => (e) => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  then?.(e.currentTarget);
+};
+
+function groupRow(g) {
+  return el(
+    'div',
+    { class: `group-row g-${g.color}` },
+    el(
+      'div',
+      { class: 'group-row-head' },
+      el('span', { class: 'dot' }),
+      el('input', {
+        type: 'text',
+        class: 'group-name',
+        value: g.name,
+        maxlength: '40',
+        'aria-label': 'Group name',
+        'data-focus': `name:${g.id}`,
+        onchange: (e) => {
+          const name = e.currentTarget.value.trim();
+          if (name) changeGroup(g, { name });
+          else {
+            e.currentTarget.value = g.name;
+            toast('A group needs a name.', true);
+          }
+        },
+        onkeydown: noSubmit((input) => input.blur()),
+      }),
+      el('button', { type: 'button', class: 'btn btn-stop', onclick: (e) => deleteGroup(g, e.currentTarget) }, 'Delete'),
+    ),
+    el(
+      'div',
+      { class: 'swatches', role: 'radiogroup', 'aria-label': `${g.name}'s colour` },
+      Object.entries(GROUP_COLORS).map(([color, label]) =>
+        el('button', {
+          type: 'button',
+          role: 'radio',
+          class: `swatch g-${color}`,
+          'aria-checked': String(g.color === color),
+          'aria-label': label,
+          title: label,
+          'data-focus': `color:${g.id}:${color}`,
+          onclick: () => changeGroup(g, { color }, `color:${g.id}:${color}`),
+        }),
+      ),
+    ),
+    g.folders.length
+      ? el(
+          'ul',
+          { class: 'excluded group-folders' },
+          g.folders.map((f) =>
+            el(
+              'li',
+              {},
+              el('span', { class: 'excluded-path', text: shortPath(f), title: f }),
+              el('button', { type: 'button', class: 'icon-btn', title: 'Remove', 'aria-label': `Remove ${shortPath(f)}`, onclick: () => changeGroup(g, { folders: g.folders.filter((x) => x !== f) }) }, '✕'),
+            ),
+          ),
+        )
+      : el('p', { class: 'settings-help', text: 'No folders yet, so only sessions moved here by hand are in it.' }),
+    el(
+      'div',
+      { class: 'group-add-folder' },
+      el('input', {
+        type: 'text',
+        list: 'group-folders',
+        placeholder: 'Add a folder: a full path, or pick a repo',
+        'aria-label': `Add a folder to ${g.name}`,
+        autocomplete: 'off',
+        spellcheck: 'false',
+        'data-focus': `add:${g.id}`,
+        onkeydown: noSubmit((input) => addGroupFolder(g, input)),
+      }),
+      el('button', { type: 'button', class: 'btn', onclick: (e) => addGroupFolder(g, e.currentTarget.previousElementSibling) }, 'Add'),
+    ),
+  );
+}
+
+// Rebuilt after each change, with focus put back where it was, or on `focusKey`.
+function renderGroupEditor(focusKey) {
+  const box = $('group-editor');
+  const focused = focusKey || (box.contains(document.activeElement) ? document.activeElement.dataset.focus : null);
+  const groups = editedGroups();
+  box.replaceChildren(...groups.map(groupRow));
+  if (focused) box.querySelector(`[data-focus="${CSS.escape(focused)}"]`)?.focus();
+}
+
+// The repo menu's folders and repos, as suggestions for a group's folders.
+function renderFolderSuggestions() {
+  if (!repoData?.all) return;
+  const sep = repoSep();
+  const paths = repoNodes(repoData.all).map((n) => shortPath(`${repoData.root}${sep}${n.path.split('/').join(sep)}`));
+  $('group-folders').replaceChildren(...paths.map((value) => el('option', { value })));
+}
+
+$('group-add').addEventListener('click', () => {
+  const groups = editedGroups();
+  const g = { id: crypto.randomUUID(), name: `Group ${groups.length + 1}`, color: freeColor(groups), folders: [] };
+  saveGroups([...groups, g], `name:${g.id}`);
+  $('group-editor').querySelector(`[data-focus="name:${g.id}"]`)?.select();
+});
+
 $('keep-notes').checked = keepNotes;
 $('keep-notes').addEventListener('change', (e) => {
   keepNotes = e.currentTarget.checked;
@@ -1540,12 +2001,18 @@ $('keep-notes').addEventListener('change', (e) => {
   saveNotes();
 });
 
-$('settings-button').addEventListener('click', () => {
+// Opens Settings, at one of its sections if given.
+function openSettings(sectionId) {
   $('settings').showModal();
-  $('settings').querySelector('input:checked').focus();
+  groupsDraft = null;
+  renderGroupEditor();
+  if (sectionId) $(sectionId).scrollIntoView({ block: 'start' });
+  else $('settings').querySelector('input:checked').focus();
   loadServerSettings();
   loadRepos(false);
-});
+}
+
+$('settings-button').addEventListener('click', () => openSettings());
 $('settings').addEventListener('click', (e) => e.target === e.currentTarget && e.currentTarget.close());
 renderNotes();
 // Starting a to-do needs the folder setting before Settings is ever opened.
