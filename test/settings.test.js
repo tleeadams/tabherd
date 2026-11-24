@@ -10,7 +10,13 @@ process.env.TABHERD_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'tabherd-te
 const settings = require('../lib/settings');
 
 test('defaults are safe', () => {
-  assert.deepEqual(settings.get(), { skipPermissions: false, excludedFolders: [], todoFolderSource: 'repos', todoStartFolder: '', terminal: 'auto' });
+  assert.deepEqual(settings.get(), { skipPermissions: false, excludedFolders: [], todoFolderSource: 'repos', todoStartFolder: '', terminal: 'auto', newSessionApp: 'claude' });
+});
+
+test('new sessions start in Claude or Codex, nothing else', () => {
+  assert.equal(settings.update({ newSessionApp: 'codex' }).settings.newSessionApp, 'codex');
+  assert.equal(settings.update({ newSessionApp: 'bash' }).ok, false);
+  assert.equal(settings.update({ newSessionApp: 'claude' }).settings.newSessionApp, 'claude');
 });
 
 test('each setting is checked', () => {

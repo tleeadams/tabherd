@@ -2,9 +2,9 @@
 
 # Tabherd
 
-**A dashboard for your Claude Code sessions.** Tabherd lists every [Claude Code](https://code.claude.com) session running on your computer and shows what each one is doing: which ones need you, which are working, and what they last said. It watches the sessions you start anyway, in any terminal, with nothing to set up in Claude Code. It runs entirely on your computer and has no dependencies beyond Node.
+**A dashboard for your Claude Code and Codex sessions.** Tabherd lists every [Claude Code](https://code.claude.com) and [Codex](https://github.com/openai/codex) session running on your computer and shows what each one is doing: which ones need you, which are working, and what they last said. It watches the sessions you start anyway, in any terminal, with nothing to set up in either. It runs entirely on your computer and has no dependencies beyond Node.
 
-Tabherd is an independent project. It isn't made or endorsed by Anthropic. It was called Claude Agents up to version 0.1.2. Say it "Tab Herd" or "tabberd": both are right.
+Tabherd is an independent project. It isn't made or endorsed by Anthropic or OpenAI. It was called Claude Agents up to version 0.1.2. Say it "Tab Herd" or "tabberd": both are right.
 
 ## Install
 
@@ -107,11 +107,44 @@ Checked that way so far: Windows Terminal; tmux, kitty, WezTerm, GNOME Terminal 
 
 The filters in the header show every session, or only those in one state. **Todo** shows *Needs you* and *Idle* together, along with the to-do cards: everything whose turn it is. *Shell running* counts as Working, not Todo.
 
+Each card says which app the session is, **Claude** or **Codex**. Once a Codex session is running, a list beside the filters shows only one app's sessions, and once there are [groups](#groups), another shows one group, or the sessions in none. The counts on the filters follow both lists, and both are remembered in the browser.
+
+## Codex
+
+Codex sessions get cards like Claude's, marked **Codex** (Claude's are marked **Claude**), and the dashboard does the same for them as for Claude's. Nothing needs setting up in Codex, and nothing changes if Codex isn't installed.
+
+- **Status** comes from Codex's background service, which runs your Codex sessions and reports each one's state as it changes: *Needs you* when it's waiting for an approval or an answer, *Working* or *Idle*. Tabherd connects to it through `codex app-server proxy`, and only once the service is running, so it never starts the service itself. It never answers an approval: Codex asks those in the session's window.
+- **Activity, model and tokens** come from the session's file in `~/.codex/sessions` (or `$CODEX_HOME/sessions`), read a few new bytes at a time like a Claude transcript. A session's subagents are listed on its card, as Claude's are.
+- **Go to window** finds the session's tab by its title, which Codex sets to the session's name. A session Codex hasn't named yet is matched only when it's the one unmatched Codex window, so until then its card has no Go to window.
+- **Catch up** sends the question with `codex queue`, through Codex's service, and brings the window forward if it's known. Nothing is typed into the window, so nothing there can be answered by it. An idle session starts on it at once, a busy one after its current turn.
+- **Stop** interrupts the turn the session is running, then ends the Codex in its window. If the window isn't known, it interrupts the turn and says to close the window yourself.
+- **Starting Codex**: the repo menu and to-dos start Claude or Codex, as Settings → New sessions says. The repo menu has the same choice at its top, and a to-do can name its own. A Codex to-do opens `codex` in its folder. Codex chooses its session's ID itself, so the dashboard links the to-do to the first session that starts in that folder within a minute, and names that session after the to-do.
+- **History** lists closed Codex sessions too, and **Resume** opens your terminal in the session's folder running `codex resume <id>`.
+
+With *Skip permission prompts* on, Codex sessions the dashboard opens or resumes run with `--dangerously-bypass-approvals-and-sandbox`. A session Codex runs outside its background service, such as one in an Administrator terminal or started with `--profile` or most `-c` options, isn't shown. When a Codex window closes, its card goes at once if the dashboard knew the window, or within about a minute, when Codex unloads the session, if it didn't.
+
+## Background runs
+
+Sessions run headless, with `claude -p`, show too: a background PR review, say, or a scheduled job. Claude registers them as it does sessions in a terminal, so Tabherd tells them apart by how they were started (`claude -p`, or the Agent SDK) and marks their cards **Background**. They have no window, so their cards have no Go to window or Catch up. Stop still ends them.
+
+A background run doesn't wait at a prompt when it's done: it exits. When one the dashboard saw running exits, it dings as finished, unless you stopped it, and its notification reads *Finished in the background*. Clicking its name there resumes it in a terminal tab, running `claude --resume <id>` in its folder, so you can ask about what it did. History lists background runs too, tagged **Background**, and its **Background runs** switch hides them, for when scripts run `claude -p` often.
+
+## Groups
+
+Groups gather sessions by project, client or anything else, each with a name and a colour. Make them in Settings → **Groups**, or from a card: its group button, which reads *No group* while the card is pointed at, has **New group for** the card's folder.
+
+- **By folder.** A group has folders, and a session or to-do in one of them, or in a folder inside it, is in that group. If several groups' folders hold it, the nearest folder wins. New sessions there join with nothing to do. A to-do without a folder goes by the folder it will start in.
+- **By hand.** The group button on a card moves that session or to-do to another group, or to none. It stays there, kept by its session ID so it's still there when resumed, until **Follow its folder again**. A to-do moved by hand passes its group on to the session it starts.
+- **On the card.** The group's colour runs along the top of the card, and its name is on the button. The left edge still shows the status. History shows each session's group, and the repo menu marks a group's folders with a dot in its colour.
+- **Sections.** Settings → Groups → **Sections by group** puts each group's cards under its name, in the order the groups are listed, with the sessions in no group last.
+
+The colours are a set of eight, each tuned for light and dark and kept apart from the status colours. In Settings, a group's folder box suggests the folders and repos from the repo menu, and takes any full path, with `~` for your home folder. Groups are saved in `~/.tabherd/groups.json`, for every browser.
+
 ## To-dos
 
 **+ To-do** in the header adds a card with a title and notes, for work you want to give Claude later. To-do cards sit at the top of the grid, with a dashed border, and count under All and Todo. Ctrl+Enter saves from the notes box.
 
-**Start** opens Claude in the to-do's folder, in your terminal, running `claude --session-id <new id> --name "<the to-do's title>"`, so the session is named after the to-do in its tab's title and Claude's session list. A to-do doesn't need a folder: without one, it starts in Settings → To-dos → **Start in**, your repos folder unless you set another, where Claude can make a new project. The card says where it will start.
+**Start** opens Claude in the to-do's folder, in your terminal, running `claude --session-id <new id> --name "<the to-do's title>"`, so the session is named after the to-do in its tab's title and Claude's session list. Once Codex is installed, the to-do's **Start with** chooses Claude or Codex, or leaves it to Settings; for Codex, see [Codex](#codex). A to-do doesn't need a folder: without one, it starts in Settings → To-dos → **Start in**, your repos folder unless you set another, where Claude can make a new project. The card says where it will start.
 
 **Choose folder** picks one first, from where Settings → To-dos says:
 
@@ -128,7 +161,7 @@ When the session closes, the to-do goes too. Its title and notes stay with the s
 
 The gear button in the header opens Settings.
 
-**New sessions**: *Skip permission prompts* (off by default) makes every session the dashboard opens, from the repo menu, Resume or a to-do, run `claude --dangerously-skip-permissions`. Claude then edits files and runs commands without asking first. Only turn it on if you'd run Claude that way yourself in those folders. *Terminal* chooses which terminal they open in, where there's more than one; see [Platform support](#platform-support).
+**New sessions**: once Codex is installed, *Claude* or *Codex* chooses the app the repo menu opens, and to-dos start in unless they name one. *Skip permission prompts* (off by default) makes every session the dashboard opens, from the repo menu, Resume or a to-do, run `claude --dangerously-skip-permissions`, or `codex --dangerously-bypass-approvals-and-sandbox`. They then edit files and run commands without asking first. Only turn it on if you'd run them that way yourself in those folders. *Terminal* chooses which terminal they open in, where there's more than one; see [Platform support](#platform-support).
 
 **Theme**: *System* (the default) follows the system's light or dark mode. *Light* or *Dark* sets one regardless.
 
@@ -139,11 +172,13 @@ The gear button in the header opens Settings.
 
 **Notifications**: *Keep the list after a reload* (on by default) saves the notification list, so reloading or reopening the dashboard keeps it.
 
+**Groups**: each group's name, colour and folders, and *Sections by group*. See [Groups](#groups).
+
 **To-dos**: where a to-do's folder is chosen from (the repo menu or any folder), and the folder that choice starts at. See [To-dos](#to-dos).
 
 **Repo menu**: every folder and repo under the repos folder, nested as in the ☰ menu, each with a tick box. Untick one to hide it, and everything inside it, from the menu. What's inside a hidden folder is greyed out but keeps its own setting, so ticking the folder again brings back exactly what was shown before. A folder with some repos hidden says how many, in amber. The filter box works like the menu's. A hidden path that's no longer in the repos folder is listed underneath, with ✕ to remove it.
 
-Theme, Card size and Notifications are saved in the browser, so each browser profile remembers its own choice. The rest are saved by the server, in `~/.tabherd/settings.json`, so every browser shares them.
+Theme, Card size, Notifications and Sections by group are saved in the browser, so each browser profile remembers its own choice. The rest are saved by the server, in `~/.tabherd/settings.json` and `~/.tabherd/groups.json`, so every browser shares them.
 
 ## Catch up
 
@@ -153,12 +188,14 @@ The keystrokes go to that session only, never to whichever window has focus, so 
 
 Catch up is disabled while a session is waiting on a permission prompt or dialog, where typing and Enter could answer it. The script checks the session's status again just before typing. If you've half-typed something in that session's prompt box, the question is added to the end of it and sent with it.
 
+A Codex session gets the question through Codex's own service instead, without typing; see [Codex](#codex).
+
 ## Dings
 
 The page plays a sound when an agent changes state:
 
 - **Needs you** (it starts waiting on a prompt or dialog): two rising notes.
-- **Finished** (Working to Idle, or to "Shell running" at the prompt): one soft bell.
+- **Finished** (Working to Idle, or to "Shell running" at the prompt, or a [background run](#background-runs) ending): one soft bell.
 
 A toast says which agent it was, and its card pulses. If several agents change at once you hear one sound, and sounds are at least 2 seconds apart.
 
@@ -172,7 +209,7 @@ The server pushes each update to open dashboards (`/api/stream`, server-sent eve
 
 The clock button in the header lists sessions that have closed, newest first and grouped by day. Each entry has the session's name, folder, branch and last prompt, and a filter searches all of those. **Resume** opens Claude in the session's folder, in your terminal, running `claude --resume <id>`, so the conversation carries on where it stopped. **Copy resume command** copies a command that does the same, for running yourself.
 
-The server records a session when it drops off the dashboard, keeping its terminal tab's title and session name. Sessions that closed while the server wasn't running, or while no dashboard was open, are read from their transcripts in `~/.claude/projects`, going back 30 days. Those show Claude's title for the session, or its first prompt, rather than the tab's title. Each transcript is read once and again only if it changes, so after the first scan (about a second for 300 MB of transcripts) opening History is quick. Only interactive sessions are listed, not `claude -p` or SDK runs. Nor are sessions closed before Claude was asked anything: Claude saves no conversation for those, so there's nothing to resume. A session that's running again, because it was resumed, leaves the list until it closes. The history keeps the latest 300 sessions, in `~/.tabherd/history.json`.
+The server records a session when it drops off the dashboard, keeping its terminal tab's title and session name. Sessions that closed while the server wasn't running, or while no dashboard was open, are read from their transcripts in `~/.claude/projects`, going back 30 days. Those show Claude's title for the session, or its first prompt, rather than the tab's title. Each transcript is read once and again only if it changes, so after the first scan (about a second for 300 MB of transcripts) opening History is quick. Closed Codex sessions are read back the same way from `~/.codex/sessions`, named as Codex named them, apart from those Codex has compressed after a week. Sessions from a terminal are listed, and `claude -p` runs, tagged **Background** (see [Background runs](#background-runs)); `codex exec` and Agent SDK runs aren't. Nor are sessions closed before Claude was asked anything: Claude saves no conversation for those, so there's nothing to resume. A session that's running again, because it was resumed, leaves the list until it closes. The history keeps the latest 300 sessions, in `~/.tabherd/history.json`.
 
 ## Repo menu
 
@@ -206,7 +243,7 @@ Start the server from a normal terminal. If it's started from a sandboxed shell,
 
 ## Where the data comes from
 
-All of it is read-only, from files Claude Code already writes:
+All of it is read-only, from files Claude Code and Codex already write, and from Codex's own background service:
 
 | Source | Used for |
 | --- | --- |
@@ -214,14 +251,18 @@ All of it is read-only, from files Claude Code already writes:
 | `~/.claude/projects/<project>/<session>.jsonl` | Title, prompts, tool calls, model, token usage, recaps and PR links. Each poll reads only the newly appended bytes. |
 | `…/<session>/subagents/*.meta.json` and `*.jsonl` | Subagents and what they are doing. |
 | `Get-Process` (Windows) or `ps` | Memory use, and a check that each PID still belongs to the Claude process that registered it. |
+| Codex's background service, through `codex app-server proxy` | Which Codex sessions are open, their names and their status. |
+| `~/.codex/sessions/<yyyy>/<mm>/<dd>/rollout-<time>-<session>.jsonl` | A Codex session's prompts, replies, tool calls, model and token usage. |
+| `~/.codex/session_index.jsonl` | Closed Codex sessions' names, for History. |
+| The `codex` processes and their tab titles | Which window each Codex session is in, and its memory use. |
 
 A session file whose process has exited, or whose PID now belongs to another process, is ignored.
 
-The only files the server writes are its own, in `~/.tabherd`: `settings.json` holds the settings that aren't kept in the browser, `history.json` the closed sessions and `todos.json` the to-dos.
+The only files the server writes are its own, in `~/.tabherd`: `settings.json` holds the settings that aren't kept in the browser, `history.json` the closed sessions, `todos.json` the to-dos and `groups.json` the groups, with the sessions moved between them by hand.
 
 ## Safety
 
-The server listens on `127.0.0.1` only and rejects requests with any other `Host` header, so other web pages can't read your prompts through DNS rebinding. The session actions, opening a repo, resuming a closed session, the to-do actions and saving settings all need a per-run token that only the served page has. A to-do's title reaches the folder picker only as an environment variable, never as part of a command. The session actions also work only on a session that is currently verified as live. **Stop** ends the session and its child processes, after you confirm: `taskkill /T /F` on Windows; on macOS and Linux, SIGTERM and then SIGKILL two seconds later for any still running. Sessions the dashboard opens ask before acting, as Claude Code does by default, unless you turn on *Skip permission prompts*.
+The server listens on `127.0.0.1` only and rejects requests with any other `Host` header, so other web pages can't read your prompts through DNS rebinding. The session actions, opening a repo, resuming a closed session, the to-do actions and saving settings all need a per-run token that only the served page has. A to-do's title reaches the folder picker only as an environment variable, never as part of a command. The session actions also work only on a session that is currently verified as live. **Stop** ends the session and its child processes, after you confirm: `taskkill /T /F` on Windows; on macOS and Linux, SIGTERM and then SIGKILL two seconds later for any still running. For a Codex session, it first interrupts the session's turn through Codex's service. Sessions the dashboard opens ask before acting, as Claude Code does by default, unless you turn on *Skip permission prompts*.
 
 To report a security problem, see [SECURITY.md](SECURITY.md).
 

@@ -2,6 +2,19 @@
 
 Notable changes in each release. Version numbers follow [Semantic Versioning](https://semver.org). The release build takes each release's notes from its section here.
 
+## Unreleased
+
+- Codex sessions show on the dashboard beside Claude's, and each card says which app it is. A Codex card has its status, with *Needs you* when it's waiting for an approval or an answer, what it's doing, its last reply, model and tokens, and Go to window. Closed Codex sessions are in History, where Resume runs `codex resume`. See [Codex](README.md#codex).
+- Codex sessions can be started and driven like Claude's. Settings → New sessions chooses Claude or Codex for the repo menu and to-dos, the repo menu has the same choice, and a to-do can name its own. A Codex to-do's session is linked to it once it starts, and named after it. **Catch up** sends the question through Codex's service with `codex queue`, so nothing is typed into the window. **Stop** interrupts the session's turn, then ends the Codex in its window. A Codex session's subagents are listed on its card. *Skip permission prompts* runs Codex with `--dangerously-bypass-approvals-and-sandbox`.
+- A Codex card goes as soon as its window closes, when the dashboard knows the window, or else when Codex unloads the session, about a minute later.
+- Groups, each with a name and one of eight colours, gather sessions by folder: a session or to-do is in the group with the nearest folder that holds it. The group button on a card moves it to another group, or none, by hand, and **New group for** makes a group for its folder. A group shows as a coloured line along the top of its cards and its name on the button, in History, and as a dot on its folders in the repo menu. Make and change groups in Settings → Groups, where *Sections by group* puts each group's cards under its name. See [Groups](README.md#groups).
+- The header has a list for showing one app's sessions, Claude or Codex, once a Codex session is running, and one for showing one group, once there are groups. The counts on the status filters follow them.
+- Background runs, with `claude -p`, such as a background PR review or a scheduled job, are marked **Background**, without Go to window or Catch up, which they have no window for. When one finishes, the dashboard dings and adds *Finished in the background* to the notifications, where its name resumes it in a terminal. History lists them, tagged, with a switch to hide them. Claude registers them like sessions in a terminal, so before this they looked like ones, with buttons that couldn't work, and ended without a ding. See [Background runs](README.md#background-runs).
+- A session's registry file caught while Claude rewrites it keeps its last reading, so the session no longer drops off the dashboard for a moment.
+- `server.js --once` exits once it has listed the sessions, instead of waiting on the dashboard's helper processes.
+- On Linux, Claude Code running on Node 24 is recognised. Node 24 gives its process the name MainThread, so those sessions were left off the dashboard.
+- Tabs the dashboard opens no longer take on the variables of a Codex session the dashboard was started from, which turn off colour and give them that session's IDs.
+
 ## 0.3.2 - 2026-11-22
 
 - A to-do can start without a folder: it starts in Settings → To-dos → *Start in*, your repos folder unless you set another, where Claude can make a new project. **Choose folder** is there for picking one first. The card says where it will start.
