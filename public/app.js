@@ -728,7 +728,8 @@ function card(a) {
 
   const heading = displayName(a);
   const subtitle = a.title && a.title.toLowerCase() !== heading.toLowerCase() ? a.title : null;
-  const proc = a.app === 'codex' ? [] : [a.name];
+  // Claude's session name, when the heading is the tab's title; Codex and Copilot head their cards with their session's name.
+  const proc = a.app === 'claude' ? [a.name] : [];
   if (a.pid) proc.push(`PID ${a.pid}`);
   if (a.memBytes) proc.push(`${Math.round(a.memBytes / 1048576)} MB`);
 

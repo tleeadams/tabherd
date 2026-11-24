@@ -38,7 +38,7 @@ test('a Copilot session open in a process gets a card, with its approval waiting
   assert.equal(a.gitBranch, 'main');
   assert.equal(a.lastPrompt.text, 'Run git --version');
   assert.equal(a.status, 'waiting');
-  assert.equal(a.waitingFor, 'Approval: shell: git --version');
+  assert.equal(a.waitingFor, 'Approval: run git --version');
   assert.deepEqual(a.tools.map((t) => [t.name, t.detail]), [['Shell', 'git --version']]);
 
   // Approved, run and answered.
@@ -46,13 +46,17 @@ test('a Copilot session open in a process gets a card, with its approval waiting
     path.join(dir, 'events.jsonl'),
     event(5, 'permission.completed', { requestId: 'r1', result: { kind: 'approved' } }) +
       event(6, 'tool.execution_complete', { toolCallId: 'c1', success: true }) +
-      event(7, 'assistant.message', { content: 'git version 2.50.0', outputTokens: 12 }) +
+      // As real Copilot sessions record them: tokens and the model in auto
+      // mode come with each model call, not with the reply.
+      event(7, 'session.usage_record', { usage: { model: 'mai-code-2-flash', modelDisplayName: 'MAI Code 2 Flash', outputTokens: 12 } }) +
+      event(7, 'assistant.message', { content: 'git version 2.50.0', model: 'mai-code-2-flash' }) +
       event(8, 'assistant.turn_end', { turnId: 't1' }),
   );
   [a] = copilot.snapshot().agents;
   assert.equal(a.status, 'idle');
   assert.equal(a.lastReply.text, 'git version 2.50.0');
   assert.equal(a.outputTokens, 12);
+  assert.equal(a.modelName, 'MAI Code 2 Flash');
   assert.equal(a.prompts, 1);
 });
 
