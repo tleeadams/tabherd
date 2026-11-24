@@ -66,9 +66,12 @@ fn plain(path: PathBuf) -> PathBuf {
 
 // The bundled Node, beside this program, runs server.js from the app's
 // resources. Run from the source, with no Node beside it, the one on the PATH
-// does. Its output goes to server.log in the app's log folder.
+// does. Its output goes to server.log in the app's log folder. This program is
+// found through any link to it, as winget starts a portable app through one in
+// its Links folder: Tauri's current_exe follows links, as it does to find the
+// resources.
 fn start_server(app: &AppHandle, port: u16) -> Result<(Child, PathBuf), String> {
-    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let exe = plain(tauri::utils::platform::current_exe().map_err(|e| e.to_string())?);
     let bundled = exe.with_file_name(if cfg!(windows) { "node.exe" } else { "node" });
     let node = if bundled.exists() {
         bundled
