@@ -18,7 +18,7 @@ test("Comfy Desktop's window title gives the running job's progress and the open
   assert.equal(comfy.parseTitle(null), null);
 });
 
-test('ComfyUI jobs become cards: running, queued in order, then recently finished', () => {
+test('ComfyUI jobs become cards while running, queued or failed; finished ones leave, with their output', () => {
   const inst = { id: 'inst-1', name: 'Studio', url: 'http://127.0.0.1:8188', desktopPid: 4321, installPath: '/comfy' };
   const now = 2_000_000;
   const active = [
@@ -31,28 +31,33 @@ test('ComfyUI jobs become cards: running, queued in order, then recently finishe
     { id: 'bad', status: 'failed', create_time: now - 90000, execution_end_time: now - 10000, execution_error: { exception_message: 'Out of memory' } },
     { id: 'old', status: 'completed', create_time: 1, execution_end_time: 2 },
   ];
-  const items = comfy.itemsFor(inst, active, recent, { now, title: 'Studio · [40%] Portrait - ComfyUI · Comfy Desktop v1.2.1' });
+  const { items, finished } = comfy.itemsFor(inst, active, recent, { now, title: 'Studio · [40%] Portrait - ComfyUI · Comfy Desktop v1.2.1' });
   assert.deepEqual(
     items.map((i) => [i.jobId, i.status, i.statusLabel || null]),
     [
       ['r', 'busy', null],
       ['a', 'queued', null],
       ['b', 'queued', null],
-      ['done', 'idle', 'Finished'],
       ['bad', 'waiting', 'Failed'],
     ],
-    'an hour-old job is gone',
+    'a finished job has no card',
   );
   const [running, first] = items;
   assert.deepEqual(running.progress, { value: 40, max: 100 });
   assert.deepEqual(running.actions, ['focus', 'stop']);
+  assert.ok(running.leavesWhenDone, 'its leaving counts as finishing');
   assert.equal(running.pid, 4321, 'Go to window goes to Comfy Desktop');
   assert.equal(running.id, 'comfy:inst-1:r');
   assert.deepEqual(first.facts, [['Queue', '1 of 2']]);
   assert.deepEqual(first.actions, ['focus', 'cancel']);
-  assert.match(items[3].preview, /^\/api\/comfy\/view\?i=inst-1&filename=x\.png/);
-  assert.deepEqual(items[3].facts, [['Took', '1m 0s'], ['Outputs', '2']]);
-  assert.equal(items[4].waitingFor, 'Failed: Out of memory');
+  assert.equal(items[3].waitingFor, 'Failed: Out of memory');
+  assert.deepEqual(items[3].actions, ['focus', 'dismiss'], 'a failed one stays until cleared');
+  assert.deepEqual(
+    finished.map((f) => [f.id, f.label, f.took]),
+    [['comfy:inst-1:done', 'Finished', '1m 0s']],
+    "how the finished one ended, for its notification; the hour-old one isn't news",
+  );
+  assert.match(finished[0].preview, /^\/api\/comfy\/view\?i=inst-1&filename=x\.png/);
 });
 
 test("each ComfyUI Comfy Desktop runs is found from its records, and a crashed one's isn't", () => {
@@ -92,7 +97,8 @@ function fakeLocalAI() {
       conversations: [
         { id: 'c1', title: 'Plan the trip', model: 'qwen3-8b', kind: 'chat', running: true, created: new Date(now - 300000).toISOString(), updated: new Date(now - 1000).toISOString() },
         { id: 'c2', title: 'Long research', model: 'qwen3-8b', kind: 'chat', running: false, last_turn: 'paused', created: new Date(now - 9e6).toISOString(), updated: new Date(now - 8e6).toISOString() },
-        { id: 'c3', title: 'Old chat', kind: 'chat', running: false, last_turn: 'done', updated: new Date(now - 9e6).toISOString() },
+        { id: 'c3', title: 'Just finished', kind: 'chat', running: false, last_turn: 'done', updated: new Date(now - 5000).toISOString() },
+        { id: 'c5', title: 'Broke', kind: 'chat', running: false, last_turn: 'failed', updated: new Date(now - 60000).toISOString() },
         { id: 'c4', title: 'A helper', kind: 'subagent', parent_id: 'c1', running: true },
       ],
     },
@@ -144,10 +150,13 @@ test("LocalAI's loaded models, downloads, agent chats and agent jobs become card
       [
         ['Plan the trip', 'busy', null],
         ['Long research', 'waiting', 'Paused: reply to continue'],
+        ['Broke', 'waiting', 'Its last turn failed'],
       ],
-      "an old finished chat, and a subagent's, don't get cards",
+      "a finished chat, and a subagent's, don't get cards",
     );
     assert.deepEqual(byKind('chat')[0].actions, ['open', 'stop']);
+    assert.ok(byKind('chat')[0].leavesWhenDone);
+    assert.deepEqual(byKind('chat')[2].actions, ['open', 'dismiss']);
     assert.deepEqual(byKind('agent-job').map((j) => [j.name, j.status]), [['nightly-report', 'busy']]);
     assert.ok(items.every((i) => i.host === 'LocalAI v5.0.1'));
     assert.ok(fake.asked.every((a) => a.auth === 'Bearer secret'), 'the key goes with every request');

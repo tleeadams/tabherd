@@ -148,16 +148,18 @@ The dashboard also shows what ComfyUI and LocalAI are doing, as cards marked **C
 
 - **Working**, the job running now. Comfy Desktop's window title gives its progress, which goes on the card as a bar on Windows. ComfyUI only sends progress to the window that queued a job, so there's no other way to see it.
 - **Queued**, with its place in the queue.
-- **Finished**, with its first output image and how long it took, or **Failed**, with the error, for five minutes after it ends. Finishing dings, and failing counts as needing you.
+- **Finished** jobs leave the dashboard at once. Finishing dings, and the notification list says it finished, with its first output image. A **Failed** job keeps its card, with the error, as needing you, until you **Clear** it.
 
-A job is named after its saved workflow; one queued from an unsaved workflow is called *Unsaved workflow*. **Go to window** brings up Comfy Desktop. **Stop** ends the running job and **Cancel** takes a queued one out of the queue, each after a second click. The output images come through the dashboard's own server, which only passes on the ones shown on cards.
+A job is named after its saved workflow; one queued from an unsaved workflow is called *Unsaved workflow*. **Go to window** brings up Comfy Desktop. **Stop** ends the running job and **Cancel** takes a queued one out of the queue, each after a second click. The output images come through the dashboard's own server, which only passes on those of jobs it has reported, for a day.
 
 **LocalAI.** It's found at Settings → Other apps → *LocalAI address*, `http://127.0.0.1:8080` unless you set another, with the API key there if LocalAI has one. It shows:
 
 - **Each loaded model**, marked *Loaded*, with the graphics memory, memory and CPU it's using, and **Unload** to free them. Loaded models only count under All, since they're never waiting on you.
 - **Each download or install** in progress, with its progress and size, and **Cancel**. Finishing dings.
-- **Each agent chat** that's running (*Working*, with **Stop**), paused at its step limit (*Needs you*), or finished in the last 15 minutes.
-- **Each agent job** running or queued, with **Cancel**, and for 15 minutes after it ends.
+- **Each agent chat** that's running (*Working*, with **Stop**) or paused at its step limit (*Needs you*). One that finishes leaves the dashboard and dings.
+- **Each agent job** running or queued, with **Cancel**. One that finishes leaves and dings.
+
+A chat, agent job or download that fails keeps its card, as needing you, until you **Clear** it. Cleared cards stay cleared, in every browser, in `~/.tabherd/dismissed.json`.
 
 **Open in LocalAI** opens LocalAI's own page. LocalAI keeps no list of plain API requests in progress, so a request from another app doesn't get a card.
 

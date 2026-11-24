@@ -1024,6 +1024,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible, .msg .text:focus-v
 .progress .bar { flex: 1; height: 6px; border-radius: 3px; background: var(--bar); overflow: hidden; }
 .progress .bar i { display: block; height: 100%; background: var(--busy); border-radius: 3px; transition: width 0.4s; }
 .preview { display: block; max-width: 100%; max-height: 180px; margin-top: 10px; border-radius: 6px; background: var(--panel-2); object-fit: contain; }
+.note-preview { display: block; max-width: 100%; max-height: 120px; margin-top: 6px; border-radius: 5px; background: var(--panel-2); object-fit: contain; }
 .facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 12px; margin: 10px 0 0; font-size: 12.5px; }
 .facts dt { color: var(--muted); }
 .facts dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

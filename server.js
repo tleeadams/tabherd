@@ -21,6 +21,7 @@ const localai = require('./lib/localai');
 const ollama = require('./lib/ollama');
 const lmstudio = require('./lib/lmstudio');
 const saved = require('./lib/saved');
+const dismissed = require('./lib/dismissed');
 
 const PORT = Number(process.env.PORT) || 4317;
 const HOST = '127.0.0.1';
@@ -78,6 +79,8 @@ function currentSnapshot() {
   if (!inflight) {
     inflight = snapshot()
       .then((snap) => {
+        // Failed jobs, chats and downloads that were cleared.
+        snap.agents = snap.agents.filter((a) => !dismissed.has(a.id));
         // To-dos first: a to-do goes on its session's card, and from there
         // into the history when the session closes.
         todos.observe(snap.agents, snap.now);
@@ -202,6 +205,13 @@ async function action(res, sessionId, name) {
   if (name === 'open-folder') {
     if (!agent.cwd || !fs.existsSync(agent.cwd)) return send(res, 400, { ok: false, error: 'Folder not found.' });
     terminals.openFolder(agent.cwd);
+    return send(res, 200, { ok: true });
+  }
+  // A failed job, chat or download, cleared from the dashboard.
+  if (name === 'dismiss') {
+    if (!(agent.actions || []).includes('dismiss')) return send(res, 400, { ok: false, error: "That can't be cleared: it's still going." });
+    dismissed.add(agent.id);
+    pushSnapshot();
     return send(res, 200, { ok: true });
   }
   // LocalAI: Unload a model, Stop a chat's turn, Cancel a download or agent
@@ -530,7 +540,7 @@ const server = http.createServer(async (req, res) => {
 
     // Sessions have UUIDs; jobs and models have IDs such as comfy:<install>:<job>.
     // Either way it must be on the dashboard now.
-    const m = url.pathname.match(/^\/api\/agents\/([^/]{1,300})\/(focus|catch-up|open-folder|stop|cancel|unload)$/i);
+    const m = url.pathname.match(/^\/api\/agents\/([^/]{1,300})\/(focus|catch-up|open-folder|stop|cancel|unload|dismiss)$/i);
     if (m) {
       if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
       if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });

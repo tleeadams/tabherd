@@ -4,6 +4,8 @@ Notable changes in each release. Version numbers follow [Semantic Versioning](ht
 
 ## Unreleased
 
+- Finished jobs, chats and downloads leave the dashboard as soon as they're done, instead of staying a few minutes. The ding and the notification list still say so, with the output image for a ComfyUI job. Failed ones stay, as needing you, until cleared with **Clear**.
+
 - GitHub Copilot's sessions, from the Copilot CLI and from VS Code's agent, get cards marked **Copilot**: status, with *Needs you* while an approval is unanswered, the last prompt and reply, tools, model and tokens. CLI sessions have Go to window, Catch up and Stop, can be started from to-dos and the repo menu with their own ID and name, and are in History with Resume. See [GitHub Copilot](README.md#github-copilot).
 - Ollama's and LM Studio's loaded models get cards, with their size, context and Unload, and Ollama's with the graphics memory each holds and when it will unload. Their addresses, and an LM Studio token, are in Settings → Other apps.
 

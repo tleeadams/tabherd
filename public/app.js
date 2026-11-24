@@ -680,11 +680,25 @@ function itemCard(a) {
       can('stop') ? btn('Stop', (e) => itemAction(a, 'stop', e.currentTarget), 'btn-stop') : null,
       can('cancel') ? btn('Cancel', (e) => itemAction(a, 'cancel', e.currentTarget), 'btn-stop') : null,
       can('unload') ? btn('Unload', (e) => itemAction(a, 'unload', e.currentTarget), 'btn-stop') : null,
+      can('dismiss') ? btn('Clear', (e) => clearItem(a, e.currentTarget), '', { title: 'Take this off the dashboard' }) : null,
     ),
   );
 }
 
 const ITEM_DONE = { stop: 'Stopped', cancel: 'Cancelled', unload: 'Unloaded' };
+
+// A failed job, chat or download, off the dashboard. No second click: it has
+// already ended.
+async function clearItem(a, button) {
+  button.disabled = true;
+  try {
+    await post(a, 'dismiss');
+  } catch (err) {
+    toast(err.message, true);
+    button.disabled = false;
+  }
+  refresh();
+}
 
 // Stop, Cancel and Unload ask for a second click, like a to-do's Delete.
 async function itemAction(a, action, button) {
@@ -1177,7 +1191,10 @@ function notableChanges(agents) {
     const running = new Set(agents.map((a) => a.id));
     for (const [id, a] of lastAgents) {
       // So do downloads, and anything else that leaves once it's done.
-      if ((a.background || a.leavesWhenDone) && !running.has(id) && !stoppedHere.delete(id)) done.push(a);
+      // How it ended, and its output, if the server knows: a ComfyUI job.
+      if ((a.background || a.leavesWhenDone) && !running.has(id) && !stoppedHere.delete(id)) {
+        done.push({ ...a, finished: snap?.finished?.find((f) => f.id === id) || null });
+      }
     }
   }
   lastAgents = new Map(agents.map((a) => [a.id, a]));
@@ -1235,7 +1252,18 @@ function updateNotes(agents, { needs, done }) {
   });
   const added = [
     ...needs.map((a) => ({ id: a.id, kind: 'needs', name: displayName(a), detail: a.waitingFor || '', at: snap.now })),
-    ...done.map((a) => ({ id: a.id, kind: 'done', name: displayName(a), detail: '', background: Boolean(a.background), at: snap.now })),
+    ...done.map((a) => ({
+      id: a.id,
+      kind: 'done',
+      name: displayName(a),
+      detail: '',
+      background: Boolean(a.background),
+      // Gone once it's done, so its leaving isn't a session closing.
+      gone: Boolean(a.background || a.leavesWhenDone),
+      label: a.finished?.label || null,
+      preview: a.finished?.preview || null,
+      at: snap.now,
+    })),
   ];
   if (added.length) notes = [...added, ...notes.filter((n) => !added.some((x) => x.id === n.id))];
   if (added.length || notes.length !== before) saveNotes();
@@ -1257,13 +1285,13 @@ function renderNotes() {
   // A finished background run is picked up again from the history.
   const resumable = (n) => n.background && Boolean(snap?.terminals);
   // Rebuilt only when something shown changes, so an open list doesn't flicker.
-  const key = JSON.stringify(rows.map((r) => [r.n.id, r.n.kind, r.n.at, r.name, Boolean(r.a), r.focus, resumable(r.n)]));
+  const key = JSON.stringify(rows.map((r) => [r.n.id, r.n.kind, r.n.at, r.name, Boolean(r.a), r.focus, resumable(r.n), r.n.preview]));
   if (key === notesKey) return;
   notesKey = key;
   $('notes-list').replaceChildren(
     ...rows.map(({ n, a, name, focus }) => {
-      const what = [n.kind === 'needs' ? `Needs you${n.detail ? `: ${n.detail}` : ''}` : n.background ? 'Finished in the background' : 'Finished'];
-      if (!a && !n.background) what.push('session closed');
+      const what = [n.kind === 'needs' ? `Needs you${n.detail ? `: ${n.detail}` : ''}` : n.label || (n.background ? 'Finished in the background' : 'Finished')];
+      if (!a && !n.gone && !n.background) what.push('session closed');
       return el(
         'li',
         { class: `note k-${n.kind}` },
@@ -1277,6 +1305,7 @@ function renderNotes() {
               ? el('button', { type: 'button', class: 'name-link note-name', title: 'Open a terminal tab in its folder and continue the conversation', onclick: (e) => resumeNote(n, e.currentTarget) }, name)
               : el('span', { class: 'note-name', text: name }),
           el('span', { class: 'note-what', text: what.join(' · '), title: what.join(' · ') }),
+          n.preview ? el('img', { class: 'note-preview', src: n.preview, alt: `Output of ${name}`, loading: 'lazy' }) : null,
         ),
         since(n.at, ' ago'),
         el('button', { type: 'button', class: 'icon-btn note-clear', title: 'Clear', 'aria-label': `Clear ${name}`, onclick: () => clearNotes(n) }, '✕'),
