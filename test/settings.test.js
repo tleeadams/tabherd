@@ -23,6 +23,7 @@ test('defaults are safe', () => {
     ollamaUrl: '',
     lmstudioUrl: '',
     lmstudioKey: '',
+    llamacppUrl: '',
   });
 });
 

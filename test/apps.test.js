@@ -278,3 +278,64 @@ test("nvidia-smi's lines give each graphics card's memory and load", () => {
   const s = memory.snapshot();
   assert.ok(s.ram.total > 0 && s.ram.used > 0 && s.ram.used <= s.ram.total);
 });
+
+// ---- llama.cpp ---------------------------------------------------------------------
+
+const llamacpp = require('../lib/llamacpp');
+
+test("llama.cpp's one model becomes a row, with no Unload", () => {
+  const [item] = llamacpp.itemsFrom({
+    build: 'b12669-30ec35ae2',
+    router: false,
+    models: [
+      {
+        id: 'gemma-4-e4b',
+        file: 'C:\\models\\gemma-4-E4B-it-Q4_K_M.gguf',
+        ftype: 'Q4_K - Medium',
+        sleeping: false,
+        meta: { n_params: 7518069290, size: 5319465128, n_ctx: 8192 },
+        slots: [{ is_processing: true }, { is_processing: false }, { is_processing: false }, { is_processing: false }],
+      },
+    ],
+  });
+  assert.equal(item.app, 'llamacpp');
+  assert.equal(item.kind, 'model', 'it goes on the memory card');
+  assert.equal(item.host, 'llama.cpp build 12669');
+  assert.equal(item.where, '7.5B · Q4_K - Medium');
+  assert.deepEqual(item.facts, [['Size', '5.3 GB'], ['Context', '8,192 tokens'], ['Answering', '1 of 4 at once'], ['File', 'gemma-4-E4B-it-Q4_K_M.gguf']]);
+  assert.deepEqual(item.actions, [], 'a server started with one model keeps it');
+  const [unnamed] = llamacpp.itemsFrom({
+    build: null,
+    router: false,
+    models: [{ id: 'gemma-4-E4B-it-Q4_K_M.gguf', file: 'C:\\models\\gemma-4-E4B-it-Q4_K_M.gguf', meta: {}, slots: [] }],
+  });
+  assert.equal(unnamed.host, 'llama.cpp');
+  assert.deepEqual(unnamed.facts, [], 'named for its file, so the file goes unsaid');
+});
+
+test("llama.cpp's router shows each model loaded or loading, and loaded ones unload", () => {
+  const items = llamacpp.itemsFrom({
+    build: 'b12669-30ec35ae2',
+    router: true,
+    models: [
+      { id: 'gemma-4-E4B-it-GGUF', status: { value: 'loaded' }, meta: { n_params: 7.5e9, size: 5.3e9, n_ctx: 8192, ftype: 'Q4_K - Medium' }, slots: [{ is_processing: false }] },
+      { id: 'qwen3-8b', status: { value: 'loading' }, slots: null },
+    ],
+  });
+  assert.deepEqual(items.map((i) => i.actions), [['unload'], []]);
+  assert.deepEqual(items[1].facts, [['State', 'Loading']]);
+  assert.ok(!items[0].facts.some(([k]) => k === 'Answering'), 'nothing is said about requests while none run');
+  assert.ok(!items[0].facts.some(([k]) => k === 'File'), "the router's models are named for their files already");
+});
+
+test('LLAMA_ARG_HOST and LLAMA_ARG_PORT are read as llama-server reads them', () => {
+  assert.equal(llamacpp.fromEnv({}), null);
+  assert.equal(llamacpp.fromEnv({ LLAMA_ARG_PORT: '8091' }), 'http://127.0.0.1:8091');
+  assert.equal(llamacpp.fromEnv({ LLAMA_ARG_HOST: '0.0.0.0' }), 'http://127.0.0.1:8080');
+  assert.equal(llamacpp.fromEnv({ LLAMA_ARG_HOST: 'gpu-box.example.test', LLAMA_ARG_PORT: '9000' }), 'http://gpu-box.example.test:9000');
+});
+
+test("Unload is refused for a llama.cpp server that isn't a router", async () => {
+  const r = await llamacpp.act({ model: 'gemma' }, 'unload');
+  assert.equal(r.ok, false);
+});
