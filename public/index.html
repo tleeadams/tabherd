@@ -287,6 +287,13 @@
               </div>
             </fieldset>
           </section>
+          <section class="settings-section" id="settings-help" data-title="Help">
+            <fieldset>
+              <legend>Tour</legend>
+              <p class="settings-help">A quick look around the dashboard, as on the first visit. The page holds still while it runs, and your sessions carry on as usual.</p>
+              <button type="button" id="tour-again" class="btn">Show the tour</button>
+            </fieldset>
+          </section>
           <p class="settings-foot">Appearance, Notifications and Sections by group are saved in this browser. The rest are saved on this computer, for every browser.</p>
         </div>
       </div>
@@ -407,6 +414,22 @@
   <div id="group-menu" class="menu" popover role="menu" aria-label="Group"></div>
   <div id="sessions-menu" class="menu" popover role="menu" aria-label="Save and close, or resume"></div>
   <div id="filter-menu" class="menu" popover role="menu" aria-label="Filter options"></div>
+
+  <dialog id="tour" class="tour" aria-labelledby="tour-title" aria-describedby="tour-text">
+    <div id="tour-spot" class="tour-spot" aria-hidden="true"></div>
+    <div id="tour-panel" class="tour-panel">
+      <div class="tour-head">
+        <span id="tour-step" class="tour-step"></span>
+        <button type="button" id="tour-skip" class="btn tour-skip">Skip tour <span aria-hidden="true">✕</span></button>
+      </div>
+      <h2 id="tour-title"></h2>
+      <p id="tour-text"></p>
+      <div class="tour-actions">
+        <button type="button" id="tour-back" class="btn">Back</button>
+        <button type="button" id="tour-next" class="btn btn-primary">Next</button>
+      </div>
+    </div>
+  </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite" popover="manual"></div>
   <script src="/app.js"></script>

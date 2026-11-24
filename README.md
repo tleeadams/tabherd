@@ -99,6 +99,8 @@ Checked that way so far: Windows Terminal; tmux, kitty, WezTerm, GNOME Terminal 
 
 ## What it shows
 
+The first time a browser opens the dashboard, a short tour points out each part of it, with **Skip tour** on every step, or Esc. It starts once every running session is on the page, and the page holds still while it runs: the cards don't update and only the tour can be clicked, though dings and notifications carry on. With no sessions running, it shows an example card, marked as one, which goes when the tour ends. A browser that has used the dashboard before doesn't get it. Settings → **Help** shows it again.
+
 - **Status**: *Needs you* (blocked on a prompt or dialog), *Working*, *Shell running* (at the prompt while a background shell runs) or *Idle*, plus how long it has been in that state.
 - **Activity**: the tools running now and for how long, the latest message or recap, and the last prompt. Click a message to expand it.
 - **Model and tokens**: the model, how full the context window is, output tokens and number of prompts.
@@ -224,6 +226,8 @@ The gear button in the header opens Settings, one section at a time, picked from
 **To-dos**: where a to-do's folder is chosen from (the repo menu or any folder), and the folder that choice starts at. See [To-dos](#to-dos).
 
 **Repo menu**: every folder and repo under the repos folder, nested as in the ☰ menu, each with a tick box. Untick one to hide it, and everything inside it, from the menu. What's inside a hidden folder is greyed out but keeps its own setting, so ticking the folder again brings back exactly what was shown before. A folder with some repos hidden says how many, in amber. The filter box works like the menu's. A hidden path that's no longer in the repos folder is listed underneath, with ✕ to remove it.
+
+**Help**: *Show the tour* shows the first-run tour again. See [What it shows](#what-it-shows).
 
 Appearance, Notifications and Sections by group are saved in the browser, so each browser profile remembers its own choice. The rest are saved by the server, in `~/.tabherd/settings.json`, `~/.tabherd/filters.json` and `~/.tabherd/groups.json`, so every browser shares them.
 
