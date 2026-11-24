@@ -24,8 +24,10 @@ const STATUS = {
   // A model loaded in LocalAI: not anyone's turn, so in no filter but All.
   loaded: { label: 'Loaded', group: 'resource', rank: 6 },
 };
-// The statuses a filter can pick, as status groups.
-const FILTER_STATUSES = { needs: 'Needs you', working: 'Working', idle: 'Idle' };
+// The statuses a filter can pick: status groups, with Shell running apart
+// from the rest of Working.
+const FILTER_STATUSES = { needs: 'Needs you', working: 'Working', shell: 'Shell running', idle: 'Idle' };
+const filterStatus = (x) => (x.status === 'shell' ? 'shell' : status(x).group);
 const MAX_FILTERS = 12;
 const PERMISSION_MODES = {
   bypassPermissions: 'bypass',
@@ -1179,7 +1181,7 @@ const filterDef = (id) => (snap?.filters || []).find((f) => f.id === id) || null
 // no status, so they show under the filters that ask for them.
 function matchesFilter(f, x, isTodo) {
   if (!f) return true;
-  if (isTodo ? !f.todos : f.statuses.length && !f.statuses.includes(status(x).group)) return false;
+  if (isTodo ? !f.todos : f.statuses.length && !f.statuses.includes(filterStatus(x))) return false;
   if (f.apps.length && !f.apps.includes(x.app || 'claude')) return false;
   if (f.groups.length && !f.groups.includes(x.group || 'none')) return false;
   if (f.text) {
