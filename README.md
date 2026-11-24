@@ -109,8 +109,8 @@ A card across the top, **Memory and models**, shows the computer's memory in use
 
 The tabs in the header filter the cards. **All** shows everything. The others are yours to change, and start as **Todo** (*Needs you* and *Idle*, with the to-do cards: everything whose turn it is), **Needs you**, **Working** and **Idle**. *Shell running* and *Queued* count as Working. Each tab counts its cards, in amber when one of them needs you.
 
-- **Make one** with **+** after the tabs. A filter picks statuses, apps and groups, and words that must be in the card's name or folder. A row with nothing ticked matches any. To-dos have no status, so a filter shows them only when *Show to-dos* is ticked, and then only those from its apps, in its groups and with its words.
-- **Change or delete one** by right-clicking its tab, or in Settings → **Filters**, which also moves them up and down the tabs, and has **Restore the usual filters** to put back the four above.
+- **Make one** from the **⋯** menu after the tabs, with **New filter…**. A filter picks statuses, apps and groups, and words that must be in the card's name or folder. A row with nothing ticked matches any. To-dos have no status, so a filter shows them only when *Show to-dos* is ticked, and then only those from its apps, in its groups and with its words.
+- **Change or delete one**: the same menu's **Edit** changes the tab you're on, and **Edit filters…** opens Settings → **Filters**, which lists them all to change, delete or move up and down the tabs, and has **Restore the usual filters** to put back the four above.
 
 Filters are saved in `~/.tabherd/filters.json`, for every browser. The tab you're on is remembered in the browser.
 

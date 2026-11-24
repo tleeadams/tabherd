@@ -1154,8 +1154,8 @@ $('group-filter').addEventListener('change', (e) => {
 // ---- filters -------------------------------------------------------------------
 
 // The tabs across the top: All, then the filters kept on the server, in their
-// order. Each can pick statuses, apps, groups and words; a list left empty
-// matches any.
+// order, then the filters' menu. Each can pick statuses, apps, groups and
+// words; a list left empty matches any.
 const filterDef = (id) => (snap?.filters || []).find((f) => f.id === id) || null;
 
 // Whether a card shows under a filter, or under All (null). To-do cards have
@@ -1207,20 +1207,25 @@ function renderFilterTabs(agents, todos) {
           {
             type: 'button',
             'data-filter': f.id,
-            title: f.id === 'all' ? 'Everything' : `${describeFilter(f)}. Right-click to change it.`,
+            title: f.id === 'all' ? 'Everything' : describeFilter(f),
             onclick: () => chooseFilter(f.id),
-            oncontextmenu:
-              f.id !== 'all' &&
-              ((e) => {
-                e.preventDefault();
-                editFilter(f);
-              }),
           },
           `${f.name} `,
           el('b', { text: '0' }),
         ),
       ),
-      filters.length < MAX_FILTERS ? el('button', { type: 'button', class: 'filter-new', title: 'New filter', 'aria-label': 'New filter', onclick: () => editFilter(null) }, '+') : null,
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'filter-menu-button',
+          title: 'New filter, or change the filters',
+          'aria-label': 'Filter options',
+          'aria-haspopup': 'menu',
+          onclick: (e) => openFilterMenu(e.currentTarget),
+        },
+        '⋯',
+      ),
     );
     nav.dataset.signature = signature;
   }
@@ -1231,6 +1236,23 @@ function renderFilterTabs(agents, todos) {
     b.setAttribute('aria-pressed', String(b.dataset.filter === filter));
     b.classList.toggle('has', !!f && matched.some((a) => a.status === 'waiting'));
   }
+}
+
+// The menu at the end of the tabs: a new filter, the one shown, or all of
+// them in Settings.
+function openFilterMenu(button) {
+  const menu = $('filter-menu');
+  const shown = filterDef(filter);
+  const full = (snap?.filters || []).length >= MAX_FILTERS;
+  const item = (label, onclick, disabled) =>
+    el('button', { type: 'button', class: 'menu-item', role: 'menuitem', disabled: disabled || null, onclick: () => (menu.hidePopover(), onclick()) }, label);
+  menu.replaceChildren(
+    item(full ? `New filter (up to ${MAX_FILTERS})` : 'New filter…', () => editFilter(null), full),
+    shown ? item(`Edit “${shown.name}”…`, () => editFilter(shown)) : null,
+    el('hr'),
+    item('Edit filters…', () => openSettings('filters-setting')),
+  );
+  showMenu(menu, button);
 }
 
 // Every filter at once, one save at a time, in order; `null` puts the usual

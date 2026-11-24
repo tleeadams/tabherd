@@ -91,8 +91,8 @@ a { color: var(--accent); }
 .filters button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: var(--shadow); }
 .filters button[aria-pressed="true"] b { color: var(--text); }
 .filters button.has b { color: var(--wait); }
-.filters .filter-new { padding: 5px 9px; color: var(--faint); font-weight: 600; }
-.filters .filter-new:hover { color: var(--text); }
+.filters .filter-menu-button { padding: 5px 9px; color: var(--muted); font-weight: 700; letter-spacing: 0.05em; }
+.filters .filter-menu-button:hover { color: var(--text); background: var(--panel); }
 
 .notes-button,
 .sound,
