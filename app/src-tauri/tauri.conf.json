@@ -26,7 +26,8 @@
       "../../package.json": "server/package.json",
       "../../lib/": "server/lib/",
       "../../public/": "server/public/",
-      "../../LICENSE": "LICENSE"
+      "../../LICENSE": "LICENSE",
+      "binaries/node-LICENSE": "node/LICENSE"
     },
     "windows": {
       "webviewInstallMode": {

@@ -76,11 +76,11 @@ Keep examples, tests and docs free of real names. Use made-up projects, folders 
 1. Start the release from `develop`: `git switch -c release/<version> develop`. Set the version in `package.json` and add a `## <version>` section to `CHANGELOG.md`; the release notes come from it. Commit, push, and open a pull request into `main`.
 2. Merge it once the checks pass and it's been reviewed.
 3. Tag the merge on `main`: `git switch main && git pull && git tag v<version> && git push origin v<version>`.
-4. The Release workflow tests, builds the downloads and makes a draft release. Once signing is set up, it first waits up to an hour for the launcher's signing request to be approved on [signpath.io](https://app.signpath.io); an approver approves it there. Check the draft and publish it.
+4. The Release workflow tests, builds the downloads and makes a draft release. Once signing is set up, it waits up to an hour each for two signing requests to be approved on [signpath.io](https://app.signpath.io): the Windows app's, then its installer's. An approver approves them there. Check the draft and publish it.
 5. Open a pull request from `main` into `develop`, so `develop` has the release's changes.
 6. Package managers:
    - **Homebrew** ([tleeadams/homebrew-tap](https://github.com/tleeadams/homebrew-tap)) picks the release up by itself within a day: its Update workflow installs and tests the formula at the new release on macOS and Linux, then commits it. Run that workflow from its Actions tab to do it now.
-   - **winget**: submit the new version to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) as a pull request, with the three manifest files for `tleeadams.Tabherd` updated to the new version, URL and SHA-256 (`wingetcreate update tleeadams.Tabherd -v <version> -u <zip url> --submit` does it). Microsoft validates and merges it, typically within a few days.
+   - **winget**: submit the new version to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) as a pull request, with the three manifest files for `tleeadams.Tabherd` updated to the new version, URL and SHA-256 (`wingetcreate update tleeadams.Tabherd -v <version> -u <installer url> --submit` does it). Microsoft validates and merges it, typically within a few days. From the first release with the desktop app, the manifest points at the installer (`-setup.exe`) with installer type `nullsoft` and scope `user`, not at the zip.
 
 ### Hotfixes
 
@@ -108,11 +108,11 @@ For maintainers, once, after creating the repository on GitHub:
 
 ### Code signing
 
-The launcher is signed by [SignPath Foundation](https://signpath.org), which signs open-source projects for free, under the policy in the README. Until the project is set up there, releases ship with the launcher unsigned. To set it up:
+The Windows app and its installer are signed by [SignPath Foundation](https://signpath.org), which signs open-source projects for free, under the policy in the README. Until the project is set up there, releases ship unsigned. To set it up:
 
 1. Apply at [signpath.org/apply](https://signpath.org/apply). Everyone on the team, on GitHub and on SignPath, needs two-factor sign-in.
-2. Once approved, on [app.signpath.io](https://app.signpath.io): link the project to the predefined GitHub.com trusted build system, and paste `.signpath/artifact-configuration.xml` into its default artifact configuration. The workflow uploads only `Tabherd.exe`. Releases are built from version tags on `main`, so if the signing policy limits what can be signed by branch, allow the `v*` tags.
+2. Once approved, on [app.signpath.io](https://app.signpath.io): link the project to the predefined GitHub.com trusted build system, and paste `.signpath/artifact-configuration.xml` into its default artifact configuration, for the app (`Tabherd.exe`). Add `.signpath/installer-configuration.xml` as a second artifact configuration with the slug `installer`. Releases are built from version tags on `main`, so if the signing policy limits what can be signed by branch, allow the `v*` tags.
 3. Make an API token for a user who can submit signing requests to the release signing policy.
-4. In the repository's settings, under **Secrets and variables → Actions**, add the token as the secret `SIGNPATH_API_TOKEN` and the organization's ID as the variable `SIGNPATH_ORGANIZATION_ID`. If the project or signing policy aren't called `tabherd` and `release-signing`, add `SIGNPATH_PROJECT_SLUG` or `SIGNPATH_POLICY_SLUG` too.
+4. In the repository's settings, under **Secrets and variables → Actions**, add the token as the secret `SIGNPATH_API_TOKEN` and the organization's ID as the variable `SIGNPATH_ORGANIZATION_ID`. If the project, signing policy or installer configuration aren't called `tabherd`, `release-signing` and `installer`, add `SIGNPATH_PROJECT_SLUG`, `SIGNPATH_POLICY_SLUG` or `SIGNPATH_INSTALLER_CONFIGURATION_SLUG` too.
 
-The variable turns signing on. The workflow checks the signature before zipping, and fails rather than release a launcher that isn't validly signed.
+The variable turns signing on. The app is signed first, and the installer is then built around the signed app and signed in a second request. Packaging is told not to touch the app (`--no-binary-patching`), which would break its signature. The workflow checks each signature, and fails rather than release a file that isn't validly signed.

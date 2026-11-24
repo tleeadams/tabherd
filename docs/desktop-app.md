@@ -1,6 +1,6 @@
 # Desktop app (Tauri)
 
-*Spec, 2026-11-24. Not built yet.*
+*Spec, 2026-11-24. Phase 1, Windows, is built; see [Progress](#progress).*
 
 Tabherd gets a window of its own, so it no longer runs inside a browser. The server and the page stay as they are. A small Tauri app takes the launchers' place: it starts the server, shows the page in the system's web view, and stops the server again when it quits.
 
@@ -203,3 +203,23 @@ A short spike on Windows, before the rest:
 - Bringing other windows forward (Go to window, the folder picker) when Tabherd is the app in front.
 - Which WebKit versions render the page correctly, which sets the oldest supported macOS and Linux.
 - Notarizing a bundle that contains Node with the JIT entitlements.
+
+## Progress
+
+**2026-11-24: phase 1, Windows, built** on Tauri 2.12 with tauri-cli 2.12, the decisions taken as suggested.
+
+- **The spike's answers on Windows:**
+  - The title follows the page through `on_document_title_changed`, with no IPC.
+  - WebView2 plays sound with no click, given `--autoplay-policy=no-user-gesture-required`.
+  - New-window links go to the browser through `on_new_window`.
+  - Checked with a debug build driven over WebView2's DevTools port (9223 in debug builds).
+- **Release builds:** the app is 3.2 MB, the installer 23.8 MB and the zip 35.1 MB (Node is most of both).
+  - The installer, installed silently, ran its own Node from `%LOCALAPPDATA%\Tabherd`. Quitting stopped it, and the uninstaller left no files or uninstall entry. The app's own data stays in `%LOCALAPPDATA%\io.github.tleeadams.tabherd` and `%APPDATA%\io.github.tleeadams.tabherd`.
+  - The zip, unpacked, did the same.
+- **Signing in two stages works,** with one catch. `tauri bundle` normally writes the package type into the app (for Tauri's updater), which would break a signature applied before packaging. `--no-binary-patching` stops that: the app's bytes are unchanged by packaging, and the installer holds the identical file.
+- **Building on Windows needs Rust's MSVC toolchain.** A machine whose default is the GNU one can add MSVC alongside and use `RUSTUP_TOOLCHAIN=stable-x86_64-pc-windows-msvc`.
+- **Still to check by hand:**
+  - Go to window, Catch up and the folder picker with Tabherd in front.
+  - PR links opening in the browser.
+  - The first signed release.
+- **Next:** phase 2, macOS. CI already lints and compiles the app on macOS and Linux.

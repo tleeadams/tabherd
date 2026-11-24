@@ -4,8 +4,8 @@
   to it are reviewed like code. Paste it into the project's default artifact
   configuration on signpath.io.
 
-  The Release workflow uploads only the launcher, so the artifact GitHub makes
-  is a zip holding that one file.
+  The Release workflow uploads only the app, Tabherd.exe, so the artifact
+  GitHub makes is a zip holding that one file.
 -->
 <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
   <zip-file>

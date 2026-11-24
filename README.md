@@ -12,13 +12,14 @@ Each [release](../../releases/latest) has a download for Windows, macOS (Apple s
 
 ### Windows
 
-1. Download `tabherd-v<version>-windows-x64.zip`.
-2. Extract it somewhere to keep it, such as `%LOCALAPPDATA%\Programs`. It holds one folder, `tabherd-windows-x64`.
-3. Run **Tabherd.exe**. To add it to the Start menu and the Desktop, run **Install shortcuts.cmd**. **Remove shortcuts.cmd** takes them away again.
+On Windows, Tabherd is a desktop app with a window of its own.
 
-The launcher isn't code-signed yet: signing through SignPath Foundation is waiting on their approval (see the [code signing policy](#code-signing-policy)). Until then, Windows SmartScreen may warn about it the first time. Choose **More info**, then **Run anyway**.
+- **With the installer:** download `tabherd-v<version>-windows-x64-setup.exe` and run it. It installs for you alone, without asking for administrator rights, into `%LOCALAPPDATA%\Tabherd`, and adds Tabherd to the Start menu.
+- **From the zip,** without installing: download `tabherd-v<version>-windows-x64.zip` and extract it somewhere to keep it, such as `%LOCALAPPDATA%\Programs`. It holds one folder, `tabherd-windows-x64`. Run **Tabherd.exe** in it.
 
-The launcher starts the dashboard server in the background, with no console window, if it isn't already running. It then opens the dashboard in its own Edge app window, with no tabs or address bar. If that window is already open, it brings the window to the front instead.
+Neither is code-signed yet: signing through SignPath Foundation is waiting on their approval (see the [code signing policy](#code-signing-policy)). Until then, Windows SmartScreen may warn about them the first time. Choose **More info**, then **Run anyway**.
+
+Tabherd starts the dashboard server in the background, with no console window, unless one is already running. It shows the dashboard in WebView2, the engine Edge uses, which comes with Windows. Nothing from your browser shows in its window, and sound plays without a click first. Links to pull requests and other sites open in your browser. Opening Tabherd while it's open brings its window to the front. Closing the window stops the server it started.
 
 ### macOS and Linux
 
@@ -40,11 +41,11 @@ Or from a download:
 
 ### Updating and uninstalling
 
-A server started by the launcher stops by itself 10 minutes after the last dashboard closes, and the next launch starts it again in a couple of seconds.
+On macOS and Linux, a server started by `tabherd` stops by itself 10 minutes after the last dashboard closes, and the next launch starts it again in a couple of seconds.
 
-To update, replace the folder with the new release's. Its name doesn't change between releases, so shortcuts and the `tabherd` command keep working. Settings, history and to-dos are kept in `~/.tabherd`, outside it.
+To update on Windows, run the new release's installer, which installs over the old one. From the zip, replace the folder with the new release's. On macOS and Linux, replace the folder; its name doesn't change between releases, so the `tabherd` command and its entry in your applications keep working. Settings, history and to-dos are kept in `~/.tabherd`, outside the app.
 
-To uninstall, remove the shortcuts (**Remove shortcuts.cmd**, or `./tabherd --uninstall`), then delete the folder. Delete `~/.tabherd` too unless you want to keep your settings, history and to-dos. Nothing else is installed.
+To uninstall on Windows, use Settings › Apps › Installed apps, or delete the zip's folder. On macOS and Linux, run `./tabherd --uninstall`, then delete the folder. Delete `~/.tabherd` too unless you want to keep your settings, history and to-dos.
 
 ## Run from source
 
@@ -65,7 +66,17 @@ npm run install-shortcut     # add Tabherd to the Start menu, Applications or ap
 npm run uninstall-shortcut   # remove it again
 ```
 
-On Windows the launcher is a small C# program (`launcher/Tabherd.cs`), compiled with the C# compiler that comes with Windows, with its icon made from the logo. Run the install again after moving the folder or switching Node versions; it records which `node.exe` to use. On macOS and Linux it's a shell script, `launcher/tabherd.sh`, which uses the `node` on your PATH.
+On Windows the launcher is a small C# program (`launcher/Tabherd.cs`), compiled with the C# compiler that comes with Windows, with its icon made from the logo. It opens the dashboard in an Edge app window. Run the install again after moving the folder or switching Node versions; it records which `node.exe` to use. On macOS and Linux it's a shell script, `launcher/tabherd.sh`, which uses the `node` on your PATH.
+
+The desktop app is in `app/src-tauri`, built with [Tauri](https://tauri.app). Building it needs [Rust](https://rustup.rs): on Windows its MSVC toolchain (`rustup default stable-msvc`), with Visual Studio's C++ build tools; on Linux, WebKitGTK and the other libraries in [Tauri's prerequisites](https://v2.tauri.app/start/prerequisites/). Then:
+
+```
+node scripts/stage-app.js    # put this Node beside the app as its server's Node, and make its icons
+cd app/src-tauri
+cargo run                    # build and open it; it starts a server unless one is running on PORT
+```
+
+`npm run build` builds the Windows release, the installer and the zip, with Tauri's command-line tool: `cargo tauri` if it's installed (`cargo install tauri-cli --version "^2" --locked`), otherwise its npm package. The design is in [docs/desktop-app.md](docs/desktop-app.md).
 
 ## Platform support
 
@@ -346,7 +357,7 @@ To add a platform to the releases, give `scripts/build-release.js` a target for 
 
 Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
 
-Only the Windows launcher, `Tabherd.exe`, is signed. The [Release workflow](.github/workflows/release.yml) builds it on GitHub from the tagged source, and SignPath signs it only after an approver approves that release. The bundled `node.exe` keeps the Node.js project's own signature.
+Only the Windows app, `Tabherd.exe`, and its installer are signed. The [Release workflow](.github/workflows/release.yml) builds them on GitHub from the tagged source, and SignPath signs each only after an approver approves it for that release: the app first, then the installer built around the signed app. The bundled `node.exe` keeps the Node.js project's own signature.
 
 - Committers and reviewers: the people in [`.github/CODEOWNERS`](.github/CODEOWNERS)
 - Approvers: [@tleeadams](https://github.com/tleeadams)

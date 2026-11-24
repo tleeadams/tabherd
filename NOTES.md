@@ -74,7 +74,7 @@ In build order, smallest first. Items 1 to 3 only change the page. Items 4 to 6 
    - To-do cards count under All and the Todo filter.
    - Once linked, a to-do follows its session's process too, so it stays linked if the session ID changes (as `/clear` does). When the session closes, the to-do is hidden and kept for 30 days, so resuming the session brings it back. Its title and notes are also saved in the session's History entry.
 
-**Desktop app** (2026-11-24): a Tauri app in place of the browser window, starting the bundled Node as a sidecar, with macOS signing and notarization done by the release workflow. Specced in [docs/desktop-app.md](docs/desktop-app.md); not built yet.
+**Desktop app** (2026-11-24): a Tauri app in place of the browser window, starting the bundled Node as a sidecar, with macOS signing and notarization done by the release workflow. Specced in [docs/desktop-app.md](docs/desktop-app.md). Phase 1, Windows, built 2026-11-24: installer and zip, signed in two stages through SignPath.
 
 ## Ideas
 
