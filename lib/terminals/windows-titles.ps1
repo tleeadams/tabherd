@@ -54,7 +54,13 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
   $windows = @{}
   foreach ($id in ($line -split '\s+' | Where-Object { $_ })) {
     try {
-      if (-not [T]::AttachConsole([uint32]$id)) { continue }
+      if (-not [T]::AttachConsole([uint32]$id)) {
+        # An app with a window and no console, such as Comfy Desktop: the
+        # title of its main window stands in.
+        $p = Get-Process -Id $id -ErrorAction SilentlyContinue
+        if ($p -and $p.MainWindowTitle) { $sessions[[string]$id] = @{ title = $p.MainWindowTitle } }
+        continue
+      }
       try {
         $con = [T]::GetConsoleWindow()
         $sb = New-Object Text.StringBuilder 1024

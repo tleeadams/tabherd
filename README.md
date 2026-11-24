@@ -105,7 +105,14 @@ Checked that way so far: Windows Terminal; tmux, kitty, WezTerm, GNOME Terminal 
 - **Subagents**: running subagents with their current step, then recently finished ones.
 - **Actions**: go to the session's window, catch up, open its folder, copy a `claude --resume` command, or stop the session. Clicking a session's name also goes to its window.
 
-The filters in the header show every session, or only those in one state. **Todo** shows *Needs you* and *Idle* together, along with the to-do cards: everything whose turn it is. *Shell running* counts as Working, not Todo.
+A card across the top, **Memory and models**, shows the computer's memory in use against what it has, and each NVIDIA graphics card's, from `nvidia-smi` when it's there. Under them it lists the models loaded in LocalAI, Ollama and LM Studio, each with **Unload**. It shows whatever the filter. Settings → Appearance → *Memory and models* turns it off, and each loaded model then gets a card of its own, shown under All.
+
+The tabs in the header filter the cards. **All** shows everything. The others are yours to change, and start as **Todo** (*Needs you* and *Idle*, with the to-do cards: everything whose turn it is), **Needs you**, **Working** and **Idle**. *Shell running* and *Queued* count as Working. Each tab counts its cards, in amber when one of them needs you.
+
+- **Make one** from the **⋯** menu after the tabs, with **New filter…**. A filter picks statuses, apps and groups, and words that must be in the card's name or folder. A row with nothing ticked matches any. To-dos have no status, so a filter shows them only when *Show to-dos* is ticked, and then only those from its apps, in its groups and with its words.
+- **Change or delete one**: the same menu's **Edit** changes the tab you're on, and **Edit filters…** opens Settings → **Filters**, which lists them all to change, delete or move up and down the tabs, and has **Restore the usual filters** to put back the four above.
+
+Filters are saved in `~/.tabherd/filters.json`, for every browser. The tab you're on is remembered in the browser.
 
 Each card says which app the session is, **Claude** or **Codex**. Once a Codex session is running, a list beside the filters shows only one app's sessions, and once there are [groups](#groups), another shows one group, or the sessions in none. The counts on the filters follow both lists, and both are remembered in the browser.
 
@@ -128,6 +135,42 @@ With *Skip permission prompts* on, Codex sessions the dashboard opens or resumes
 Sessions run headless, with `claude -p`, show too: a background PR review, say, or a scheduled job. Claude registers them as it does sessions in a terminal, so Tabherd tells them apart by how they were started (`claude -p`, or the Agent SDK) and marks their cards **Background**. They have no window, so their cards have no Go to window or Catch up. Stop still ends them.
 
 A background run doesn't wait at a prompt when it's done: it exits. When one the dashboard saw running exits, it dings as finished, unless you stopped it, and its notification reads *Finished in the background*. Clicking its name there resumes it in a terminal tab, running `claude --resume <id>` in its folder, so you can ask about what it did. History lists background runs too, tagged **Background**, and its **Background runs** switch hides them, for when scripts run `claude -p` often.
+
+## GitHub Copilot
+
+GitHub Copilot's sessions get cards marked **Copilot**: the Copilot CLI's, and the agent sessions VS Code runs on the same Copilot runtime, which keep their state in the same place, `~/.copilot/session-state` (or `$COPILOT_HOME`).
+
+- **Which sessions are open** comes from Copilot's own list of open sessions and the lock each one's process holds. A lock left by a process that's gone doesn't count.
+- **Status**: *Needs you* while an approval Copilot asked for is unanswered, or while its ask_user tool waits for an answer; *Working* while Copilot's list says so, or a turn or tool is running; otherwise *Idle*.
+- **Activity**: the last prompt and reply, the tools running, the model and output tokens, from the session's `events.jsonl`, read a few new bytes at a time.
+- **Go to window**, **Catch up** and **Stop** work for the CLI as they do for Claude. A VS Code session runs inside VS Code, with all its others, so its card only has Go to window, which brings up VS Code.
+- **Starting Copilot**: once the Copilot CLI is installed, Settings → New sessions, the repo menu and a to-do's *Start with* offer it. A to-do starts `copilot --session-id=<new id> --name "<the to-do's title>"`, so, as with Claude, the server knows which session the to-do became.
+- **History and Resume**: the CLI's closed sessions are listed, and Resume runs `copilot --resume=<id>`. *Skip permission prompts* adds `--allow-all`. Save and close takes CLI sessions too.
+
+## ComfyUI and LocalAI
+
+The dashboard also shows what ComfyUI and LocalAI are doing, as cards marked **Comfy** and **LocalAI**. They join the app list in the header once they have something to show. Nothing needs setting up in either, unless LocalAI has an API key.
+
+**ComfyUI.** Comfy Desktop keeps a record of each ComfyUI it runs, with its port, so every installation that's running is found, whatever its port. A ComfyUI run some other way is looked for at Settings → Other apps → *ComfyUI address*, `http://127.0.0.1:8188` unless you set another. Each job gets a card:
+
+- **Working**, the job running now. Comfy Desktop's window title gives its progress, which goes on the card as a bar on Windows. ComfyUI only sends progress to the window that queued a job, so there's no other way to see it.
+- **Queued**, with its place in the queue.
+- **Finished** jobs leave the dashboard at once. Finishing dings, and the notification list says it finished, with its first output image. A **Failed** job keeps its card, with the error, as needing you, until you **Clear** it.
+
+A job is named after its saved workflow; one queued from an unsaved workflow is called *Unsaved workflow*. **Go to window** brings up Comfy Desktop. **Stop** ends the running job and **Cancel** takes a queued one out of the queue, each after a second click. The output images come through the dashboard's own server, which only passes on those of jobs it has reported, for a day.
+
+**LocalAI.** It's found at Settings → Other apps → *LocalAI address*, `http://127.0.0.1:8080` unless you set another, with the API key there if LocalAI has one. It shows:
+
+- **Each loaded model**, on the Memory and models card, with the graphics memory, memory and CPU it's using, and **Unload** to free them.
+- **Each download or install** in progress, with its progress and size, and **Cancel**. Finishing dings.
+- **Each agent chat** that's running (*Working*, with **Stop**) or paused at its step limit (*Needs you*). One that finishes leaves the dashboard and dings.
+- **Each agent job** running or queued, with **Cancel**. One that finishes leaves and dings.
+
+A chat, agent job or download that fails keeps its card, as needing you, until you **Clear** it. Cleared cards stay cleared, in every browser, in `~/.tabherd/dismissed.json`.
+
+**Open in LocalAI** opens LocalAI's own page. LocalAI keeps no list of plain API requests in progress, so a request from another app doesn't get a card.
+
+**Ollama** and **LM Studio**: each loaded model is listed on the Memory and models card, marked with its app, with its size, context and, for Ollama, the graphics memory it holds and when Ollama will unload it, and **Unload**. Ollama is found at Settings → Other apps → *Ollama address*, else `OLLAMA_HOST`, else `http://127.0.0.1:11434`. LM Studio's local server must be on (its Developer tab, or `lms server start`); it's found at *LM Studio address*, else the port it last served on, else `http://127.0.0.1:1234`, with *LM Studio API token* if LM Studio requires one. Neither tells anyone but the caller about downloads or requests in progress, so those don't get cards.
 
 ## Groups
 
@@ -159,11 +202,11 @@ When the session closes, the to-do goes too. Its title and notes stay with the s
 
 ## Settings
 
-The gear button in the header opens Settings.
+The gear button in the header opens Settings, one section at a time, picked from the list down its left side. It opens at the section last used.
 
 **New sessions**: once Codex is installed, *Claude* or *Codex* chooses the app the repo menu opens, and to-dos start in unless they name one. *Skip permission prompts* (off by default) makes every session the dashboard opens, from the repo menu, Resume or a to-do, run `claude --dangerously-skip-permissions`, or `codex --dangerously-bypass-approvals-and-sandbox`. They then edit files and run commands without asking first. Only turn it on if you'd run them that way yourself in those folders. *Terminal* chooses which terminal they open in, where there's more than one; see [Platform support](#platform-support).
 
-**Theme**: *System* (the default) follows the system's light or dark mode. *Light* or *Dark* sets one regardless.
+**Appearance** has *Theme*, *Card size* and the *Memory and models* card, which can be turned off. **Theme**: *System* (the default) follows the system's light or dark mode. *Light* or *Dark* sets one regardless.
 
 **Card size** sets how the cards are laid out:
 
@@ -172,13 +215,17 @@ The gear button in the header opens Settings.
 
 **Notifications**: *Keep the list after a reload* (on by default) saves the notification list, so reloading or reopening the dashboard keeps it.
 
+**Filters**: the tabs after All, in their order, each with what it shows, to move, change or delete; **Add filter**; and **Restore the usual filters**. See [What it shows](#what-it-shows).
+
 **Groups**: each group's name, colour and folders, and *Sections by group*. See [Groups](#groups).
+
+**Other apps**: ComfyUI's, LocalAI's, Ollama's and LM Studio's addresses, and LocalAI's API key and LM Studio's token. The key is kept in `~/.tabherd/settings.json` and never sent back to the page. See [ComfyUI and LocalAI](#comfyui-and-localai).
 
 **To-dos**: where a to-do's folder is chosen from (the repo menu or any folder), and the folder that choice starts at. See [To-dos](#to-dos).
 
 **Repo menu**: every folder and repo under the repos folder, nested as in the ☰ menu, each with a tick box. Untick one to hide it, and everything inside it, from the menu. What's inside a hidden folder is greyed out but keeps its own setting, so ticking the folder again brings back exactly what was shown before. A folder with some repos hidden says how many, in amber. The filter box works like the menu's. A hidden path that's no longer in the repos folder is listed underneath, with ✕ to remove it.
 
-Theme, Card size, Notifications and Sections by group are saved in the browser, so each browser profile remembers its own choice. The rest are saved by the server, in `~/.tabherd/settings.json` and `~/.tabherd/groups.json`, so every browser shares them.
+Appearance, Notifications and Sections by group are saved in the browser, so each browser profile remembers its own choice. The rest are saved by the server, in `~/.tabherd/settings.json`, `~/.tabherd/filters.json` and `~/.tabherd/groups.json`, so every browser shares them.
 
 ## Catch up
 
@@ -204,6 +251,16 @@ Each change is also added to the notification list, the tray button left of the 
 Browsers only let a page play sound after you've clicked or typed in it, so after opening or reloading the dashboard the bell reads **Click to enable sound** until you click anywhere on the page. To skip that, allowing media autoplay for `http://localhost:4317` in Edge (Settings → Cookies and site permissions → Media autoplay) should let it play straight away.
 
 The server pushes each update to open dashboards (`/api/stream`, server-sent events) instead of the page checking every few seconds. A browser slows timers in hidden or covered windows to as little as once a minute, which would make dings late. Pushed messages are handled right away.
+
+## Save and close
+
+The box button in the header saves every open session and closes it, so you can stop for the day, restart the computer or switch to other work, and later pick them all up again:
+
+- **Save and close all** lists the Claude and Codex sessions open in terminals and asks first. Any still working are listed apart, with a choice: wait for them to finish their turn and then close them, or close them now, which loses their current turn. A card waiting to close says *Closes when done*; clicking that keeps it open.
+- Closing a session closes its terminal tab too. On Windows the session ends, then `exit` is typed into the tab's shell, so Windows Terminal closes the tab as it would if you'd typed it. Launchers in between, such as npm's wrappers and mise's or nvm's shims, end with it. On macOS and Linux the shell is hung up, and the terminal closes the tab or pane if its settings say to.
+- **Resume last session** opens each saved session again, one tab each, running `claude --resume <id>` or `codex resume <id>` in its folder, so each conversation carries on. Sessions already open, or whose folder has gone, are skipped.
+
+Only the last saved set is kept, in `~/.tabherd/saved-sessions.json`; the next Save and close replaces it. A session never asked anything has no conversation to resume, so it's closed but not saved. Sessions in a VS Code panel, background runs, and other apps' jobs and models are left alone. A Codex session's turn is interrupted before its window closes; one whose window isn't known is saved but stays open.
 
 ## History
 
@@ -243,7 +300,7 @@ Start the server from a normal terminal. If it's started from a sandboxed shell,
 
 ## Where the data comes from
 
-All of it is read-only, from files Claude Code and Codex already write, and from Codex's own background service:
+All of it is read-only, from files Claude Code and Codex already write, and from Codex's, ComfyUI's and LocalAI's own services:
 
 | Source | Used for |
 | --- | --- |
@@ -255,10 +312,13 @@ All of it is read-only, from files Claude Code and Codex already write, and from
 | `~/.codex/sessions/<yyyy>/<mm>/<dd>/rollout-<time>-<session>.jsonl` | A Codex session's prompts, replies, tool calls, model and token usage. |
 | `~/.codex/session_index.jsonl` | Closed Codex sessions' names, for History. |
 | The `codex` processes and their tab titles | Which window each Codex session is in, and its memory use. |
+| Comfy Desktop's `comfy-procs/*.json` and `installations.json` | Which ComfyUIs are running, on which ports, and their names. |
+| ComfyUI's `/api/jobs`, `/api/userdata` and `/view` | Its jobs, their workflows' names, and their output images. Its window's title gives the running job's progress. |
+| LocalAI's `/system`, `/api/operations`, `/api/chats` and `/api/agent/jobs` | Its loaded models, downloads, agent chats and agent jobs. |
 
 A session file whose process has exited, or whose PID now belongs to another process, is ignored.
 
-The only files the server writes are its own, in `~/.tabherd`: `settings.json` holds the settings that aren't kept in the browser, `history.json` the closed sessions, `todos.json` the to-dos and `groups.json` the groups, with the sessions moved between them by hand.
+The only files the server writes are its own, in `~/.tabherd`: `settings.json` holds the settings that aren't kept in the browser, `history.json` the closed sessions, `todos.json` the to-dos, `groups.json` the groups, with the sessions moved between them by hand, and `saved-sessions.json` the sessions Save and close saved last.
 
 ## Safety
 

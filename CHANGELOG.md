@@ -2,6 +2,22 @@
 
 Notable changes in each release. Version numbers follow [Semantic Versioning](https://semver.org). The release build takes each release's notes from its section here.
 
+## Unreleased
+
+- The filter tabs after All are yours to make, change, reorder and delete: the **⋯** menu after the tabs makes one or changes the one shown, and Settings → Filters lists them all. A filter picks statuses, apps, groups and words in a card's name or folder, and whether to show to-dos. Todo, Needs you, Working and Idle are where they start, and Settings can put them back. The tab you're on is remembered. See [What it shows](README.md#what-it-shows).
+- Settings shows one section at a time, picked from a list down its left side, and opens at the last one used.
+- A **Memory and models** card across the top shows the memory in use against what the computer has, and each NVIDIA graphics card's, with the models loaded in LocalAI, Ollama and LM Studio, each with Unload. Loaded models no longer get cards of their own, unless the card is turned off in Settings → Appearance.
+
+- Finished jobs, chats and downloads leave the dashboard as soon as they're done, instead of staying a few minutes. The ding and the notification list still say so, with the output image for a ComfyUI job. Failed ones stay, as needing you, until cleared with **Clear**.
+
+- GitHub Copilot's sessions, from the Copilot CLI and from VS Code's agent, get cards marked **Copilot**: status, with *Needs you* while an approval is unanswered, the last prompt and reply, tools, model and tokens. CLI sessions have Go to window, Catch up and Stop, can be started from to-dos and the repo menu with their own ID and name, and are in History with Resume. See [GitHub Copilot](README.md#github-copilot).
+- Ollama's and LM Studio's loaded models are listed, with their size, context and Unload, and Ollama's with the graphics memory each holds and when it will unload. Their addresses, and an LM Studio token, are in Settings → Other apps.
+
+- **Save and close all**, in a new menu in the header, saves every open Claude and Codex session and closes it, tab and all, after asking. Sessions still working can be waited for, closing as each finishes its turn, or closed at once. **Resume last session** opens them all again, each carrying on its conversation. On Windows the tab closes because `exit` is typed into its shell once the session has ended, so Windows Terminal closes it as usual. See [Save and close](README.md#save-and-close).
+
+- ComfyUI's jobs and LocalAI's models, downloads, agent chats and agent jobs show as cards, marked **Comfy** and **LocalAI**, and join the app list in the header. A ComfyUI job shows as Working, with its progress on Windows, Queued with its place, or Finished with its output image, and has Stop or Cancel and Go to window. A LocalAI model shows the memory it's using and has Unload; downloads show their progress and have Cancel; agent chats show as Working, or Needs you when paused, and have Stop. Finishing dings. Settings → Other apps has ComfyUI's and LocalAI's addresses, and LocalAI's API key; Comfy Desktop's ComfyUIs are found by themselves, on whatever port. See [ComfyUI and LocalAI](README.md#comfyui-and-localai).
+- On Windows, the title-reading helper also reads the main window title of apps without a console, which is how Comfy Desktop's progress is read.
+
 ## 0.4.0 - 2026-11-23
 
 - Codex sessions show on the dashboard beside Claude's, and each card says which app it is. A Codex card has its status, with *Needs you* when it's waiting for an approval or an answer, what it's doing, its last reply, model and tokens, and Go to window. Closed Codex sessions are in History, where Resume runs `codex resume`. See [Codex](README.md#codex).
