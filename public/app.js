@@ -2138,6 +2138,62 @@ radioSetting('card-size', ['fit', 'small', 'medium', 'large'], (size) => {
   list.classList.toggle('uniform', size !== 'fit');
 });
 
+// In the desktop app, the window can stay on top of other windows, from
+// Settings or the pin in the header, and on Windows its background can be
+// see-through. The app gives the page tabherdApp to say so. Both are kept in
+// this browser, the app's own, and put back as the page loads.
+const desktopApp = window.tabherdApp || null;
+const ON_TOP_KEY = 'tabherd:on-top';
+const SEE_THROUGH_KEY = 'tabherd:see-through';
+let onTop = false;
+let seeThrough = 0;
+try {
+  onTop = localStorage.getItem(ON_TOP_KEY) === 'on';
+  seeThrough = Math.max(0, Math.min(80, Number(localStorage.getItem(SEE_THROUGH_KEY)) || 0));
+} catch {}
+
+async function keepOnTop(on) {
+  try {
+    await desktopApp.setOnTop(on);
+    onTop = on;
+    try {
+      localStorage.setItem(ON_TOP_KEY, on ? 'on' : 'off');
+    } catch {}
+  } catch (err) {
+    toast(`Couldn't change that: ${err}`, true);
+  }
+  $('on-top').checked = onTop;
+  $('pin-button').setAttribute('aria-pressed', String(onTop));
+  $('pin-button').title = onTop ? 'On top of other windows: click to stop' : 'Keep this window on top of other windows';
+}
+
+// A percentage of the background that lets what's behind show through; 0 is off.
+function showSeeThrough() {
+  document.documentElement.classList.toggle('see-through', seeThrough > 0);
+  document.documentElement.style.setProperty('--see-through', `${seeThrough}%`);
+  $('see-through').value = String(seeThrough);
+  $('see-through-value').textContent = seeThrough ? `${seeThrough}%` : 'Off';
+}
+
+if (desktopApp) {
+  $('window-setting').hidden = false;
+  $('pin-button').hidden = false;
+  $('pin-button').addEventListener('click', () => keepOnTop(!onTop));
+  $('on-top').addEventListener('change', (e) => keepOnTop(e.currentTarget.checked));
+  keepOnTop(onTop);
+  if (desktopApp.seeThrough) {
+    $('see-through-setting').hidden = false;
+    $('see-through').addEventListener('input', (e) => {
+      seeThrough = Number(e.currentTarget.value);
+      try {
+        localStorage.setItem(SEE_THROUGH_KEY, String(seeThrough));
+      } catch {}
+      showSeeThrough();
+    });
+    showSeeThrough();
+  }
+}
+
 // Folders and repos left out of the repo menu. The server keeps these, for
 // every browser, as paths under the repos folder with forward slashes.
 let serverSettings = null;

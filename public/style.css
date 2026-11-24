@@ -129,6 +129,9 @@ a { color: var(--accent); }
 
 .header-icon { width: 30px; height: 30px; }
 .header-icon svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+/* The desktop app's pin, lit while the window stays on top. */
+.pin-button[aria-pressed="true"] { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.pin-button[aria-pressed="true"] svg { fill: color-mix(in srgb, var(--accent) 30%, transparent); }
 .history-button { margin-left: auto; }
 
 .conn { display: flex; align-items: center; gap: 7px; color: var(--faint); font-size: 12.5px; }
@@ -689,6 +692,19 @@ button:focus-visible, a:focus-visible, summary:focus-visible, .msg .text:focus-v
 }
 .field textarea { min-height: 130px; resize: vertical; }
 .field :is(input, select, textarea):focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+
+/* The desktop app's Transparency: a slider and its value. */
+.see-through-row { display: flex; align-items: center; gap: 12px; }
+.field .see-through-row input { flex: 1; width: auto; padding: 0; border: 0; background: none; accent-color: var(--accent); }
+.field .see-through-row input:focus-visible { outline-offset: 2px; }
+.see-through-row output { min-width: 3em; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+
+/* With it on, what's behind the window shows through the page and the
+   cards, by --see-through. Cards stay a little more solid than the page, so
+   they stand out. Text, buttons and dialogs stay solid. */
+:root.see-through body,
+:root.see-through .top { background: color-mix(in srgb, var(--bg) calc(100% - var(--see-through)), transparent); }
+:root.see-through .card { background: color-mix(in srgb, var(--panel) calc(100% - var(--see-through) * 0.7), transparent); }
 
 /* The repo menu's folders as a tree of checkboxes: ticked is shown. */
 .excluded-search { margin-bottom: 6px; }
