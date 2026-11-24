@@ -123,6 +123,12 @@ Codex sessions get cards like Claude's, marked **Codex** (Claude's are marked **
 
 With *Skip permission prompts* on, Codex sessions the dashboard opens or resumes run with `--dangerously-bypass-approvals-and-sandbox`. A session Codex runs outside its background service, such as one in an Administrator terminal or started with `--profile` or most `-c` options, isn't shown. When a Codex window closes, its card goes at once if the dashboard knew the window, or within about a minute, when Codex unloads the session, if it didn't.
 
+## Background runs
+
+Sessions run headless, with `claude -p`, show too: a background PR review, say, or a scheduled job. Claude registers them as it does sessions in a terminal, so Tabherd tells them apart by how they were started (`claude -p`, or the Agent SDK) and marks their cards **Background**. They have no window, so their cards have no Go to window or Catch up. Stop still ends them.
+
+A background run doesn't wait at a prompt when it's done: it exits. When one the dashboard saw running exits, it dings as finished, unless you stopped it, and its notification reads *Finished in the background*. Clicking its name there resumes it in a terminal tab, running `claude --resume <id>` in its folder, so you can ask about what it did. History lists background runs too, tagged **Background**, and its **Background runs** switch hides them, for when scripts run `claude -p` often.
+
 ## Groups
 
 Groups gather sessions by project, client or anything else, each with a name and a colour. Make them in Settings → **Groups**, or from a card: its group button, which reads *No group* while the card is pointed at, has **New group for** the card's folder.
@@ -189,7 +195,7 @@ A Codex session gets the question through Codex's own service instead, without t
 The page plays a sound when an agent changes state:
 
 - **Needs you** (it starts waiting on a prompt or dialog): two rising notes.
-- **Finished** (Working to Idle, or to "Shell running" at the prompt): one soft bell.
+- **Finished** (Working to Idle, or to "Shell running" at the prompt, or a [background run](#background-runs) ending): one soft bell.
 
 A toast says which agent it was, and its card pulses. If several agents change at once you hear one sound, and sounds are at least 2 seconds apart.
 
@@ -203,7 +209,7 @@ The server pushes each update to open dashboards (`/api/stream`, server-sent eve
 
 The clock button in the header lists sessions that have closed, newest first and grouped by day. Each entry has the session's name, folder, branch and last prompt, and a filter searches all of those. **Resume** opens Claude in the session's folder, in your terminal, running `claude --resume <id>`, so the conversation carries on where it stopped. **Copy resume command** copies a command that does the same, for running yourself.
 
-The server records a session when it drops off the dashboard, keeping its terminal tab's title and session name. Sessions that closed while the server wasn't running, or while no dashboard was open, are read from their transcripts in `~/.claude/projects`, going back 30 days. Those show Claude's title for the session, or its first prompt, rather than the tab's title. Each transcript is read once and again only if it changes, so after the first scan (about a second for 300 MB of transcripts) opening History is quick. Closed Codex sessions are read back the same way from `~/.codex/sessions`, named as Codex named them, apart from those Codex has compressed after a week. Only interactive sessions are listed, not `claude -p`, `codex exec` or SDK runs. Nor are sessions closed before Claude was asked anything: Claude saves no conversation for those, so there's nothing to resume. A session that's running again, because it was resumed, leaves the list until it closes. The history keeps the latest 300 sessions, in `~/.tabherd/history.json`.
+The server records a session when it drops off the dashboard, keeping its terminal tab's title and session name. Sessions that closed while the server wasn't running, or while no dashboard was open, are read from their transcripts in `~/.claude/projects`, going back 30 days. Those show Claude's title for the session, or its first prompt, rather than the tab's title. Each transcript is read once and again only if it changes, so after the first scan (about a second for 300 MB of transcripts) opening History is quick. Closed Codex sessions are read back the same way from `~/.codex/sessions`, named as Codex named them, apart from those Codex has compressed after a week. Sessions from a terminal are listed, and `claude -p` runs, tagged **Background** (see [Background runs](#background-runs)); `codex exec` and Agent SDK runs aren't. Nor are sessions closed before Claude was asked anything: Claude saves no conversation for those, so there's nothing to resume. A session that's running again, because it was resumed, leaves the list until it closes. The history keeps the latest 300 sessions, in `~/.tabherd/history.json`.
 
 ## Repo menu
 

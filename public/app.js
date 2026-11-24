@@ -172,7 +172,8 @@ const post = (agent, action) => api(`/api/agents/${agent.id}/${action}`);
 
 // The server says whether this computer has a terminal it can drive. A Codex
 // session's window is known once its tab's title names it.
-const canFocus = (a) => Boolean(snap?.terminals) && (!a.kind || a.kind === 'interactive') && Boolean(a.pid);
+// A background run, with `claude -p`, has no window.
+const canFocus = (a) => Boolean(snap?.terminals) && (!a.kind || a.kind === 'interactive') && !a.background && Boolean(a.pid);
 // Codex takes Catch up's prompt through its own service, so it doesn't need
 // the window; Claude's is typed into the window.
 const canCatchUp = (a) => (a.app === 'codex' ? !a.kind || a.kind === 'interactive' : canFocus(a));
@@ -507,7 +508,8 @@ function card(a) {
   const tags = [];
   if (a.gitBranch) tags.push(el('span', { class: 'tag branch', title: 'Git branch', text: `⎇ ${a.gitBranch}` }));
   if (a.kind && a.kind !== 'interactive') tags.push(el('span', { class: 'tag', text: a.kind }));
-  if (a.entrypoint && a.entrypoint !== 'cli') tags.push(el('span', { class: 'tag', text: a.entrypoint }));
+  if (a.background) tags.push(el('span', { class: 'tag background', title: `Running in the background (${a.entrypoint}), with no window`, text: 'Background' }));
+  else if (a.entrypoint && a.entrypoint !== 'cli') tags.push(el('span', { class: 'tag', text: a.entrypoint }));
   const perm = PERMISSION_MODES[a.permissionMode];
   if (perm) tags.push(el('span', { class: 'tag', title: `Permission mode: ${a.permissionMode}`, text: perm }));
   if (a.version) tags.push(el('span', { text: `v${a.version}` }));
@@ -869,7 +871,10 @@ try {
 } catch {}
 let audio = null;
 let lastDingAt = 0;
-let lastStatus = null;
+// The agents in the last update, to see what changed.
+let lastAgents = null;
+// Background runs stopped from here, which haven't finished on their own.
+const stoppedHere = new Set();
 
 function audioContext() {
   if (!audio) {
@@ -939,15 +944,20 @@ function unlockAudio() {
 function notableChanges(agents) {
   const needs = [];
   const done = [];
-  if (lastStatus) {
+  if (lastAgents) {
     for (const a of agents) {
-      const before = lastStatus.get(a.id);
+      const before = lastAgents.get(a.id)?.status;
       if (before === undefined || before === a.status) continue;
       if (a.status === 'waiting') needs.push(a);
       else if (before === 'busy' && (a.status === 'idle' || a.status === 'shell')) done.push(a);
     }
+    // A background run doesn't wait at a prompt when it's done: it exits.
+    const running = new Set(agents.map((a) => a.id));
+    for (const [id, a] of lastAgents) {
+      if (a.background && !running.has(id) && !stoppedHere.delete(id)) done.push(a);
+    }
   }
-  lastStatus = new Map(agents.map((a) => [a.id, a.status]));
+  lastAgents = new Map(agents.map((a) => [a.id, a]));
   return { needs, done };
 }
 
@@ -1002,7 +1012,7 @@ function updateNotes(agents, { needs, done }) {
   });
   const added = [
     ...needs.map((a) => ({ id: a.id, kind: 'needs', name: displayName(a), detail: a.waitingFor || '', at: snap.now })),
-    ...done.map((a) => ({ id: a.id, kind: 'done', name: displayName(a), detail: '', at: snap.now })),
+    ...done.map((a) => ({ id: a.id, kind: 'done', name: displayName(a), detail: '', background: Boolean(a.background), at: snap.now })),
   ];
   if (added.length) notes = [...added, ...notes.filter((n) => !added.some((x) => x.id === n.id))];
   if (added.length || notes.length !== before) saveNotes();
@@ -1021,14 +1031,16 @@ function renderNotes() {
     const a = live.get(n.id);
     return { n, a, name: a ? displayName(a) : n.name, focus: Boolean(a && canFocus(a)) };
   });
+  // A finished background run is picked up again from the history.
+  const resumable = (n) => n.background && Boolean(snap?.terminals);
   // Rebuilt only when something shown changes, so an open list doesn't flicker.
-  const key = JSON.stringify(rows.map((r) => [r.n.id, r.n.kind, r.n.at, r.name, Boolean(r.a), r.focus]));
+  const key = JSON.stringify(rows.map((r) => [r.n.id, r.n.kind, r.n.at, r.name, Boolean(r.a), r.focus, resumable(r.n)]));
   if (key === notesKey) return;
   notesKey = key;
   $('notes-list').replaceChildren(
     ...rows.map(({ n, a, name, focus }) => {
-      const what = [n.kind === 'needs' ? `Needs you${n.detail ? `: ${n.detail}` : ''}` : 'Finished'];
-      if (!a) what.push('session closed');
+      const what = [n.kind === 'needs' ? `Needs you${n.detail ? `: ${n.detail}` : ''}` : n.background ? 'Finished in the background' : 'Finished'];
+      if (!a && !n.background) what.push('session closed');
       return el(
         'li',
         { class: `note k-${n.kind}` },
@@ -1038,7 +1050,9 @@ function renderNotes() {
           { class: 'note-text' },
           focus
             ? el('button', { type: 'button', class: 'name-link note-name', title: 'Go to this session’s window', onclick: (e) => goToWindow(a, e.currentTarget) }, name)
-            : el('span', { class: 'note-name', text: name }),
+            : !a && resumable(n)
+              ? el('button', { type: 'button', class: 'name-link note-name', title: 'Open a terminal tab in its folder and continue the conversation', onclick: (e) => resumeNote(n, e.currentTarget) }, name)
+              : el('span', { class: 'note-name', text: name }),
           el('span', { class: 'note-what', text: what.join(' · '), title: what.join(' · ') }),
         ),
         since(n.at, ' ago'),
@@ -1057,6 +1071,20 @@ function renderNotes() {
 }
 
 $('notes-clear').addEventListener('click', () => clearNotes());
+
+// Resumes a finished background run from its notification, as History does.
+async function resumeNote(n, button) {
+  button.disabled = true;
+  try {
+    await api(`/api/history/${n.id}/resume`);
+    toast(`Resuming ${n.name}`);
+    clearNotes(n);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
 
 function apply(next) {
   snap = next;
@@ -1105,6 +1133,7 @@ function confirmStop(a) {
   dialog.onclose = async () => {
     if (dialog.returnValue !== 'stop') return;
     try {
+      if (a.background) stoppedHere.add(a.id);
       const r = await post(a, 'stop');
       toast(r.windowLeft ? `Interrupted ${displayName(a)}. Close its window to end it.` : `Stopped ${displayName(a)}`);
     } catch (err) {
@@ -1392,6 +1421,7 @@ function pastItem(s) {
       { class: 'where' },
       el('span', { class: 'path', text: shortPath(s.cwd), title: s.cwd }),
       s.gitBranch ? el('span', { class: 'tag branch', title: 'Git branch', text: `⎇ ${s.gitBranch}` }) : null,
+      s.background ? el('span', { class: 'tag background', title: 'Ran in the background, with claude -p', text: 'Background' }) : null,
     ),
     s.lastPrompt ? el('p', { class: 'past-prompt', title: s.lastPrompt.text }, el('b', {}, 'Last prompt · '), s.lastPrompt.text) : null,
     el(
@@ -1421,14 +1451,18 @@ function pastItem(s) {
 function renderHistory() {
   if (!historyData) return;
   const terms = $('history-filter').value.toLowerCase().split(/\s+/).filter(Boolean);
+  const background = $('history-background').checked;
   const shown = historyData.filter((s) => {
+    if (s.background && !background) return false;
     const text = [pastName(s), s.title, s.name, s.cwd, s.gitBranch, s.firstPrompt?.text, s.lastPrompt?.text, s.todo?.title, s.todo?.notes]
       .join(' ')
       .toLowerCase();
     return terms.every((t) => text.includes(t));
   });
   const n = historyData.length;
-  $('history-sub').textContent = `${n} closed session${n === 1 ? '' : 's'}${terms.length ? ` · ${shown.length} shown` : ''}`;
+  $('history-sub').textContent = `${n} closed session${n === 1 ? '' : 's'}${shown.length < n ? ` · ${shown.length} shown` : ''}`;
+  // The switch for background runs only shows once there are some.
+  $('history-background-label').hidden = !historyData.some((s) => s.background);
   const days = [];
   for (const s of shown) {
     const day = dayLabel(s.closedAt);
@@ -1460,6 +1494,17 @@ $('history-button').addEventListener('click', () => {
 });
 $('history-close').addEventListener('click', () => $('history').close());
 $('history-filter').addEventListener('input', renderHistory);
+// Whether History lists background runs, such as `claude -p` reviews. Kept in this browser.
+const HISTORY_BACKGROUND_KEY = 'tabherd:history-background';
+try {
+  $('history-background').checked = localStorage.getItem(HISTORY_BACKGROUND_KEY) !== 'off';
+} catch {}
+$('history-background').addEventListener('change', (e) => {
+  try {
+    localStorage.setItem(HISTORY_BACKGROUND_KEY, e.currentTarget.checked ? 'on' : 'off');
+  } catch {}
+  renderHistory();
+});
 $('history').addEventListener('click', (e) => e.target === e.currentTarget && e.currentTarget.close());
 
 // ---- settings ----------------------------------------------------------------
