@@ -131,7 +131,8 @@ a { color: var(--accent); }
 
 .header-icon { width: 30px; height: 30px; }
 .header-icon svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-/* The desktop app's pin, lit while the window stays on top. */
+/* The desktop app's pin, lit while the window stays on top. Not in a browser. */
+.pin-button[hidden] { display: none; }
 .pin-button[aria-pressed="true"] { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
 .pin-button[aria-pressed="true"] svg { fill: color-mix(in srgb, var(--accent) 30%, transparent); }
 .history-button { margin-left: auto; }
