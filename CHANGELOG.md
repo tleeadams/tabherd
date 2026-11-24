@@ -4,6 +4,8 @@ Notable changes in each release. Version numbers follow [Semantic Versioning](ht
 
 ## Unreleased
 
+- ComfyUI's loaded models join the Memory and models card, each with what it is and the workflow that loaded it, and Unload, which frees all of them, as ComfyUI does. They're the models its latest job's workflow names, since ComfyUI keeps those in memory for the next job. See [ComfyUI and LocalAI](README.md#comfyui-and-localai).
+- llama.cpp's server joins the Memory and models card: the model it has loaded, with its size, context and requests in progress, or in router mode each model loaded or loading, with Unload. Its address is in Settings → Other apps, else LLAMA_ARG_HOST and LLAMA_ARG_PORT, else port 8080. See [ComfyUI and LocalAI](README.md#comfyui-and-localai).
 - A short tour on a browser's first visit points out each part of the dashboard, with Skip tour on every step. It waits until every running session is on the page, and the page holds still while it runs. With nothing running, it shows an example card. Browsers that have used the dashboard before don't get it, and Settings → Help shows it again. See [What it shows](README.md#what-it-shows).
 - The filter tabs after All are yours to make, change, reorder and delete: the **⋯** menu after the tabs makes one or changes the one shown, and Settings → Filters lists them all. A filter picks statuses (Shell running among them, apart from Working), apps, groups and words in a card's name or folder, and whether to show to-dos. Todo, Needs you, Working and Idle are where they start, and Settings can put them back. The tab you're on is remembered. See [What it shows](README.md#what-it-shows).
 - Settings shows one section at a time, picked from a list down its left side, and opens at the last one used.

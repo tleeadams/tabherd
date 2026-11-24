@@ -107,7 +107,7 @@ The first time a browser opens the dashboard, a short tour points out each part 
 - **Subagents**: running subagents with their current step, then recently finished ones.
 - **Actions**: go to the session's window, catch up, open its folder, copy a `claude --resume` command, or stop the session. Clicking a session's name also goes to its window.
 
-A card across the top, **Memory and models**, shows the computer's memory in use against what it has, and each NVIDIA graphics card's, from `nvidia-smi` when it's there. Under them it lists the models loaded in LocalAI, Ollama and LM Studio, each with **Unload**. It shows whatever the filter. Settings → Appearance → *Memory and models* turns it off, and each loaded model then gets a card of its own, shown under All.
+A card across the top, **Memory and models**, shows the computer's memory in use against what it has, and each NVIDIA graphics card's, from `nvidia-smi` when it's there. Under them it lists the models loaded in ComfyUI, LocalAI, Ollama, LM Studio and llama.cpp, with **Unload** where the app allows it. It shows whatever the filter. Settings → Appearance → *Memory and models* turns it off, and each loaded model then gets a card of its own, shown under All.
 
 The tabs in the header filter the cards. **All** shows everything. The others are yours to change, and start as **Todo** (*Needs you* and *Idle*, with the to-do cards: everything whose turn it is), **Needs you**, **Working** and **Idle**. *Queued* counts as Working, and so does *Shell running* on the Working tab, though a filter can pick Shell running on its own. Each tab counts its cards, in amber when one of them needs you.
 
@@ -161,6 +161,8 @@ The dashboard also shows what ComfyUI and LocalAI are doing, as cards marked **C
 
 A job is named after its saved workflow; one queued from an unsaved workflow is called *Unsaved workflow*. **Go to window** brings up Comfy Desktop. **Stop** ends the running job and **Cancel** takes a queued one out of the queue, each after a second click. The output images come through the dashboard's own server, which only passes on those of jobs it has reported, for a day.
 
+The models ComfyUI has loaded are listed on the Memory and models card, each with what it is (diffusion model, text encoder, VAE, LoRA and so on) and the workflow that loaded it. ComfyUI doesn't list them itself. They're the model files named in the latest job's workflow, which ComfyUI keeps in memory after the job for the next one. **Unload** frees them, all at once, as ComfyUI only frees them all together. They're listed again once another job runs. If ComfyUI frees them itself, to make room or from its own menu, the list doesn't know until the next job.
+
 **LocalAI.** It's found at Settings → Other apps → *LocalAI address*, `http://127.0.0.1:8080` unless you set another, with the API key there if LocalAI has one. It shows:
 
 - **Each loaded model**, on the Memory and models card, with the graphics memory, memory and CPU it's using, and **Unload** to free them.
@@ -173,6 +175,8 @@ A chat, agent job or download that fails keeps its card, as needing you, until y
 **Open in LocalAI** opens LocalAI's own page. LocalAI keeps no list of plain API requests in progress, so a request from another app doesn't get a card.
 
 **Ollama** and **LM Studio**: each loaded model is listed on the Memory and models card, marked with its app, with its size, context and, for Ollama, the graphics memory it holds and when Ollama will unload it, and **Unload**. Ollama is found at Settings → Other apps → *Ollama address*, else `OLLAMA_HOST`, else `http://127.0.0.1:11434`. LM Studio's local server must be on (its Developer tab, or `lms server start`); it's found at *LM Studio address*, else the port it last served on, else `http://127.0.0.1:1234`, with *LM Studio API token* if LM Studio requires one. Neither tells anyone but the caller about downloads or requests in progress, so those don't get cards.
+
+**llama.cpp**: the model llama.cpp's server (`llama-server`) has loaded is listed on the Memory and models card too, with its size, context, quantization and how many requests it's answering at once. In router mode (`--models-dir` or `--models-preset`), each model loaded or loading is listed, and **Unload** unloads one; a server started with one model (`-m`) keeps it until it's stopped, so it has no Unload. It's found at Settings → Other apps → *llama.cpp address*, else `LLAMA_ARG_HOST` and `LLAMA_ARG_PORT`, else `http://127.0.0.1:8080`. LocalAI's default is the same port; Tabherd tells the two apart by what they answer, so whichever is running there shows.
 
 ## Groups
 
@@ -221,7 +225,7 @@ The gear button in the header opens Settings, one section at a time, picked from
 
 **Groups**: each group's name, colour and folders, and *Sections by group*. See [Groups](#groups).
 
-**Other apps**: ComfyUI's, LocalAI's, Ollama's and LM Studio's addresses, and LocalAI's API key and LM Studio's token. The key is kept in `~/.tabherd/settings.json` and never sent back to the page. See [ComfyUI and LocalAI](#comfyui-and-localai).
+**Other apps**: ComfyUI's, LocalAI's, Ollama's, LM Studio's and llama.cpp's addresses, and LocalAI's API key and LM Studio's token. The key is kept in `~/.tabherd/settings.json` and never sent back to the page. See [ComfyUI and LocalAI](#comfyui-and-localai).
 
 **To-dos**: where a to-do's folder is chosen from (the repo menu or any folder), and the folder that choice starts at. See [To-dos](#to-dos).
 
@@ -317,7 +321,7 @@ All of it is read-only, from files Claude Code and Codex already write, and from
 | `~/.codex/session_index.jsonl` | Closed Codex sessions' names, for History. |
 | The `codex` processes and their tab titles | Which window each Codex session is in, and its memory use. |
 | Comfy Desktop's `comfy-procs/*.json` and `installations.json` | Which ComfyUIs are running, on which ports, and their names. |
-| ComfyUI's `/api/jobs`, `/api/userdata` and `/view` | Its jobs, their workflows' names, and their output images. Its window's title gives the running job's progress. |
+| ComfyUI's `/api/jobs`, `/queue`, `/api/userdata` and `/view` | Its jobs, their workflows' names and the models they load, and their output images. Its window's title gives the running job's progress. |
 | LocalAI's `/system`, `/api/operations`, `/api/chats` and `/api/agent/jobs` | Its loaded models, downloads, agent chats and agent jobs. |
 
 A session file whose process has exited, or whose PID now belongs to another process, is ignored.

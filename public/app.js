@@ -45,10 +45,10 @@ const PERMISSION_MODES = {
   'never-ask': 'never asks',
 };
 // Which app each session is, on its card and in the history.
-const APPS = { claude: 'Claude', codex: 'Codex', copilot: 'Copilot', comfy: 'Comfy', localai: 'LocalAI', ollama: 'Ollama', lmstudio: 'LM Studio' };
-// Cards for things other than sessions: ComfyUI's jobs, and LocalAI's
-// models, downloads and chats.
-const isItem = (a) => ['comfy', 'localai', 'ollama', 'lmstudio'].includes(a.app);
+const APPS = { claude: 'Claude', codex: 'Codex', copilot: 'Copilot', comfy: 'Comfy', localai: 'LocalAI', ollama: 'Ollama', lmstudio: 'LM Studio', llamacpp: 'llama.cpp' };
+// Cards for things other than sessions: ComfyUI's jobs, LocalAI's models,
+// downloads and chats, and the other model servers' loaded models.
+const isItem = (a) => ['comfy', 'localai', 'ollama', 'lmstudio', 'llamacpp'].includes(a.app);
 const APP_HINTS = {
   claude: 'A Claude Code session',
   codex: 'A Codex session',
@@ -57,6 +57,7 @@ const APP_HINTS = {
   localai: 'From LocalAI',
   ollama: 'From Ollama',
   lmstudio: 'From LM Studio',
+  llamacpp: "From llama.cpp's server",
 };
 const appTag = (x) => el('span', { class: `app app-${x.app || 'claude'}`, title: APP_HINTS[x.app] || APP_HINTS.claude }, APPS[x.app] || APPS.claude);
 // The colours a group can have, as the server knows them. Each is set for
@@ -369,6 +370,7 @@ const APP_ADDRESSES = [
   ['localai-url', 'localaiUrl'],
   ['ollama-url', 'ollamaUrl'],
   ['lmstudio-url', 'lmstudioUrl'],
+  ['llamacpp-url', 'llamacppUrl'],
 ];
 
 // Codex or the Copilot CLI is installed, so there's an app to choose.
@@ -724,8 +726,9 @@ async function itemAction(a, action, button) {
   button.disabled = true;
   try {
     if (a.leavesWhenDone) stoppedHere.add(a.id);
-    await post(a, action);
-    toast(`${ITEM_DONE[action]} ${a.name}`);
+    const result = await post(a, action);
+    // ComfyUI's Unload frees all its models, and says so.
+    toast(result?.done || `${ITEM_DONE[action]} ${a.name}`);
   } catch (err) {
     toast(err.message, true);
   } finally {
@@ -1013,7 +1016,11 @@ function memoryCard({ memory, models }) {
       el('span', { class: 'mem-model-name', text: m.name, title: [m.name, m.where].filter(Boolean).join(' · ') }),
       el('span', { class: 'mem-model-facts', text: (m.facts || []).map(([k, v]) => `${k} ${v}`).join(' · ') }),
       (m.actions || []).includes('unload')
-        ? el('button', { type: 'button', class: 'btn btn-stop', onclick: (e) => itemAction(m, 'unload', e.currentTarget) }, 'Unload')
+        ? el(
+            'button',
+            { type: 'button', class: 'btn btn-stop', title: m.app === 'comfy' ? `Unloads all of ${m.host}'s models: ComfyUI can't unload one alone` : null, onclick: (e) => itemAction(m, 'unload', e.currentTarget) },
+            'Unload',
+          )
         : null,
     ),
   );
@@ -1024,7 +1031,7 @@ function memoryCard({ memory, models }) {
     el('div', { class: 'mem-bars' }, rows),
     modelRows.length
       ? el('ul', { class: 'mem-models' }, modelRows)
-      : el('p', { class: 'mem-none', text: 'No models loaded in LocalAI, Ollama or LM Studio.' }),
+      : el('p', { class: 'mem-none', text: 'No models loaded in ComfyUI, LocalAI, Ollama, LM Studio or llama.cpp.' }),
   );
 }
 
@@ -2700,7 +2707,7 @@ const TOUR_STEPS = [
   {
     target: tourAll('#list .memory-card'),
     title: 'Memory and models',
-    text: 'Memory in use, on the computer and each graphics card, and the models loaded in LocalAI, Ollama or LM Studio, each with Unload. Settings → Appearance turns it off.',
+    text: 'Memory in use, on the computer and each graphics card, and the models loaded in ComfyUI, LocalAI, Ollama, LM Studio or llama.cpp, with Unload where it can. Settings → Appearance turns it off.',
   },
   {
     target: tourAll('#filters'),
