@@ -82,6 +82,51 @@ test("each ComfyUI Comfy Desktop runs is found from its records, and a crashed o
   );
 });
 
+test("ComfyUI's loaded models are the ones its latest job's loaders name", () => {
+  const prompt = {
+    1: { class_type: 'UNETLoader', inputs: { unet_name: 'flux\\dev.safetensors', weight_dtype: 'default' } },
+    2: { class_type: 'DualCLIPLoader', inputs: { clip_name1: 't5xxl.safetensors', clip_name2: 'clip_l.safetensors', type: 'flux' } },
+    3: { class_type: 'VAELoader', inputs: { vae_name: 'ae.sft' } },
+    4: { class_type: 'LoraLoader', inputs: { lora_name: 'style.safetensors', model: ['1', 0], strength_model: 1 } },
+    5: { class_type: 'SaveImage', inputs: { filename_prefix: 'cat.png', images: ['9', 0] } },
+    6: { class_type: 'UNETLoader', inputs: { unet_name: 'flux\\dev.safetensors' } },
+  };
+  assert.deepEqual(
+    comfy.modelsIn(prompt),
+    [
+      { file: 'flux\\dev.safetensors', type: 'Diffusion model' },
+      { file: 't5xxl.safetensors', type: 'Text encoder' },
+      { file: 'clip_l.safetensors', type: 'Text encoder' },
+      { file: 'ae.sft', type: 'VAE' },
+      { file: 'style.safetensors', type: 'LoRA' },
+    ],
+    'only model files, and one named twice once',
+  );
+
+  const queued = [{ id: 'q', status: 'pending' }];
+  const recent = [
+    { id: 'skipped', status: 'cancelled', create_time: 9 },
+    { id: 'last', status: 'completed', execution_start_time: 5 },
+    { id: 'older', status: 'failed', execution_start_time: 3 },
+  ];
+  assert.equal(comfy.latestRun(queued, recent).id, 'last', 'a job cancelled before it ran loaded nothing');
+  assert.equal(comfy.latestRun([{ id: 'now', status: 'in_progress' }, ...queued], recent).id, 'now');
+  assert.equal(comfy.latestRun(queued, []), null);
+
+  const items = comfy.modelItems({ id: 'inst-1', name: 'Studio' }, { jobId: 'last', workflowId: null, models: comfy.modelsIn(prompt).slice(0, 2) });
+  assert.deepEqual(
+    items.map((i) => [i.id, i.name, i.where, i.facts]),
+    [
+      ['comfy:inst-1:model:flux\\dev.safetensors', 'dev.safetensors', 'flux\\dev.safetensors', [['Type', 'Diffusion model']]],
+      ['comfy:inst-1:model:t5xxl.safetensors', 't5xxl.safetensors', null, [['Type', 'Text encoder']]],
+    ],
+  );
+  assert.ok(
+    items.every((i) => i.app === 'comfy' && i.kind === 'model' && i.host === 'Studio' && i.actions.includes('unload')),
+    'rows for the Memory and models card, each with Unload',
+  );
+});
+
 // ---- LocalAI --------------------------------------------------------------------
 
 // A stand-in LocalAI, answering as its source says it does, and recording

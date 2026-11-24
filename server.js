@@ -230,9 +230,10 @@ async function action(res, sessionId, name) {
     return send(res, result.ok ? 200 : 500, result);
   }
   // A ComfyUI job: Stop and Cancel go to its ComfyUI, which ends a running
-  // job or takes a queued one out of the queue.
-  if (agent.app === 'comfy' && (name === 'stop' || name === 'cancel')) {
-    const result = await comfy.cancel(agent);
+  // job or takes a queued one out of the queue. A model's Unload frees all of
+  // its ComfyUI's models.
+  if (agent.app === 'comfy' && ['stop', 'cancel', 'unload'].includes(name)) {
+    const result = name === 'unload' ? await comfy.unload(agent) : await comfy.cancel(agent);
     return send(res, result.ok ? 200 : 500, result);
   }
   // A VS Code Copilot session runs in VS Code's agent host, with every other
