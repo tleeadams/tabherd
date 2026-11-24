@@ -1,0 +1,40 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Tabherd",
+  "mainBinaryName": "Tabherd",
+  "version": "../../package.json",
+  "identifier": "io.github.tleeadams.tabherd",
+  "build": {
+    "frontendDist": "../page"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "category": "DeveloperTool",
+    "shortDescription": "A dashboard for your coding agents",
+    "license": "GPL-3.0-or-later",
+    "icon": ["icons/icon.ico", "icons/icon.png"],
+    "externalBin": ["binaries/node"],
+    "resources": {
+      "../../server.js": "server/server.js",
+      "../../package.json": "server/package.json",
+      "../../lib/": "server/lib/",
+      "../../public/": "server/public/",
+      "../../LICENSE": "LICENSE"
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  }
+}
