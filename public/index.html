@@ -21,12 +21,8 @@
       <h1>Tabherd</h1>
       <span id="host" class="host"></span>
     </div>
-    <nav class="filters" aria-label="Filter by status">
-      <button type="button" data-filter="all" aria-pressed="true">All <b id="n-all">0</b></button>
-      <button type="button" data-filter="todo" aria-pressed="false" title="Needs you, Idle and to-dos: everything waiting on you">Todo <b id="n-todo">0</b></button>
-      <button type="button" data-filter="needs" aria-pressed="false">Needs you <b id="n-needs">0</b></button>
-      <button type="button" data-filter="working" aria-pressed="false">Working <b id="n-working">0</b></button>
-      <button type="button" data-filter="idle" aria-pressed="false">Idle <b id="n-idle">0</b></button>
+    <nav id="filters" class="filters" aria-label="Filters">
+      <button type="button" data-filter="all" aria-pressed="true">All <b>0</b></button>
     </nav>
     <div class="view-filters">
       <select id="app-filter" class="view-select" aria-label="Show sessions from" hidden></select>
@@ -174,6 +170,17 @@
               </label>
             </fieldset>
           </section>
+          <section class="settings-section" id="settings-filters" data-title="Filters">
+            <fieldset id="filters-setting">
+              <legend>Filters</legend>
+              <p class="settings-help">The tabs across the top, after All. Each shows the cards that match everything it names. Right-clicking a tab changes it too.</p>
+              <ul id="filter-list" class="filter-list"></ul>
+              <div class="filter-list-actions">
+                <button type="button" id="filter-add" class="btn">Add filter</button>
+                <button type="button" id="filter-reset" class="btn">Restore the usual filters</button>
+              </div>
+            </fieldset>
+          </section>
           <section class="settings-section" id="settings-groups" data-title="Groups">
             <fieldset id="groups-setting">
               <legend>Groups</legend>
@@ -306,6 +313,46 @@
       <div class="confirm-actions">
         <button type="button" id="todo-cancel" class="btn">Cancel</button>
         <button type="submit" id="todo-save" class="btn btn-primary">Add to-do</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="filter-dialog" class="settings" aria-labelledby="filter-dialog-title">
+    <form id="filter-form">
+      <div class="settings-head">
+        <h2 id="filter-dialog-title">New filter</h2>
+        <button type="button" id="filter-close" class="icon-btn" title="Close" aria-label="Close">✕</button>
+      </div>
+      <label class="field">
+        <span>Name</span>
+        <input id="filter-name" type="text" required maxlength="24" autocomplete="off">
+      </label>
+      <fieldset class="filter-pick">
+        <legend>Status</legend>
+        <div id="filter-statuses" class="checks"></div>
+      </fieldset>
+      <fieldset class="filter-pick">
+        <legend>App</legend>
+        <div id="filter-apps" class="checks"></div>
+      </fieldset>
+      <fieldset id="filter-groups-field" class="filter-pick">
+        <legend>Group</legend>
+        <div id="filter-groups" class="checks"></div>
+      </fieldset>
+      <p class="settings-help">Tick none in a row to match any.</p>
+      <label class="field">
+        <span>Name or folder has</span>
+        <input id="filter-text" type="text" maxlength="100" placeholder="Any words" autocomplete="off" spellcheck="false">
+      </label>
+      <label class="choice filter-todos">
+        <input type="checkbox" id="filter-todos">
+        <span class="choice-text"><b>Show to-dos</b><span>To-dos have no status, so they show if they're from an app, in a group and have words that match.</span></span>
+      </label>
+      <p id="filter-count" class="settings-help filter-count"></p>
+      <div class="confirm-actions">
+        <button type="button" id="filter-delete" class="btn btn-stop">Delete</button>
+        <button type="button" id="filter-cancel" class="btn">Cancel</button>
+        <button type="submit" id="filter-save" class="btn btn-primary">Add filter</button>
       </div>
     </form>
   </dialog>

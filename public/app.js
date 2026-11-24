@@ -24,9 +24,9 @@ const STATUS = {
   // A model loaded in LocalAI: not anyone's turn, so in no filter but All.
   loaded: { label: 'Loaded', group: 'resource', rank: 6 },
 };
-// Filters that cover more than one status group. Todo is every agent whose
-// turn it is, and the to-do cards too.
-const FILTER_GROUPS = { todo: ['needs', 'idle'] };
+// The statuses a filter can pick, as status groups.
+const FILTER_STATUSES = { needs: 'Needs you', working: 'Working', idle: 'Idle' };
+const MAX_FILTERS = 12;
 const PERMISSION_MODES = {
   bypassPermissions: 'bypass',
   acceptEdits: 'accept edits',
@@ -1024,34 +1024,31 @@ function sectionHead(s) {
   return el('h2', { class: `section-head${s.color ? ` g-${s.color}` : ' none'}` }, el('span', { class: 'dot' }), s.name, el('b', { text: String(s.count) }));
 }
 
+// The app and group chosen in the header narrow everything, the filters'
+// counts included. To-dos start Claude, so they count as Claude's.
+const inView = (x) =>
+  (appFilter === 'all' || (x.app || 'claude') === appFilter) && (groupFilter === 'all' || (groupFilter === 'none' ? !x.group : x.group === groupFilter));
+
 function render() {
   if (!snap) return;
   renderViewFilters();
-  // The app and group chosen in the header narrow everything, the status
-  // counts included. To-dos start Claude, so they count as Claude's.
-  const inView = (x) =>
-    (appFilter === 'all' || (x.app || 'claude') === appFilter) && (groupFilter === 'all' || (groupFilter === 'none' ? !x.group : x.group === groupFilter));
   // Loaded models go on the memory card, not in the grid.
   const models = snap.agents.filter((a) => a.kind === 'model' && inView(a));
   const agents = snap.agents
     .filter((a) => a.kind !== 'model' && inView(a))
     .sort((x, y) => status(x).rank - status(y).rank || x.startedAt - y.startedAt);
   const todos = (snap.todos || []).filter(inView).sort((x, y) => x.createdAt - y.createdAt);
-  const counts = { all: agents.length + todos.length, todo: 0, needs: 0, working: 0, idle: 0 };
-  for (const a of agents) counts[status(a).group]++;
-  counts.todo = counts.needs + counts.idle + todos.length;
-  for (const [k, v] of Object.entries(counts)) if ($(`n-${k}`)) $(`n-${k}`).textContent = v;
-  for (const k of ['todo', 'needs']) document.querySelector(`[data-filter="${k}"]`).classList.toggle('has', counts.needs > 0);
+  renderFilterTabs(agents, todos);
   // The tab's title counts every session that needs you, whatever's shown.
   const needsYou = snap.agents.filter((a) => a.status === 'waiting').length;
   document.title = needsYou ? `(${needsYou}) Tabherd` : 'Tabherd';
   $('host').textContent = snap.host;
 
-  const groups = FILTER_GROUPS[filter] || [filter];
-  // To-do cards come first, under All and Todo.
+  // To-do cards come first, under All and the filters that ask for them.
+  const f = filterDef(filter);
   let shown = [
-    ...(filter === 'all' || filter === 'todo' ? todos.map((t) => [TODO_PREFIX + t.id, t, todoCard]) : []),
-    ...agents.filter((a) => filter === 'all' || groups.includes(status(a).group)).map((a) => [a.id, a, card]),
+    ...todos.filter((t) => matchesFilter(f, t, true)).map((t) => [TODO_PREFIX + t.id, t, todoCard]),
+    ...agents.filter((a) => matchesFilter(f, a, false)).map((a) => [a.id, a, card]),
   ];
   // In sections: each group's cards under its heading, in the groups' order,
   // then those in no group.
@@ -1108,11 +1105,12 @@ try {
   const saved = JSON.parse(localStorage.getItem(VIEW_KEY) || '{}');
   if (['all', ...Object.keys(APPS)].includes(saved.app)) appFilter = saved.app;
   if (typeof saved.group === 'string') groupFilter = saved.group;
+  if (typeof saved.filter === 'string') filter = saved.filter;
 } catch {}
 
 function saveView() {
   try {
-    localStorage.setItem(VIEW_KEY, JSON.stringify({ app: appFilter, group: groupFilter }));
+    localStorage.setItem(VIEW_KEY, JSON.stringify({ app: appFilter, group: groupFilter, filter }));
   } catch {}
 }
 
@@ -1152,6 +1150,242 @@ $('group-filter').addEventListener('change', (e) => {
   saveView();
   render();
 });
+
+// ---- filters -------------------------------------------------------------------
+
+// The tabs across the top: All, then the filters kept on the server, in their
+// order. Each can pick statuses, apps, groups and words; a list left empty
+// matches any.
+const filterDef = (id) => (snap?.filters || []).find((f) => f.id === id) || null;
+
+// Whether a card shows under a filter, or under All (null). To-do cards have
+// no status, so they show under the filters that ask for them.
+function matchesFilter(f, x, isTodo) {
+  if (!f) return true;
+  if (isTodo ? !f.todos : f.statuses.length && !f.statuses.includes(status(x).group)) return false;
+  if (f.apps.length && !f.apps.includes(x.app || 'claude')) return false;
+  if (f.groups.length && !f.groups.includes(x.group || 'none')) return false;
+  if (f.text) {
+    const words = [x.name, x.title, x.cwd, x.where].filter(Boolean).join(' ').toLowerCase();
+    if (!f.text.toLowerCase().split(' ').every((w) => words.includes(w))) return false;
+  }
+  return true;
+}
+
+// What a filter shows, in words, like "Needs you or Idle, and to-dos".
+function describeFilter(f) {
+  const or = (ids, name) => ids.map(name).filter(Boolean).join(' or ');
+  return [
+    f.statuses.length ? or(f.statuses, (s) => FILTER_STATUSES[s]) : 'Any status',
+    f.apps.length ? or(f.apps, (a) => APPS[a]) : null,
+    f.groups.length ? `in ${or(f.groups, (g) => (g === 'none' ? 'no group' : groupDef(g)?.name))}` : null,
+    f.text ? `“${f.text}”` : null,
+    f.todos ? 'and to-dos' : null,
+  ]
+    .filter(Boolean)
+    .join(', ');
+}
+
+function chooseFilter(id) {
+  filter = id;
+  saveView();
+  render();
+}
+
+// Each tab with how many cards it shows, amber when one of them needs you.
+function renderFilterTabs(agents, todos) {
+  const filters = snap.filters || [];
+  if (filter !== 'all' && !filterDef(filter)) filter = 'all';
+  const nav = $('filters');
+  const tabs = [{ id: 'all', name: 'All' }, ...filters];
+  const signature = JSON.stringify([tabs, snap.groups]);
+  if (nav.dataset.signature !== signature) {
+    nav.replaceChildren(
+      ...tabs.map((f) =>
+        el(
+          'button',
+          {
+            type: 'button',
+            'data-filter': f.id,
+            title: f.id === 'all' ? 'Everything' : `${describeFilter(f)}. Right-click to change it.`,
+            onclick: () => chooseFilter(f.id),
+            oncontextmenu:
+              f.id !== 'all' &&
+              ((e) => {
+                e.preventDefault();
+                editFilter(f);
+              }),
+          },
+          `${f.name} `,
+          el('b', { text: '0' }),
+        ),
+      ),
+      filters.length < MAX_FILTERS ? el('button', { type: 'button', class: 'filter-new', title: 'New filter', 'aria-label': 'New filter', onclick: () => editFilter(null) }, '+') : null,
+    );
+    nav.dataset.signature = signature;
+  }
+  for (const b of nav.querySelectorAll('[data-filter]')) {
+    const f = filterDef(b.dataset.filter);
+    const matched = agents.filter((a) => matchesFilter(f, a, false));
+    b.querySelector('b').textContent = matched.length + todos.filter((t) => matchesFilter(f, t, true)).length;
+    b.setAttribute('aria-pressed', String(b.dataset.filter === filter));
+    b.classList.toggle('has', !!f && matched.some((a) => a.status === 'waiting'));
+  }
+}
+
+// Every filter at once, one save at a time, in order; `null` puts the usual
+// ones back. Resolves to the filters as saved.
+let filtersSaving = Promise.resolve();
+
+function saveFilters(next) {
+  const run = filtersSaving.then(async () => {
+    const saved = (await api('/api/filters', next ? { filters: next } : { reset: true })).filters;
+    if (snap) snap = { ...snap, filters: saved };
+    render();
+    renderFilterSettings();
+    return saved;
+  });
+  filtersSaving = run.catch(() => {});
+  return run;
+}
+
+// Asks for a second click, like a group's Delete.
+function askTwice(button, then) {
+  if (button.classList.contains('btn-danger')) return then();
+  const label = button.textContent;
+  button.classList.add('btn-danger');
+  button.textContent = `${label}?`;
+  setTimeout(() => {
+    button.classList.remove('btn-danger');
+    button.textContent = label;
+  }, 3000);
+}
+
+let editingFilter = null;
+
+// A tick box for each choice.
+function filterChecks(box, options, chosen) {
+  box.replaceChildren(
+    ...options.map(([value, text, color]) =>
+      el('label', { class: `check${color ? ` g-${color}` : ''}` }, el('input', { type: 'checkbox', value, checked: chosen.includes(value) }), color ? el('span', { class: 'dot' }) : null, text),
+    ),
+  );
+}
+
+function filterFromForm() {
+  const ticked = (id) => [...$(id).querySelectorAll('input:checked')].map((i) => i.value);
+  return {
+    ...(editingFilter || {}),
+    name: $('filter-name').value,
+    statuses: ticked('filter-statuses'),
+    apps: ticked('filter-apps'),
+    groups: ticked('filter-groups'),
+    text: $('filter-text').value.replace(/\s+/g, ' ').trim(),
+    todos: $('filter-todos').checked,
+  };
+}
+
+// How many cards it would show now, as it's changed.
+function showFilterCount() {
+  if (!snap) return;
+  const f = filterFromForm();
+  const n =
+    snap.agents.filter((a) => a.kind !== 'model' && inView(a) && matchesFilter(f, a, false)).length +
+    (snap.todos || []).filter((t) => inView(t) && matchesFilter(f, t, true)).length;
+  $('filter-count').textContent = `Shows ${n} ${n === 1 ? 'card' : 'cards'} now.`;
+}
+
+// Opens the editor, for a new filter if `f` is null.
+function editFilter(f) {
+  editingFilter = f;
+  $('filter-dialog-title').textContent = f ? 'Edit filter' : 'New filter';
+  $('filter-save').textContent = f ? 'Save' : 'Add filter';
+  $('filter-delete').hidden = !f;
+  $('filter-name').value = f?.name || '';
+  filterChecks($('filter-statuses'), Object.entries(FILTER_STATUSES), f?.statuses || []);
+  // Every app, so a filter can be made before an app has anything running.
+  filterChecks($('filter-apps'), Object.entries(APPS), f?.apps || []);
+  const groups = snap?.groups || [];
+  $('filter-groups-field').hidden = !groups.length;
+  filterChecks($('filter-groups'), [...groups.map((g) => [g.id, g.name, g.color]), ['none', 'No group']], f?.groups || []);
+  $('filter-text').value = f?.text || '';
+  $('filter-todos').checked = !!f?.todos;
+  showFilterCount();
+  $('filter-dialog').showModal();
+  $('filter-name').focus();
+}
+
+$('filter-form').addEventListener('input', showFilterCount);
+$('filter-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = filterFromForm();
+  const filters = snap?.filters || [];
+  const next = editingFilter ? filters.map((x) => (x.id === editingFilter.id ? f : x)) : [...filters, f];
+  const save = $('filter-save');
+  save.disabled = true;
+  try {
+    const saved = await saveFilters(next);
+    $('filter-dialog').close();
+    // A new filter is shown as soon as it's made.
+    if (!editingFilter) chooseFilter(saved[saved.length - 1].id);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    save.disabled = false;
+  }
+});
+$('filter-delete').addEventListener('click', (e) =>
+  askTwice(e.currentTarget, async () => {
+    try {
+      await saveFilters((snap?.filters || []).filter((x) => x.id !== editingFilter.id));
+      $('filter-dialog').close();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }),
+);
+for (const id of ['filter-cancel', 'filter-close']) $(id).addEventListener('click', () => $('filter-dialog').close());
+
+// The list in Settings: each filter with what it shows, to move, change or delete.
+function renderFilterSettings(focusKey) {
+  const filters = snap?.filters || [];
+  const box = $('filter-list');
+  const focused = focusKey || (box.contains(document.activeElement) ? document.activeElement.dataset.focus : null);
+  const move = (i, by, key) => {
+    const next = [...filters];
+    [next[i], next[i + by]] = [next[i + by], next[i]];
+    saveFilters(next)
+      .then(() => box.querySelector(`[data-focus="${CSS.escape(key)}"]:not(:disabled)`)?.focus())
+      .catch((err) => toast(err.message, true));
+  };
+  box.replaceChildren(
+    ...filters.map((f, i) =>
+      el(
+        'li',
+        { class: 'filter-row' },
+        el('div', { class: 'filter-row-text' }, el('b', { text: f.name }), el('span', { text: describeFilter(f) })),
+        el('button', { type: 'button', class: 'icon-btn', title: 'Move up', 'aria-label': `Move ${f.name} up`, 'data-focus': `up:${f.id}`, disabled: i === 0, onclick: () => move(i, -1, `up:${f.id}`) }, '↑'),
+        el('button', { type: 'button', class: 'icon-btn', title: 'Move down', 'aria-label': `Move ${f.name} down`, 'data-focus': `down:${f.id}`, disabled: i === filters.length - 1, onclick: () => move(i, 1, `down:${f.id}`) }, '↓'),
+        el('button', { type: 'button', class: 'btn', onclick: () => editFilter(f) }, 'Edit'),
+        el(
+          'button',
+          {
+            type: 'button',
+            class: 'btn btn-stop',
+            onclick: (e) => askTwice(e.currentTarget, () => saveFilters(filters.filter((x) => x.id !== f.id)).catch((err) => toast(err.message, true))),
+          },
+          'Delete',
+        ),
+      ),
+    ),
+  );
+  if (!filters.length) box.append(el('li', { class: 'filter-none', text: 'Only All, for now.' }));
+  $('filter-add').disabled = filters.length >= MAX_FILTERS;
+  if (focused) box.querySelector(`[data-focus="${CSS.escape(focused)}"]:not(:disabled)`)?.focus();
+}
+
+$('filter-add').addEventListener('click', () => editFilter(null));
+$('filter-reset').addEventListener('click', (e) => askTwice(e.currentTarget, () => saveFilters(null).catch((err) => toast(err.message, true))));
 
 // ---- updates and dings ---------------------------------------------------------
 
@@ -2366,6 +2600,7 @@ function openSettings(elementId) {
   $('settings').showModal();
   groupsDraft = null;
   renderGroupEditor();
+  renderFilterSettings();
   let section = elementId ? $(elementId)?.closest('.settings-section')?.id : null;
   if (!section) {
     try {
@@ -2383,13 +2618,6 @@ renderNotes();
 // Starting a to-do needs the folder setting before Settings is ever opened.
 loadServerSettings();
 
-for (const b of document.querySelectorAll('[data-filter]')) {
-  b.addEventListener('click', () => {
-    filter = b.dataset.filter;
-    for (const o of document.querySelectorAll('[data-filter]')) o.setAttribute('aria-pressed', String(o === b));
-    render();
-  });
-}
 $('sound').addEventListener('click', () => {
   const ctx = audioContext();
   // While sound is blocked, the first click only unblocks it.

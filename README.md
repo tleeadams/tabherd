@@ -105,7 +105,14 @@ Checked that way so far: Windows Terminal; tmux, kitty, WezTerm, GNOME Terminal 
 - **Subagents**: running subagents with their current step, then recently finished ones.
 - **Actions**: go to the session's window, catch up, open its folder, copy a `claude --resume` command, or stop the session. Clicking a session's name also goes to its window.
 
-The filters in the header show every session, or only those in one state. **Todo** shows *Needs you* and *Idle* together, along with the to-do cards: everything whose turn it is. *Shell running* counts as Working, not Todo.
+A card across the top, **Memory and models**, shows the computer's memory in use against what it has, and each NVIDIA graphics card's, from `nvidia-smi` when it's there. Under them it lists the models loaded in LocalAI, Ollama and LM Studio, each with **Unload**. It shows whatever the filter.
+
+The tabs in the header filter the cards. **All** shows everything. The others are yours to change, and start as **Todo** (*Needs you* and *Idle*, with the to-do cards: everything whose turn it is), **Needs you**, **Working** and **Idle**. *Shell running* and *Queued* count as Working. Each tab counts its cards, in amber when one of them needs you.
+
+- **Make one** with **+** after the tabs. A filter picks statuses, apps and groups, and words that must be in the card's name or folder. A row with nothing ticked matches any. To-dos have no status, so a filter shows them only when *Show to-dos* is ticked, and then only those from its apps, in its groups and with its words.
+- **Change or delete one** by right-clicking its tab, or in Settings → **Filters**, which also moves them up and down the tabs, and has **Restore the usual filters** to put back the four above.
+
+Filters are saved in `~/.tabherd/filters.json`, for every browser. The tab you're on is remembered in the browser.
 
 Each card says which app the session is, **Claude** or **Codex**. Once a Codex session is running, a list beside the filters shows only one app's sessions, and once there are [groups](#groups), another shows one group, or the sessions in none. The counts on the filters follow both lists, and both are remembered in the browser.
 
@@ -154,7 +161,7 @@ A job is named after its saved workflow; one queued from an unsaved workflow is 
 
 **LocalAI.** It's found at Settings → Other apps → *LocalAI address*, `http://127.0.0.1:8080` unless you set another, with the API key there if LocalAI has one. It shows:
 
-- **Each loaded model**, marked *Loaded*, with the graphics memory, memory and CPU it's using, and **Unload** to free them. Loaded models only count under All, since they're never waiting on you.
+- **Each loaded model**, on the Memory and models card, with the graphics memory, memory and CPU it's using, and **Unload** to free them.
 - **Each download or install** in progress, with its progress and size, and **Cancel**. Finishing dings.
 - **Each agent chat** that's running (*Working*, with **Stop**) or paused at its step limit (*Needs you*). One that finishes leaves the dashboard and dings.
 - **Each agent job** running or queued, with **Cancel**. One that finishes leaves and dings.
@@ -163,7 +170,7 @@ A chat, agent job or download that fails keeps its card, as needing you, until y
 
 **Open in LocalAI** opens LocalAI's own page. LocalAI keeps no list of plain API requests in progress, so a request from another app doesn't get a card.
 
-**Ollama** and **LM Studio**: each loaded model gets a card marked with its app, with its size, context and, for Ollama, the graphics memory it holds and when Ollama will unload it, and **Unload**. Ollama is found at Settings → Other apps → *Ollama address*, else `OLLAMA_HOST`, else `http://127.0.0.1:11434`. LM Studio's local server must be on (its Developer tab, or `lms server start`); it's found at *LM Studio address*, else the port it last served on, else `http://127.0.0.1:1234`, with *LM Studio API token* if LM Studio requires one. Neither tells anyone but the caller about downloads or requests in progress, so those don't get cards.
+**Ollama** and **LM Studio**: each loaded model is listed on the Memory and models card, marked with its app, with its size, context and, for Ollama, the graphics memory it holds and when Ollama will unload it, and **Unload**. Ollama is found at Settings → Other apps → *Ollama address*, else `OLLAMA_HOST`, else `http://127.0.0.1:11434`. LM Studio's local server must be on (its Developer tab, or `lms server start`); it's found at *LM Studio address*, else the port it last served on, else `http://127.0.0.1:1234`, with *LM Studio API token* if LM Studio requires one. Neither tells anyone but the caller about downloads or requests in progress, so those don't get cards.
 
 ## Groups
 
@@ -195,11 +202,11 @@ When the session closes, the to-do goes too. Its title and notes stay with the s
 
 ## Settings
 
-The gear button in the header opens Settings.
+The gear button in the header opens Settings, one section at a time, picked from the list down its left side. It opens at the section last used.
 
 **New sessions**: once Codex is installed, *Claude* or *Codex* chooses the app the repo menu opens, and to-dos start in unless they name one. *Skip permission prompts* (off by default) makes every session the dashboard opens, from the repo menu, Resume or a to-do, run `claude --dangerously-skip-permissions`, or `codex --dangerously-bypass-approvals-and-sandbox`. They then edit files and run commands without asking first. Only turn it on if you'd run them that way yourself in those folders. *Terminal* chooses which terminal they open in, where there's more than one; see [Platform support](#platform-support).
 
-**Theme**: *System* (the default) follows the system's light or dark mode. *Light* or *Dark* sets one regardless.
+**Appearance** has *Theme* and *Card size*. **Theme**: *System* (the default) follows the system's light or dark mode. *Light* or *Dark* sets one regardless.
 
 **Card size** sets how the cards are laid out:
 
@@ -207,6 +214,8 @@ The gear button in the header opens Settings.
 - **Small**, **Medium** or **Large**: every card is the same size. Small fits the most on screen, Medium is about as wide as Fit content, and Large leaves room for subagents and PRs. Each header line stays on one line and is cut off with "…" if it's too long; the full path is in the tooltip. The buttons stay at the bottom, and anything that doesn't fit in between scrolls inside the card, with a shadow at the edge showing there's more.
 
 **Notifications**: *Keep the list after a reload* (on by default) saves the notification list, so reloading or reopening the dashboard keeps it.
+
+**Filters**: the tabs after All, in their order, each with what it shows, to move, change or delete; **Add filter**; and **Restore the usual filters**. See [What it shows](#what-it-shows).
 
 **Groups**: each group's name, colour and folders, and *Sections by group*. See [Groups](#groups).
 
@@ -216,7 +225,7 @@ The gear button in the header opens Settings.
 
 **Repo menu**: every folder and repo under the repos folder, nested as in the ☰ menu, each with a tick box. Untick one to hide it, and everything inside it, from the menu. What's inside a hidden folder is greyed out but keeps its own setting, so ticking the folder again brings back exactly what was shown before. A folder with some repos hidden says how many, in amber. The filter box works like the menu's. A hidden path that's no longer in the repos folder is listed underneath, with ✕ to remove it.
 
-Theme, Card size, Notifications and Sections by group are saved in the browser, so each browser profile remembers its own choice. The rest are saved by the server, in `~/.tabherd/settings.json` and `~/.tabherd/groups.json`, so every browser shares them.
+Theme, Card size, Notifications and Sections by group are saved in the browser, so each browser profile remembers its own choice. The rest are saved by the server, in `~/.tabherd/settings.json`, `~/.tabherd/filters.json` and `~/.tabherd/groups.json`, so every browser shares them.
 
 ## Catch up
 

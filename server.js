@@ -14,6 +14,7 @@ const settings = require('./lib/settings');
 const history = require('./lib/history');
 const todos = require('./lib/todos');
 const groups = require('./lib/groups');
+const filters = require('./lib/filters');
 const codex = require('./lib/codex');
 const copilot = require('./lib/copilot');
 const comfy = require('./lib/comfy');
@@ -91,6 +92,8 @@ function currentSnapshot() {
         snap.groups = groups.list();
         for (const a of snap.agents) Object.assign(a, groups.groupOf(a));
         for (const t of snap.todos) Object.assign(t, groups.groupOf({ id: t.id, cwd: t.cwd || snap.todoStartsIn }));
+        // The filter tabs after All, the same in every browser.
+        snap.filters = filters.list();
         // Whether this computer has a terminal the dashboard can drive, for
         // Go to window, Catch up, Start, Resume and the repo menu.
         snap.terminals = terminals.terminals().some((t) => t.available);
@@ -513,6 +516,20 @@ const server = http.createServer(async (req, res) => {
       if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
       const body = await readJson(req);
       const result = url.pathname === '/api/groups' ? groups.setGroups(body.groups) : groups.place(body.id, body.group === undefined ? 'auto' : body.group);
+      if (result.ok) {
+        cached = null;
+        pushSnapshot();
+      }
+      return send(res, result.ok ? 200 : 400, result);
+    }
+
+    // Every filter at once, in order, as the page edits them; or the usual
+    // ones back.
+    if (url.pathname === '/api/filters') {
+      if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
+      if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
+      const body = await readJson(req);
+      const result = filters.setFilters(body.reset === true ? filters.DEFAULTS : body.filters);
       if (result.ok) {
         cached = null;
         pushSnapshot();
