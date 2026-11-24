@@ -2,7 +2,7 @@
 
 Notable changes in each release. Version numbers follow [Semantic Versioning](https://semver.org). The release build takes each release's notes from its section here.
 
-## Unreleased
+## 0.4.0 - 2026-11-23
 
 - Codex sessions show on the dashboard beside Claude's, and each card says which app it is. A Codex card has its status, with *Needs you* when it's waiting for an approval or an answer, what it's doing, its last reply, model and tokens, and Go to window. Closed Codex sessions are in History, where Resume runs `codex resume`. See [Codex](README.md#codex).
 - Codex sessions can be started and driven like Claude's. Settings → New sessions chooses Claude or Codex for the repo menu and to-dos, the repo menu has the same choice, and a to-do can name its own. A Codex to-do's session is linked to it once it starts, and named after it. **Catch up** sends the question through Codex's service with `codex queue`, so nothing is typed into the window. **Stop** interrupts the session's turn, then ends the Codex in its window. A Codex session's subagents are listed on its card. *Skip permission prompts* runs Codex with `--dangerously-bypass-approvals-and-sandbox`.
