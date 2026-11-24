@@ -15,8 +15,11 @@ const history = require('./lib/history');
 const todos = require('./lib/todos');
 const groups = require('./lib/groups');
 const codex = require('./lib/codex');
+const copilot = require('./lib/copilot');
 const comfy = require('./lib/comfy');
 const localai = require('./lib/localai');
+const ollama = require('./lib/ollama');
+const lmstudio = require('./lib/lmstudio');
 const saved = require('./lib/saved');
 
 const PORT = Number(process.env.PORT) || 4317;
@@ -34,11 +37,17 @@ const CATCH_UP_PROMPT = (
 const claudeCommand = () => (settings.get().skipPermissions ? 'claude --dangerously-skip-permissions' : 'claude');
 function sessionCommand(app, resume = null) {
   if (app === 'codex') return codex.command({ skipPermissions: settings.get().skipPermissions, resume });
+  if (app === 'copilot') return copilot.command({ skipPermissions: settings.get().skipPermissions, resume });
   return resume ? `${claudeCommand()} --resume ${resume}` : claudeCommand();
 }
 // The app new sessions start in, from Settings: Claude unless Codex is chosen
 // and installed.
-const newSessionApp = () => (settings.get().newSessionApp === 'codex' && codex.installed() ? 'codex' : 'claude');
+function newSessionApp() {
+  const app = settings.get().newSessionApp;
+  if (app === 'codex' && codex.installed()) return 'codex';
+  if (app === 'copilot' && copilot.installed()) return 'copilot';
+  return 'claude';
+}
 // Where a to-do with no folder of its own starts: the Start in folder from
 // Settings, else the repos folder. Claude can make a new project there.
 const todoStartsIn = () => settings.get().todoStartFolder || SOURCE_DIR;
@@ -84,6 +93,7 @@ function currentSnapshot() {
         snap.terminals = terminals.terminals().some((t) => t.available);
         // Whether Codex can be chosen for new sessions, and which app they start in.
         snap.codexInstalled = codex.installed();
+        snap.copilotInstalled = copilot.installed();
         snap.newSessionApp = newSessionApp();
         history.observe(snap.agents, snap.now);
         // Sessions Save and close is waiting on: each closes once it's done.
@@ -149,13 +159,15 @@ function send(res, status, body, type = 'application/json; charset=utf-8') {
 }
 
 // The settings as the page sees them: LocalAI's key only says whether one is set.
-const forPage = (s) => ({ ...s, localaiKey: '', localaiKeySet: Boolean(s.localaiKey) });
+const forPage = (s) => ({ ...s, localaiKey: '', localaiKeySet: Boolean(s.localaiKey), lmstudioKey: '', lmstudioKeySet: Boolean(s.lmstudioKey) });
 
 // Other apps' addresses and keys, from Settings.
 function configureApps() {
   const s = settings.get();
   comfy.configure({ url: s.comfyUrl });
   localai.configure({ url: s.localaiUrl, key: s.localaiKey });
+  ollama.configure({ url: s.ollamaUrl });
+  lmstudio.configure({ url: s.lmstudioUrl, key: s.lmstudioKey });
 }
 configureApps();
 
@@ -192,9 +204,11 @@ async function action(res, sessionId, name) {
     terminals.openFolder(agent.cwd);
     return send(res, 200, { ok: true });
   }
-  // LocalAI: Unload a model, Stop a chat's turn, Cancel a download or agent job.
-  if (agent.app === 'localai' && ['stop', 'cancel', 'unload'].includes(name)) {
-    const result = await localai.act(agent, name);
+  // LocalAI: Unload a model, Stop a chat's turn, Cancel a download or agent
+  // job. Ollama and LM Studio: Unload a model.
+  const service = { localai, ollama, lmstudio }[agent.app];
+  if (service && ['stop', 'cancel', 'unload'].includes(name)) {
+    const result = await service.act(agent, name);
     return send(res, result.ok ? 200 : 500, result);
   }
   // A ComfyUI job: Stop and Cancel go to its ComfyUI, which ends a running
@@ -202,6 +216,11 @@ async function action(res, sessionId, name) {
   if (agent.app === 'comfy' && (name === 'stop' || name === 'cancel')) {
     const result = await comfy.cancel(agent);
     return send(res, result.ok ? 200 : 500, result);
+  }
+  // A VS Code Copilot session runs in VS Code's agent host, with every other
+  // VS Code session: its window can be brought up, and that's all.
+  if (agent.app === 'copilot' && agent.entrypoint === 'vscode' && name !== 'focus' && name !== 'open-folder') {
+    return send(res, 400, { ok: false, error: 'Use VS Code for that: this session runs inside it.' });
   }
   // A Codex session's window is only known once its tab's title names it.
   if (name === 'focus' && !agent.pid) {
@@ -229,7 +248,9 @@ async function action(res, sessionId, name) {
   }
   if (name === 'focus' || name === 'catch-up') {
     const prompt = name === 'catch-up' ? CATCH_UP_PROMPT : null;
-    const result = await terminals.focus(agent.pid, { send: prompt, statusFile: sessionFile(agent.pid) });
+    // Claude's registry file is checked again just before typing; other apps
+    // were checked above.
+    const result = await terminals.focus(agent.pid, { send: prompt, statusFile: agent.app === 'claude' ? sessionFile(agent.pid) : '' });
     return send(res, result.ok ? 200 : 500, result);
   }
   if (name === 'stop') {
@@ -245,7 +266,9 @@ async function action(res, sessionId, name) {
 // terminal. Not background runs, which have no tab, nor sessions in a VS Code
 // panel, which has no shell to close.
 const closable = (a) =>
-  (a.app === 'claude' && !a.background && (!a.kind || a.kind === 'interactive') && (!a.entrypoint || a.entrypoint === 'cli')) || a.app === 'codex';
+  (a.app === 'claude' && !a.background && (!a.kind || a.kind === 'interactive') && (!a.entrypoint || a.entrypoint === 'cli')) ||
+  a.app === 'codex' ||
+  (a.app === 'copilot' && a.entrypoint === 'cli');
 const working = (a) => a.status === 'busy' || a.status === 'shell';
 // Waiting to close once they're done: session ID -> its name.
 const closing = new Map();
@@ -358,7 +381,18 @@ async function todoAction(res, id, name, body) {
       const which = todo.cwd ? 'Its folder' : 'The folder to-dos start in';
       return send(res, 400, { ok: false, error: `${which} doesn't exist: ${cwd}` });
     }
-    if ((todo.app || newSessionApp()) === 'codex') {
+    const app = todo.app || newSessionApp();
+    if (app === 'copilot') {
+      if (!copilot.installed()) return send(res, 400, { ok: false, error: "The Copilot CLI isn't installed on this computer." });
+      // Like Claude: the server makes the session's ID, so it knows which
+      // session the to-do became, and Copilot names the session after it.
+      const sessionId = crypto.randomUUID();
+      const name = terminals.quote(todo.title.replace(/"/g, '”'));
+      const opened = await openTab(cwd, copilot.command({ skipPermissions: settings.get().skipPermissions, sessionId, name }));
+      if (!opened.ok) return send(res, 500, opened);
+      groups.carry(id, sessionId);
+      result = todos.started(id, sessionId);
+    } else if (app === 'codex') {
       if (!codex.installed()) return send(res, 400, { ok: false, error: "Codex isn't installed on this computer." });
       const opened = await openTab(cwd, sessionCommand('codex'));
       if (!opened.ok) return send(res, 500, opened);

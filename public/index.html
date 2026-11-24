@@ -98,6 +98,7 @@
       <div id="repos-app" class="segmented repos-app" role="radiogroup" aria-label="Open in" hidden>
         <label><input type="radio" name="repos-app" value="claude">Claude</label>
         <label><input type="radio" name="repos-app" value="codex">Codex</label>
+        <label><input type="radio" name="repos-app" value="copilot">Copilot</label>
       </div>
     </div>
     <nav id="repos-tree" class="tree" aria-label="Repositories"></nav>
@@ -183,6 +184,7 @@
           <div class="segmented">
             <label><input type="radio" name="new-app" value="claude">Claude</label>
             <label><input type="radio" name="new-app" value="codex">Codex</label>
+            <label><input type="radio" name="new-app" value="copilot">Copilot</label>
           </div>
           <p class="settings-help">The app the repo menu opens, and to-dos start in unless they name one.</p>
         </div>
@@ -200,7 +202,7 @@
       </fieldset>
       <fieldset>
         <legend>Other apps</legend>
-        <p class="settings-help">ComfyUI's jobs and LocalAI's models, downloads and agent chats show as cards while they run.</p>
+        <p class="settings-help">ComfyUI's jobs, LocalAI's models, downloads and agent chats, and Ollama's and LM Studio's loaded models show as cards while they run.</p>
         <label class="field">
           <span>ComfyUI address</span>
           <input id="comfy-url" type="text" placeholder="http://127.0.0.1:8188" autocomplete="off" spellcheck="false">
@@ -215,6 +217,19 @@
           <input id="localai-key" type="password" autocomplete="off" spellcheck="false">
         </label>
         <p class="settings-help">Only if LocalAI has one set. It's kept on this computer and never shown again.</p>
+        <label class="field">
+          <span>Ollama address</span>
+          <input id="ollama-url" type="text" placeholder="http://127.0.0.1:11434" autocomplete="off" spellcheck="false">
+        </label>
+        <label class="field">
+          <span>LM Studio address</span>
+          <input id="lmstudio-url" type="text" placeholder="http://127.0.0.1:1234" autocomplete="off" spellcheck="false">
+        </label>
+        <label class="field">
+          <span>LM Studio API token</span>
+          <input id="lmstudio-key" type="password" autocomplete="off" spellcheck="false">
+        </label>
+        <p class="settings-help">Ollama's address defaults to OLLAMA_HOST; LM Studio's to the port its server last used. A token is only needed if LM Studio requires one.</p>
       </fieldset>
       <fieldset>
         <legend>To-dos</legend>
@@ -265,6 +280,7 @@
           <option value="" id="todo-app-default">As in Settings</option>
           <option value="claude">Claude</option>
           <option value="codex">Codex</option>
+          <option value="copilot">Copilot</option>
         </select>
       </label>
       <p class="settings-help">Nothing here is sent to the session. To use it as a prompt, copy it in once it's started.</p>

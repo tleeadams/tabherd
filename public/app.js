@@ -36,11 +36,19 @@ const PERMISSION_MODES = {
   'never-ask': 'never asks',
 };
 // Which app each session is, on its card and in the history.
-const APPS = { claude: 'Claude', codex: 'Codex', comfy: 'Comfy', localai: 'LocalAI' };
+const APPS = { claude: 'Claude', codex: 'Codex', copilot: 'Copilot', comfy: 'Comfy', localai: 'LocalAI', ollama: 'Ollama', lmstudio: 'LM Studio' };
 // Cards for things other than sessions: ComfyUI's jobs, and LocalAI's
 // models, downloads and chats.
-const isItem = (a) => a.app === 'comfy' || a.app === 'localai';
-const APP_HINTS = { claude: 'A Claude Code session', codex: 'A Codex session', comfy: 'A ComfyUI job', localai: 'From LocalAI' };
+const isItem = (a) => ['comfy', 'localai', 'ollama', 'lmstudio'].includes(a.app);
+const APP_HINTS = {
+  claude: 'A Claude Code session',
+  codex: 'A Codex session',
+  copilot: 'A GitHub Copilot session',
+  comfy: 'A ComfyUI job',
+  localai: 'From LocalAI',
+  ollama: 'From Ollama',
+  lmstudio: 'From LM Studio',
+};
 const appTag = (x) => el('span', { class: `app app-${x.app || 'claude'}`, title: APP_HINTS[x.app] || APP_HINTS.claude }, APPS[x.app] || APPS.claude);
 // The colours a group can have, as the server knows them. Each is set for
 // light and dark in the stylesheet, as .g-<name>.
@@ -124,7 +132,10 @@ function shortPath(p) {
 const status = (a) => STATUS[a.status] || STATUS.unknown;
 // What the terminal tab shows, falling back to Claude's own names.
 const displayName = (a) => a.terminalTitle || a.title || a.name;
-const resumeCommand = (a) => `cd "${a.cwd}"; ${a.app === 'codex' ? 'codex resume' : 'claude --resume'} ${a.id}`;
+const RESUME = { codex: (id) => `codex resume ${id}`, copilot: (id) => `copilot --resume=${id}`, claude: (id) => `claude --resume ${id}` };
+const resumeCommand = (a) => `cd "${a.cwd}"; ${(RESUME[a.app] || RESUME.claude)(a.id)}`;
+// A Copilot session inside VS Code can only be gone to: VS Code runs it.
+const inVsCode = (a) => a.app === 'copilot' && a.entrypoint === 'vscode';
 
 function toast(message, isError) {
   const t = $('toast');
@@ -193,7 +204,7 @@ const canFocus = (a) =>
   Boolean(snap?.terminals) && !a.background && Boolean(a.pid) && (a.actions ? a.actions.includes('focus') : !a.kind || a.kind === 'interactive');
 // Codex takes Catch up's prompt through its own service, so it doesn't need
 // the window; Claude's is typed into the window.
-const canCatchUp = (a) => (a.app === 'codex' ? !a.kind || a.kind === 'interactive' : canFocus(a));
+const canCatchUp = (a) => !inVsCode(a) && (a.app === 'codex' ? !a.kind || a.kind === 'interactive' : canFocus(a));
 // The app a to-do starts: its own choice, or the one Settings names.
 const todoApp = (t) => t.app || snap?.newSessionApp || 'claude';
 
@@ -343,11 +354,31 @@ function showMenu(menu, button) {
   menu.style.top = `${r.bottom + 4 + h > innerHeight - 8 ? Math.max(8, r.top - h - 4) : r.bottom + 4}px`;
 }
 
+// The address boxes under Settings → Other apps, and the settings they set.
+const APP_ADDRESSES = [
+  ['comfy-url', 'comfyUrl'],
+  ['localai-url', 'localaiUrl'],
+  ['ollama-url', 'ollamaUrl'],
+  ['lmstudio-url', 'lmstudioUrl'],
+];
+
+// Codex or the Copilot CLI is installed, so there's an app to choose.
+const otherAppsInstalled = () => Boolean(snap?.codexInstalled || snap?.copilotInstalled);
+
+// Only the apps that are installed are offered in a Claude, Codex or Copilot choice.
+function showInstalledChoices(name) {
+  for (const r of document.querySelectorAll(`input[name="${name}"]`)) {
+    r.closest('label').hidden = (r.value === 'codex' && !snap?.codexInstalled) || (r.value === 'copilot' && !snap?.copilotInstalled);
+  }
+}
+
 // ---- save and close, resume ----------------------------------------------------
 
 // The sessions Save and close takes: Claude and Codex sessions in a terminal.
 const closable = (a) =>
-  (a.app === 'claude' && !a.background && (!a.kind || a.kind === 'interactive') && (!a.entrypoint || a.entrypoint === 'cli')) || a.app === 'codex';
+  (a.app === 'claude' && !a.background && (!a.kind || a.kind === 'interactive') && (!a.entrypoint || a.entrypoint === 'cli')) ||
+  a.app === 'codex' ||
+  (a.app === 'copilot' && a.entrypoint === 'cli');
 const isWorking = (a) => a.status === 'busy' || a.status === 'shell';
 
 function openSessionsMenu(button) {
@@ -595,7 +626,7 @@ function actions(a) {
       await copy(resumeCommand(a));
       toast('Resume command copied');
     }),
-    btn('Stop…', () => confirmStop(a), 'btn-stop'),
+    inVsCode(a) ? null : btn('Stop…', () => confirmStop(a), 'btn-stop'),
   );
 }
 
@@ -764,7 +795,9 @@ function editTodo(t) {
   $('todo-title').value = t?.title || '';
   $('todo-notes').value = t?.notes || '';
   // Which app it starts in, once Codex is installed too.
-  $('todo-app-field').hidden = !snap?.codexInstalled;
+  $('todo-app-field').hidden = !otherAppsInstalled();
+  $('todo-app').querySelector('option[value="codex"]').hidden = !snap?.codexInstalled;
+  $('todo-app').querySelector('option[value="copilot"]').hidden = !snap?.copilotInstalled;
   $('todo-app-default').textContent = `As in Settings (${APPS[snap?.newSessionApp] || APPS.claude})`;
   $('todo-app').value = t?.app || '';
   $('todo-dialog').showModal();
@@ -848,7 +881,7 @@ function todoCard(t) {
       el('span', { class: 'spacer' }),
       groupChip(t, t.cwd || snap?.todoStartsIn),
       // The app it will start, once there's a choice.
-      snap?.codexInstalled ? appTag({ app: todoApp(t) }) : null,
+      otherAppsInstalled() ? appTag({ app: todoApp(t) }) : null,
     ),
     el('h2', { class: 'name', text: t.title }),
     el(
@@ -1002,7 +1035,7 @@ let appFilter = 'all';
 let groupFilter = 'all';
 try {
   const saved = JSON.parse(localStorage.getItem(VIEW_KEY) || '{}');
-  if (['all', 'claude', 'codex', 'comfy', 'localai'].includes(saved.app)) appFilter = saved.app;
+  if (['all', ...Object.keys(APPS)].includes(saved.app)) appFilter = saved.app;
   if (typeof saved.group === 'string') groupFilter = saved.group;
 } catch {}
 
@@ -1458,7 +1491,8 @@ async function loadRepos(refresh) {
     $('repos-root').title = excluded ? 'Change what is hidden in Settings' : '';
     $('repos-command').textContent = repoData.command;
     // Claude or Codex, once Codex is installed; it's the setting in Settings.
-    $('repos-app').hidden = !snap?.codexInstalled;
+    $('repos-app').hidden = !otherAppsInstalled();
+    showInstalledChoices('repos-app');
     for (const r of document.querySelectorAll('input[name="repos-app"]')) r.checked = r.value === repoData.app;
     renderRepos();
     renderExcluded();
@@ -1931,15 +1965,14 @@ function renderTerminalChoice() {
 // The settings kept on the server, other than the repo menu's. The to-do
 // folder box isn't changed under someone typing in it.
 function renderServerSettings() {
-  for (const [id, key] of [
-    ['comfy-url', 'comfyUrl'],
-    ['localai-url', 'localaiUrl'],
-  ]) {
+  for (const [id, key] of APP_ADDRESSES) {
     if (document.activeElement !== $(id)) $(id).value = serverSettings?.[key] || '';
   }
+  $('lmstudio-key').placeholder = serverSettings?.lmstudioKeySet ? 'Set. Type a new one to change it' : 'None';
   const key = $('localai-key');
   key.placeholder = serverSettings?.localaiKeySet ? 'Set. Type a new one to change it' : 'None';
-  $('app-setting').hidden = !snap?.codexInstalled;
+  $('app-setting').hidden = !otherAppsInstalled();
+  showInstalledChoices('new-app');
   const app = serverSettings?.newSessionApp || 'claude';
   for (const r of document.querySelectorAll('input[name="new-app"]')) r.checked = r.value === app;
   $('skip-permissions').checked = Boolean(serverSettings?.skipPermissions);
@@ -1965,13 +1998,15 @@ async function saveServerSetting(changes) {
 }
 
 $('skip-permissions').addEventListener('change', (e) => saveServerSetting({ skipPermissions: e.currentTarget.checked }));
-for (const [id, key] of [
-  ['comfy-url', 'comfyUrl'],
-  ['localai-url', 'localaiUrl'],
-]) {
+for (const [id, key] of APP_ADDRESSES) {
   $(id).addEventListener('change', (e) => saveServerSetting({ [key]: e.currentTarget.value }));
   $(id).addEventListener('keydown', noSubmit((input) => input.blur()));
 }
+$('lmstudio-key').addEventListener('change', async (e) => {
+  const input = e.currentTarget;
+  if (await saveServerSetting({ lmstudioKey: input.value })) input.value = '';
+});
+$('lmstudio-key').addEventListener('keydown', noSubmit((input) => input.blur()));
 // The key box is left empty; what's typed replaces the key, and it's cleared
 // once saved, so the key is never shown.
 $('localai-key').addEventListener('change', async (e) => {

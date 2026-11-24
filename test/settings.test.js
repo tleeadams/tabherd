@@ -20,6 +20,9 @@ test('defaults are safe', () => {
     comfyUrl: '',
     localaiUrl: '',
     localaiKey: '',
+    ollamaUrl: '',
+    lmstudioUrl: '',
+    lmstudioKey: '',
   });
 });
 

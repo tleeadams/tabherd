@@ -129,6 +129,17 @@ Sessions run headless, with `claude -p`, show too: a background PR review, say, 
 
 A background run doesn't wait at a prompt when it's done: it exits. When one the dashboard saw running exits, it dings as finished, unless you stopped it, and its notification reads *Finished in the background*. Clicking its name there resumes it in a terminal tab, running `claude --resume <id>` in its folder, so you can ask about what it did. History lists background runs too, tagged **Background**, and its **Background runs** switch hides them, for when scripts run `claude -p` often.
 
+## GitHub Copilot
+
+GitHub Copilot's sessions get cards marked **Copilot**: the Copilot CLI's, and the agent sessions VS Code runs on the same Copilot runtime, which keep their state in the same place, `~/.copilot/session-state` (or `$COPILOT_HOME`).
+
+- **Which sessions are open** comes from Copilot's own list of open sessions and the lock each one's process holds. A lock left by a process that's gone doesn't count.
+- **Status**: *Needs you* while an approval Copilot asked for is unanswered, or while its ask_user tool waits for an answer; *Working* while Copilot's list says so, or a turn or tool is running; otherwise *Idle*.
+- **Activity**: the last prompt and reply, the tools running, the model and output tokens, from the session's `events.jsonl`, read a few new bytes at a time.
+- **Go to window**, **Catch up** and **Stop** work for the CLI as they do for Claude. A VS Code session runs inside VS Code, with all its others, so its card only has Go to window, which brings up VS Code.
+- **Starting Copilot**: once the Copilot CLI is installed, Settings → New sessions, the repo menu and a to-do's *Start with* offer it. A to-do starts `copilot --session-id=<new id> --name "<the to-do's title>"`, so, as with Claude, the server knows which session the to-do became.
+- **History and Resume**: the CLI's closed sessions are listed, and Resume runs `copilot --resume=<id>`. *Skip permission prompts* adds `--allow-all`. Save and close takes CLI sessions too.
+
 ## ComfyUI and LocalAI
 
 The dashboard also shows what ComfyUI and LocalAI are doing, as cards marked **Comfy** and **LocalAI**. They join the app list in the header once they have something to show. Nothing needs setting up in either, unless LocalAI has an API key.
@@ -149,6 +160,8 @@ A job is named after its saved workflow; one queued from an unsaved workflow is 
 - **Each agent job** running or queued, with **Cancel**, and for 15 minutes after it ends.
 
 **Open in LocalAI** opens LocalAI's own page. LocalAI keeps no list of plain API requests in progress, so a request from another app doesn't get a card.
+
+**Ollama** and **LM Studio**: each loaded model gets a card marked with its app, with its size, context and, for Ollama, the graphics memory it holds and when Ollama will unload it, and **Unload**. Ollama is found at Settings → Other apps → *Ollama address*, else `OLLAMA_HOST`, else `http://127.0.0.1:11434`. LM Studio's local server must be on (its Developer tab, or `lms server start`); it's found at *LM Studio address*, else the port it last served on, else `http://127.0.0.1:1234`, with *LM Studio API token* if LM Studio requires one. Neither tells anyone but the caller about downloads or requests in progress, so those don't get cards.
 
 ## Groups
 
@@ -195,7 +208,7 @@ The gear button in the header opens Settings.
 
 **Groups**: each group's name, colour and folders, and *Sections by group*. See [Groups](#groups).
 
-**Other apps**: ComfyUI's and LocalAI's addresses, and LocalAI's API key. The key is kept in `~/.tabherd/settings.json` and never sent back to the page. See [ComfyUI and LocalAI](#comfyui-and-localai).
+**Other apps**: ComfyUI's, LocalAI's, Ollama's and LM Studio's addresses, and LocalAI's API key and LM Studio's token. The key is kept in `~/.tabherd/settings.json` and never sent back to the page. See [ComfyUI and LocalAI](#comfyui-and-localai).
 
 **To-dos**: where a to-do's folder is chosen from (the repo menu or any folder), and the folder that choice starts at. See [To-dos](#to-dos).
 

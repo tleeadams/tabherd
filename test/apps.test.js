@@ -186,3 +186,76 @@ test("nothing shows while LocalAI isn't running, and a refused key says so", asy
     localai.configure({});
   }
 });
+
+// ---- Ollama and LM Studio --------------------------------------------------------
+
+const ollama = require('../lib/ollama');
+const lmstudio = require('../lib/lmstudio');
+
+test("Ollama's loaded models become cards, with when they'll unload", () => {
+  const now = Date.parse('2026-01-02T03:00:00Z');
+  const items = ollama.itemsFrom(
+    {
+      version: '0.40.16',
+      models: [
+        { name: 'llama3.2:1b', size: 2.1e9, size_vram: 2.1e9, context_length: 4096, expires_at: '2026-01-02T03:04:00Z', details: { parameter_size: '1.2B', quantization_level: 'Q8_0' } },
+        { name: 'qwen3:8b', size: 6e9, size_vram: 0, expires_at: '2318-01-01T00:00:00Z', details: {} },
+      ],
+    },
+    { now },
+  );
+  assert.deepEqual(items[0].facts, [['Graphics memory', '2.1 GB'], ['Size', '2.1 GB'], ['Context', '4,096 tokens'], ['Unloads', 'In 4 min']]);
+  assert.equal(items[0].where, '1.2B · Q8_0');
+  assert.equal(items[0].host, 'Ollama 0.40.16');
+  assert.deepEqual(items[0].actions, ['unload']);
+  assert.deepEqual(items[1].facts, [['Graphics memory', 'None, on the CPU'], ['Size', '6.0 GB'], ['Unloads', 'Stays loaded']]);
+});
+
+test('OLLAMA_HOST is read the ways Ollama reads it', () => {
+  assert.equal(ollama.fromEnv('0.0.0.0'), 'http://127.0.0.1:11434');
+  assert.equal(ollama.fromEnv('127.0.0.1:11500'), 'http://127.0.0.1:11500');
+  assert.equal(ollama.fromEnv('https://ollama.example.test'), 'https://ollama.example.test');
+  assert.equal(ollama.fromEnv(''), null);
+});
+
+test("LM Studio's loaded instances become cards, and Unload goes by instance", async () => {
+  const items = lmstudio.itemsFrom({
+    v1: true,
+    models: [
+      { key: 'qwen3-4b', display_name: 'Qwen3 4B', type: 'llm', quantization: { name: 'Q4_K_M' }, size_bytes: 2.5e9, loaded_instances: [{ id: 'qwen3-4b', config: { context_length: 8192, parallel: 4 } }] },
+      { key: 'not-loaded', display_name: 'Idle one', loaded_instances: [] },
+    ],
+  });
+  assert.equal(items.length, 1, 'only loaded ones');
+  assert.equal(items[0].name, 'Qwen3 4B');
+  assert.equal(items[0].where, 'Q4_K_M');
+  assert.deepEqual(items[0].facts, [['Size', '2.5 GB'], ['Context', '8,192 tokens'], ['Parallel', '4']]);
+
+  const asked = [];
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => (body += c));
+    req.on('end', () => {
+      asked.push({ route: `${req.method} ${req.url}`, body, auth: req.headers.authorization || null });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('{}');
+    });
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  try {
+    lmstudio.configure({ url: `http://127.0.0.1:${server.address().port}`, key: 'tok' });
+    assert.deepEqual(await lmstudio.act(items[0], 'unload'), { ok: true });
+    assert.deepEqual(asked, [{ route: 'POST /api/v1/models/unload', body: '{"instance_id":"qwen3-4b"}', auth: 'Bearer tok' }]);
+  } finally {
+    server.close();
+    lmstudio.configure({});
+  }
+});
+
+test('LM Studio is found on the port its server last used', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'tabherd-lms-'));
+  assert.equal(lmstudio.lastPort(home), null);
+  fs.mkdirSync(path.join(home, '.lmstudio', '.internal'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.lmstudio', '.internal', 'http-server-config.json'), JSON.stringify({ port: 1235, networkInterface: '127.0.0.1' }));
+  assert.equal(lmstudio.lastPort(home), 'http://127.0.0.1:1235');
+});
