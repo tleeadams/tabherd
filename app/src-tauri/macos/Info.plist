@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Merged into the Info.plist Tauri makes for the app. -->
+<plist version="1.0">
+<dict>
+  <!-- macOS shows this when Tabherd first asks to control a terminal app. -->
+  <key>NSAppleEventsUsageDescription</key>
+  <string>Tabherd brings your agents' terminal tabs to the front, reads their titles, and types Catch up's question into them.</string>
+</dict>
+</plist>

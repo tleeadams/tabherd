@@ -15,7 +15,6 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
     "category": "DeveloperTool",
     "shortDescription": "A dashboard for your coding agents",
     "license": "GPL-3.0-or-later",
@@ -28,14 +27,6 @@
       "../../public/": "server/public/",
       "../../LICENSE": "LICENSE",
       "binaries/node-LICENSE": "node/LICENSE"
-    },
-    "windows": {
-      "webviewInstallMode": {
-        "type": "downloadBootstrapper"
-      },
-      "nsis": {
-        "installMode": "currentUser"
-      }
     }
   }
 }
