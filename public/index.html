@@ -128,135 +128,154 @@
         <h2 id="settings-title">Settings</h2>
         <button value="close" class="icon-btn" title="Close" aria-label="Close">✕</button>
       </div>
-      <fieldset>
-        <legend>Theme</legend>
-        <div class="segmented">
-          <label><input type="radio" name="theme" value="system">System</label>
-          <label><input type="radio" name="theme" value="light">Light</label>
-          <label><input type="radio" name="theme" value="dark">Dark</label>
+      <div class="settings-body">
+        <nav id="settings-nav" class="settings-nav" role="tablist" aria-label="Settings sections"></nav>
+        <div class="settings-panels">
+          <section class="settings-section" id="settings-appearance" data-title="Appearance">
+            <fieldset>
+              <legend>Theme</legend>
+              <div class="segmented">
+                <label><input type="radio" name="theme" value="system">System</label>
+                <label><input type="radio" name="theme" value="light">Light</label>
+                <label><input type="radio" name="theme" value="dark">Dark</label>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Card size</legend>
+              <label class="choice">
+                <input type="radio" name="card-size" value="fit">
+                <span class="size-shape fit" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span class="choice-text"><b>Fit content <em>Default</em></b><span>Each card is as tall as its content, so heights vary.</span></span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="card-size" value="small">
+                <span class="size-shape small" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+                <span class="choice-text"><b>Small</b><span>All cards one size, compact. Fits the most on screen.</span></span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="card-size" value="medium">
+                <span class="size-shape medium" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span class="choice-text"><b>Medium</b><span>All cards one size, with room for a typical session.</span></span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="card-size" value="large">
+                <span class="size-shape large" aria-hidden="true"><i></i><i></i></span>
+                <span class="choice-text"><b>Large</b><span>All cards one size, with room for subagents and PRs.</span></span>
+              </label>
+              <p class="settings-foot">At Small, Medium or Large, whatever doesn't fit scrolls inside its card.</p>
+            </fieldset>
+          </section>
+          <section class="settings-section" id="settings-notifications" data-title="Notifications">
+            <fieldset>
+              <legend>Notifications</legend>
+              <label class="choice">
+                <input type="checkbox" id="keep-notes">
+                <span class="choice-text"><b>Keep the list after a reload</b><span>Reloading or reopening the dashboard keeps the notifications you haven't cleared.</span></span>
+              </label>
+            </fieldset>
+          </section>
+          <section class="settings-section" id="settings-groups" data-title="Groups">
+            <fieldset id="groups-setting">
+              <legend>Groups</legend>
+              <p class="settings-help">A session is in the group with a folder that holds it, the nearest one if several do. The group button on a card moves it by hand.</p>
+              <div id="group-editor" class="group-editor"></div>
+              <button type="button" id="group-add" class="btn">Add group</button>
+              <datalist id="group-folders"></datalist>
+              <label class="choice">
+                <input type="checkbox" id="group-sections">
+                <span class="choice-text"><b>Sections by group</b><span>Each group's cards together under its name, and the rest after them.</span></span>
+              </label>
+            </fieldset>
+          </section>
+          <section class="settings-section" id="settings-new-sessions" data-title="New sessions">
+            <fieldset>
+              <legend>New sessions</legend>
+              <div id="app-setting" hidden>
+                <div class="segmented">
+                  <label><input type="radio" name="new-app" value="claude">Claude</label>
+                  <label><input type="radio" name="new-app" value="codex">Codex</label>
+                  <label><input type="radio" name="new-app" value="copilot">Copilot</label>
+                </div>
+                <p class="settings-help">The app the repo menu opens, and to-dos start in unless they name one.</p>
+              </div>
+              <label class="choice">
+                <input type="checkbox" id="skip-permissions">
+                <span class="choice-text"><b>Skip permission prompts</b><span>Sessions the dashboard opens run <code>claude --dangerously-skip-permissions</code>, or <code>codex --dangerously-bypass-approvals-and-sandbox</code>, so they edit files and run commands without asking. Only for folders you trust.</span></span>
+              </label>
+              <div id="terminal-setting" hidden>
+                <label class="field">
+                  <span>Terminal</span>
+                  <select id="terminal-choice"></select>
+                </label>
+                <p class="settings-help">Where the repo menu, Resume and to-dos open Claude. Automatic uses one this computer has.</p>
+              </div>
+            </fieldset>
+          </section>
+          <section class="settings-section" id="settings-other-apps" data-title="Other apps">
+            <fieldset>
+              <legend>Other apps</legend>
+              <p class="settings-help">ComfyUI's jobs, LocalAI's models, downloads and agent chats, and Ollama's and LM Studio's loaded models show as cards while they run.</p>
+              <label class="field">
+                <span>ComfyUI address</span>
+                <input id="comfy-url" type="text" placeholder="http://127.0.0.1:8188" autocomplete="off" spellcheck="false">
+              </label>
+              <p class="settings-help">For a ComfyUI that Comfy Desktop didn't start. Comfy Desktop's are found by themselves, whatever their port.</p>
+              <label class="field">
+                <span>LocalAI address</span>
+                <input id="localai-url" type="text" placeholder="http://127.0.0.1:8080" autocomplete="off" spellcheck="false">
+              </label>
+              <label class="field">
+                <span>LocalAI API key</span>
+                <input id="localai-key" type="password" autocomplete="off" spellcheck="false">
+              </label>
+              <p class="settings-help">Only if LocalAI has one set. It's kept on this computer and never shown again.</p>
+              <label class="field">
+                <span>Ollama address</span>
+                <input id="ollama-url" type="text" placeholder="http://127.0.0.1:11434" autocomplete="off" spellcheck="false">
+              </label>
+              <label class="field">
+                <span>LM Studio address</span>
+                <input id="lmstudio-url" type="text" placeholder="http://127.0.0.1:1234" autocomplete="off" spellcheck="false">
+              </label>
+              <label class="field">
+                <span>LM Studio API token</span>
+                <input id="lmstudio-key" type="password" autocomplete="off" spellcheck="false">
+              </label>
+              <p class="settings-help">Ollama's address defaults to OLLAMA_HOST; LM Studio's to the port its server last used. A token is only needed if LM Studio requires one.</p>
+            </fieldset>
+          </section>
+          <section class="settings-section" id="settings-to-dos" data-title="To-dos">
+            <fieldset>
+              <legend>To-dos</legend>
+              <p class="settings-help">A to-do starts Claude in its folder. Without one, it starts in the folder below, where Claude can make a new project. <b>Choose folder</b> on a to-do picks one from:</p>
+              <div class="segmented">
+                <label><input type="radio" name="todo-source" value="repos">Repo menu</label>
+                <label><input type="radio" name="todo-source" value="picker">Any folder</label>
+              </div>
+              <label class="field">
+                <span>Start in</span>
+                <input id="todo-start" type="text" autocomplete="off" spellcheck="false">
+              </label>
+              <p class="settings-help">Where to-dos without a folder start, and where the repo menu and folder picker open. Leave it empty for the repos folder.</p>
+            </fieldset>
+          </section>
+          <section class="settings-section" id="settings-repo-menu" data-title="Repo menu">
+            <fieldset>
+              <legend>Repo menu</legend>
+              <p class="settings-help">Untick a folder or repo to hide it, and everything inside it, from the ☰ menu.</p>
+              <div class="excluded-search">
+                <input id="excluded-filter" type="search" placeholder="Filter folders and repos" aria-label="Filter folders and repos" autocomplete="off" spellcheck="false">
+              </div>
+              <nav id="excluded-tree" class="tree excluded-tree" aria-label="Folders and repos in the repo menu"></nav>
+              <div id="excluded-missing" hidden>
+                <p class="settings-help">Also hidden, but no longer in the repos folder:</p>
+                <ul id="excluded-list" class="excluded"></ul>
+              </div>
+            </fieldset>
+          </section>
+          <p class="settings-foot">Theme, Card size, Notifications and Sections by group are saved in this browser. The rest are saved on this computer, for every browser.</p>
         </div>
-      </fieldset>
-      <fieldset>
-        <legend>Card size</legend>
-        <label class="choice">
-          <input type="radio" name="card-size" value="fit">
-          <span class="size-shape fit" aria-hidden="true"><i></i><i></i><i></i></span>
-          <span class="choice-text"><b>Fit content <em>Default</em></b><span>Each card is as tall as its content, so heights vary.</span></span>
-        </label>
-        <label class="choice">
-          <input type="radio" name="card-size" value="small">
-          <span class="size-shape small" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-          <span class="choice-text"><b>Small</b><span>All cards one size, compact. Fits the most on screen.</span></span>
-        </label>
-        <label class="choice">
-          <input type="radio" name="card-size" value="medium">
-          <span class="size-shape medium" aria-hidden="true"><i></i><i></i><i></i></span>
-          <span class="choice-text"><b>Medium</b><span>All cards one size, with room for a typical session.</span></span>
-        </label>
-        <label class="choice">
-          <input type="radio" name="card-size" value="large">
-          <span class="size-shape large" aria-hidden="true"><i></i><i></i></span>
-          <span class="choice-text"><b>Large</b><span>All cards one size, with room for subagents and PRs.</span></span>
-        </label>
-        <p class="settings-foot">At Small, Medium or Large, whatever doesn't fit scrolls inside its card.</p>
-      </fieldset>
-      <fieldset>
-        <legend>Notifications</legend>
-        <label class="choice">
-          <input type="checkbox" id="keep-notes">
-          <span class="choice-text"><b>Keep the list after a reload</b><span>Reloading or reopening the dashboard keeps the notifications you haven't cleared.</span></span>
-        </label>
-      </fieldset>
-      <fieldset id="groups-setting">
-        <legend>Groups</legend>
-        <p class="settings-help">A session is in the group with a folder that holds it, the nearest one if several do. The group button on a card moves it by hand.</p>
-        <div id="group-editor" class="group-editor"></div>
-        <button type="button" id="group-add" class="btn">Add group</button>
-        <datalist id="group-folders"></datalist>
-        <label class="choice">
-          <input type="checkbox" id="group-sections">
-          <span class="choice-text"><b>Sections by group</b><span>Each group's cards together under its name, and the rest after them.</span></span>
-        </label>
-      </fieldset>
-      <fieldset>
-        <legend>New sessions</legend>
-        <div id="app-setting" hidden>
-          <div class="segmented">
-            <label><input type="radio" name="new-app" value="claude">Claude</label>
-            <label><input type="radio" name="new-app" value="codex">Codex</label>
-            <label><input type="radio" name="new-app" value="copilot">Copilot</label>
-          </div>
-          <p class="settings-help">The app the repo menu opens, and to-dos start in unless they name one.</p>
-        </div>
-        <label class="choice">
-          <input type="checkbox" id="skip-permissions">
-          <span class="choice-text"><b>Skip permission prompts</b><span>Sessions the dashboard opens run <code>claude --dangerously-skip-permissions</code>, or <code>codex --dangerously-bypass-approvals-and-sandbox</code>, so they edit files and run commands without asking. Only for folders you trust.</span></span>
-        </label>
-        <div id="terminal-setting" hidden>
-          <label class="field">
-            <span>Terminal</span>
-            <select id="terminal-choice"></select>
-          </label>
-          <p class="settings-help">Where the repo menu, Resume and to-dos open Claude. Automatic uses one this computer has.</p>
-        </div>
-      </fieldset>
-      <fieldset>
-        <legend>Other apps</legend>
-        <p class="settings-help">ComfyUI's jobs, LocalAI's models, downloads and agent chats, and Ollama's and LM Studio's loaded models show as cards while they run.</p>
-        <label class="field">
-          <span>ComfyUI address</span>
-          <input id="comfy-url" type="text" placeholder="http://127.0.0.1:8188" autocomplete="off" spellcheck="false">
-        </label>
-        <p class="settings-help">For a ComfyUI that Comfy Desktop didn't start. Comfy Desktop's are found by themselves, whatever their port.</p>
-        <label class="field">
-          <span>LocalAI address</span>
-          <input id="localai-url" type="text" placeholder="http://127.0.0.1:8080" autocomplete="off" spellcheck="false">
-        </label>
-        <label class="field">
-          <span>LocalAI API key</span>
-          <input id="localai-key" type="password" autocomplete="off" spellcheck="false">
-        </label>
-        <p class="settings-help">Only if LocalAI has one set. It's kept on this computer and never shown again.</p>
-        <label class="field">
-          <span>Ollama address</span>
-          <input id="ollama-url" type="text" placeholder="http://127.0.0.1:11434" autocomplete="off" spellcheck="false">
-        </label>
-        <label class="field">
-          <span>LM Studio address</span>
-          <input id="lmstudio-url" type="text" placeholder="http://127.0.0.1:1234" autocomplete="off" spellcheck="false">
-        </label>
-        <label class="field">
-          <span>LM Studio API token</span>
-          <input id="lmstudio-key" type="password" autocomplete="off" spellcheck="false">
-        </label>
-        <p class="settings-help">Ollama's address defaults to OLLAMA_HOST; LM Studio's to the port its server last used. A token is only needed if LM Studio requires one.</p>
-      </fieldset>
-      <fieldset>
-        <legend>To-dos</legend>
-        <p class="settings-help">A to-do starts Claude in its folder. Without one, it starts in the folder below, where Claude can make a new project. <b>Choose folder</b> on a to-do picks one from:</p>
-        <div class="segmented">
-          <label><input type="radio" name="todo-source" value="repos">Repo menu</label>
-          <label><input type="radio" name="todo-source" value="picker">Any folder</label>
-        </div>
-        <label class="field">
-          <span>Start in</span>
-          <input id="todo-start" type="text" autocomplete="off" spellcheck="false">
-        </label>
-        <p class="settings-help">Where to-dos without a folder start, and where the repo menu and folder picker open. Leave it empty for the repos folder.</p>
-      </fieldset>
-      <fieldset>
-        <legend>Repo menu</legend>
-        <p class="settings-help">Untick a folder or repo to hide it, and everything inside it, from the ☰ menu.</p>
-        <div class="excluded-search">
-          <input id="excluded-filter" type="search" placeholder="Filter folders and repos" aria-label="Filter folders and repos" autocomplete="off" spellcheck="false">
-        </div>
-        <nav id="excluded-tree" class="tree excluded-tree" aria-label="Folders and repos in the repo menu"></nav>
-        <div id="excluded-missing" hidden>
-          <p class="settings-help">Also hidden, but no longer in the repos folder:</p>
-          <ul id="excluded-list" class="excluded"></ul>
-        </div>
-      </fieldset>
-      <p class="settings-foot">Theme, Card size, Notifications and Sections by group are saved in this browser. The rest are saved on this computer, for every browser.</p>
+      </div>
     </form>
   </dialog>
 

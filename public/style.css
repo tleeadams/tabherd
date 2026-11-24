@@ -785,6 +785,35 @@ button:focus-visible, a:focus-visible, summary:focus-visible, .msg .text:focus-v
 .settings { padding: 0; }
 .confirm::backdrop,
 .settings::backdrop { background: rgb(0 0 0 / 0.4); }
+
+/* Settings: a list of sections down the left, and the one picked. */
+/* One height for every section, so the dialog doesn't jump as they change;
+   a long one scrolls inside it. */
+#settings { width: min(780px, calc(100vw - 32px)); height: min(640px, calc(100dvh - 48px)); }
+#settings form { display: flex; flex-direction: column; height: 100%; }
+.settings-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 22px; }
+.settings-nav { display: flex; flex-direction: column; gap: 2px; }
+.settings-panels { min-height: 0; overflow-y: auto; padding-right: 4px; }
+.settings-nav button {
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+}
+.settings-nav button:hover { color: var(--text); background: var(--panel-2); }
+.settings-nav button[aria-selected="true"] { color: var(--text); background: var(--panel-2); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent); }
+.settings-nav button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.settings-section[hidden] { display: none; }
+.settings-section fieldset + fieldset { margin-top: 18px; }
+@media (max-width: 640px) {
+  .settings-body { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); gap: 12px; }
+  .settings-nav { flex-direction: row; overflow-x: auto; }
+  .settings-nav button { flex: none; }
+  .settings-nav button[aria-selected="true"] { box-shadow: inset 0 -2px 0 var(--accent); }
+}
 .confirm h2 { margin: 0 0 8px; font-size: 16px; }
 .confirm p { margin: 8px 0; color: var(--muted); }
 .confirm pre {

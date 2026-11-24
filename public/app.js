@@ -2326,13 +2326,53 @@ $('keep-notes').addEventListener('change', (e) => {
   saveNotes();
 });
 
-// Opens Settings, at one of its sections if given.
-function openSettings(sectionId) {
+// Settings shows one section at a time, picked from the list down its left
+// side. It opens at the last one used, kept in this browser.
+const SETTINGS_SECTION_KEY = 'tabherd:settings-section';
+
+function showSettingsSection(id, focus) {
+  const sections = [...document.querySelectorAll('.settings-section')];
+  const shown = sections.find((s) => s.id === id) || sections[0];
+  for (const s of sections) s.hidden = s !== shown;
+  for (const b of $('settings-nav').children) {
+    const on = b.dataset.section === shown.id;
+    b.setAttribute('aria-selected', String(on));
+    b.tabIndex = on ? 0 : -1;
+    if (on && focus) b.focus();
+  }
+  $('settings').querySelector('.settings-panels').scrollTop = 0;
+  try {
+    localStorage.setItem(SETTINGS_SECTION_KEY, shown.id);
+  } catch {}
+}
+
+$('settings-nav').replaceChildren(
+  ...[...document.querySelectorAll('.settings-section')].map((s) =>
+    el('button', { type: 'button', role: 'tab', 'data-section': s.id, 'aria-controls': s.id, onclick: () => showSettingsSection(s.id) }, s.dataset.title),
+  ),
+);
+// Up and down arrows move through the list, as in other tab lists.
+$('settings-nav').addEventListener('keydown', (e) => {
+  if (!['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+  e.preventDefault();
+  const tabs = [...$('settings-nav').children];
+  const i = tabs.indexOf(document.activeElement);
+  const next = tabs[(i + (e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+  showSettingsSection(next.dataset.section, true);
+});
+
+// Opens Settings, at the section holding `elementId` if given.
+function openSettings(elementId) {
   $('settings').showModal();
   groupsDraft = null;
   renderGroupEditor();
-  if (sectionId) $(sectionId).scrollIntoView({ block: 'start' });
-  else $('settings').querySelector('input:checked').focus();
+  let section = elementId ? $(elementId)?.closest('.settings-section')?.id : null;
+  if (!section) {
+    try {
+      section = localStorage.getItem(SETTINGS_SECTION_KEY);
+    } catch {}
+  }
+  showSettingsSection(section, true);
   loadServerSettings();
   loadRepos(false);
 }
