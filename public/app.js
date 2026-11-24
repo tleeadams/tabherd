@@ -1043,8 +1043,32 @@ $('memory-card').addEventListener('change', (e) => {
   try {
     localStorage.setItem(MEMORY_CARD_KEY, memoryCardOn ? 'on' : 'off');
   } catch {}
+  $('memory-float').disabled = !memoryCardOn;
   render();
 });
+
+// It can also stay in view, under the header, while the cards scroll. Off
+// unless chosen, kept in this browser.
+const MEMORY_FLOAT_KEY = 'tabherd:memory-float';
+let memoryFloat = false;
+try {
+  memoryFloat = localStorage.getItem(MEMORY_FLOAT_KEY) === 'on';
+} catch {}
+list.classList.toggle('memory-float', memoryFloat);
+$('memory-float').checked = memoryFloat;
+$('memory-float').disabled = !memoryCardOn;
+$('memory-float').addEventListener('change', (e) => {
+  memoryFloat = e.currentTarget.checked;
+  try {
+    localStorage.setItem(MEMORY_FLOAT_KEY, memoryFloat ? 'on' : 'off');
+  } catch {}
+  list.classList.toggle('memory-float', memoryFloat);
+});
+// The header wraps onto more lines in a narrow window, so the card stops
+// wherever its bottom is.
+new ResizeObserver(([entry]) => document.documentElement.style.setProperty('--top-height', `${entry.target.offsetHeight}px`)).observe(
+  document.querySelector('.top'),
+);
 
 // A group's heading, when the cards are in sections by group.
 function sectionHead(s) {
