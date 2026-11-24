@@ -1019,6 +1019,24 @@ function memoryCard({ memory, models }) {
   );
 }
 
+// The card can be turned off in Settings → Appearance, kept in this browser.
+// Loaded models are on it, or in the grid, each with a card of its own, when
+// it's off.
+const MEMORY_CARD_KEY = 'tabherd:memory-card';
+let memoryCardOn = true;
+try {
+  memoryCardOn = localStorage.getItem(MEMORY_CARD_KEY) !== 'off';
+} catch {}
+const onMemoryCard = (a) => memoryCardOn && a.kind === 'model';
+$('memory-card').checked = memoryCardOn;
+$('memory-card').addEventListener('change', (e) => {
+  memoryCardOn = e.currentTarget.checked;
+  try {
+    localStorage.setItem(MEMORY_CARD_KEY, memoryCardOn ? 'on' : 'off');
+  } catch {}
+  render();
+});
+
 // A group's heading, when the cards are in sections by group.
 function sectionHead(s) {
   return el('h2', { class: `section-head${s.color ? ` g-${s.color}` : ' none'}` }, el('span', { class: 'dot' }), s.name, el('b', { text: String(s.count) }));
@@ -1032,10 +1050,9 @@ const inView = (x) =>
 function render() {
   if (!snap) return;
   renderViewFilters();
-  // Loaded models go on the memory card, not in the grid.
-  const models = snap.agents.filter((a) => a.kind === 'model' && inView(a));
+  const models = snap.agents.filter((a) => onMemoryCard(a) && inView(a));
   const agents = snap.agents
-    .filter((a) => a.kind !== 'model' && inView(a))
+    .filter((a) => !onMemoryCard(a) && inView(a))
     .sort((x, y) => status(x).rank - status(y).rank || x.startedAt - y.startedAt);
   const todos = (snap.todos || []).filter(inView).sort((x, y) => x.createdAt - y.createdAt);
   renderFilterTabs(agents, todos);
@@ -1063,7 +1080,7 @@ function render() {
     }
   }
   // The memory card comes first, whatever the filter.
-  if (snap.memory) shown.unshift(['memory', { memory: snap.memory, models }, memoryCard]);
+  if (memoryCardOn && snap.memory) shown.unshift(['memory', { memory: snap.memory, models }, memoryCard]);
   const seen = new Set();
   shown.forEach(([id, data, make], i) => {
     seen.add(id);
@@ -1312,7 +1329,7 @@ function showFilterCount() {
   if (!snap) return;
   const f = filterFromForm();
   const n =
-    snap.agents.filter((a) => a.kind !== 'model' && inView(a) && matchesFilter(f, a, false)).length +
+    snap.agents.filter((a) => !onMemoryCard(a) && inView(a) && matchesFilter(f, a, false)).length +
     (snap.todos || []).filter((t) => inView(t) && matchesFilter(f, t, true)).length;
   $('filter-count').textContent = `Shows ${n} ${n === 1 ? 'card' : 'cards'} now.`;
 }
