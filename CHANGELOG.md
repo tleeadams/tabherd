@@ -4,6 +4,7 @@ Notable changes in each release. Version numbers follow [Semantic Versioning](ht
 
 ## Unreleased
 
+- A short tour on a browser's first visit points out each part of the dashboard, with Skip tour on every step. It waits until every running session is on the page, and the page holds still while it runs. With nothing running, it shows an example card. Browsers that have used the dashboard before don't get it, and Settings → Help shows it again. See [What it shows](README.md#what-it-shows).
 - The filter tabs after All are yours to make, change, reorder and delete: the **⋯** menu after the tabs makes one or changes the one shown, and Settings → Filters lists them all. A filter picks statuses (Shell running among them, apart from Working), apps, groups and words in a card's name or folder, and whether to show to-dos. Todo, Needs you, Working and Idle are where they start, and Settings can put them back. The tab you're on is remembered. See [What it shows](README.md#what-it-shows).
 - Settings shows one section at a time, picked from a list down its left side, and opens at the last one used.
 - A **Memory and models** card across the top shows the memory in use against what the computer has, and each NVIDIA graphics card's, with the models loaded in LocalAI, Ollama and LM Studio, each with Unload. Loaded models no longer get cards of their own, unless the card is turned off in Settings → Appearance.
