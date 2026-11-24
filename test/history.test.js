@@ -28,3 +28,13 @@ test('a resumed session leaves the list while it runs', () => {
   history.observe([], 5000);
   assert.ok(history.list().some((s) => s.id === USED));
 });
+
+test('a closed Codex session is kept as Codex, so Resume runs Codex', () => {
+  const id = '01900000-0000-7000-8000-0000000000c0';
+  history.observe([{ ...session(id, 2), app: 'codex', title: 'Explain the project' }], 6000);
+  history.observe([], 7000);
+  const s = history.find(id);
+  assert.equal(s.app, 'codex');
+  assert.equal(s.title, 'Explain the project');
+  assert.equal(history.find(USED).app, 'claude', 'Claude sessions say so too');
+});

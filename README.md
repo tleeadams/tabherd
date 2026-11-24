@@ -2,9 +2,9 @@
 
 # Tabherd
 
-**A dashboard for your Claude Code sessions.** Tabherd lists every [Claude Code](https://code.claude.com) session running on your computer and shows what each one is doing: which ones need you, which are working, and what they last said. It watches the sessions you start anyway, in any terminal, with nothing to set up in Claude Code. It runs entirely on your computer and has no dependencies beyond Node.
+**A dashboard for your Claude Code and Codex sessions.** Tabherd lists every [Claude Code](https://code.claude.com) and [Codex](https://github.com/openai/codex) session running on your computer and shows what each one is doing: which ones need you, which are working, and what they last said. It watches the sessions you start anyway, in any terminal, with nothing to set up in either. It runs entirely on your computer and has no dependencies beyond Node.
 
-Tabherd is an independent project. It isn't made or endorsed by Anthropic. It was called Claude Agents up to version 0.1.2. Say it "Tab Herd" or "tabberd": both are right.
+Tabherd is an independent project. It isn't made or endorsed by Anthropic or OpenAI. It was called Claude Agents up to version 0.1.2. Say it "Tab Herd" or "tabberd": both are right.
 
 ## Install
 
@@ -107,6 +107,17 @@ Checked that way so far: Windows Terminal; tmux, kitty, WezTerm, GNOME Terminal 
 
 The filters in the header show every session, or only those in one state. **Todo** shows *Needs you* and *Idle* together, along with the to-do cards: everything whose turn it is. *Shell running* counts as Working, not Todo.
 
+## Codex
+
+Codex sessions get cards like Claude's, marked **Codex** (Claude's are marked **Claude**). Nothing needs setting up in Codex, and nothing changes if Codex isn't installed. Support is new: the dashboard watches Codex sessions, but doesn't yet drive them.
+
+- **Status** comes from Codex's background service, which runs your Codex sessions and reports each one's state as it changes: *Needs you* when it's waiting for an approval or an answer, *Working* or *Idle*. Tabherd connects to it through `codex app-server proxy`, only once the service is running, and only listens: it starts, resumes and answers nothing.
+- **Activity, model and tokens** come from the session's file in `~/.codex/sessions` (or `$CODEX_HOME/sessions`), read a few new bytes at a time like a Claude transcript.
+- **Go to window** finds the session's tab by its title, which Codex sets to the session's name. A session Codex hasn't named yet is matched only when it's the one unmatched Codex window, so until then its card has no Go to window.
+- **History** lists closed Codex sessions too, and **Resume** opens your terminal in the session's folder running `codex resume <id>`.
+
+Not yet for Codex: Catch up, Stop, and starting Codex from a to-do or the repo menu. A session Codex runs outside its background service, such as one in an Administrator terminal or started with `--profile` or most `-c` options, isn't shown. After a Codex window closes, its card can stay a short while, until Codex unloads the session.
+
 ## To-dos
 
 **+ To-do** in the header adds a card with a title and notes, for work you want to give Claude later. To-do cards sit at the top of the grid, with a dashed border, and count under All and Todo. Ctrl+Enter saves from the notes box.
@@ -172,7 +183,7 @@ The server pushes each update to open dashboards (`/api/stream`, server-sent eve
 
 The clock button in the header lists sessions that have closed, newest first and grouped by day. Each entry has the session's name, folder, branch and last prompt, and a filter searches all of those. **Resume** opens Claude in the session's folder, in your terminal, running `claude --resume <id>`, so the conversation carries on where it stopped. **Copy resume command** copies a command that does the same, for running yourself.
 
-The server records a session when it drops off the dashboard, keeping its terminal tab's title and session name. Sessions that closed while the server wasn't running, or while no dashboard was open, are read from their transcripts in `~/.claude/projects`, going back 30 days. Those show Claude's title for the session, or its first prompt, rather than the tab's title. Each transcript is read once and again only if it changes, so after the first scan (about a second for 300 MB of transcripts) opening History is quick. Only interactive sessions are listed, not `claude -p` or SDK runs. Nor are sessions closed before Claude was asked anything: Claude saves no conversation for those, so there's nothing to resume. A session that's running again, because it was resumed, leaves the list until it closes. The history keeps the latest 300 sessions, in `~/.tabherd/history.json`.
+The server records a session when it drops off the dashboard, keeping its terminal tab's title and session name. Sessions that closed while the server wasn't running, or while no dashboard was open, are read from their transcripts in `~/.claude/projects`, going back 30 days. Those show Claude's title for the session, or its first prompt, rather than the tab's title. Each transcript is read once and again only if it changes, so after the first scan (about a second for 300 MB of transcripts) opening History is quick. Closed Codex sessions are read back the same way from `~/.codex/sessions`, named as Codex named them, apart from those Codex has compressed after a week. Only interactive sessions are listed, not `claude -p`, `codex exec` or SDK runs. Nor are sessions closed before Claude was asked anything: Claude saves no conversation for those, so there's nothing to resume. A session that's running again, because it was resumed, leaves the list until it closes. The history keeps the latest 300 sessions, in `~/.tabherd/history.json`.
 
 ## Repo menu
 
@@ -206,7 +217,7 @@ Start the server from a normal terminal. If it's started from a sandboxed shell,
 
 ## Where the data comes from
 
-All of it is read-only, from files Claude Code already writes:
+All of it is read-only, from files Claude Code and Codex already write, and from Codex's own background service:
 
 | Source | Used for |
 | --- | --- |
@@ -214,6 +225,10 @@ All of it is read-only, from files Claude Code already writes:
 | `~/.claude/projects/<project>/<session>.jsonl` | Title, prompts, tool calls, model, token usage, recaps and PR links. Each poll reads only the newly appended bytes. |
 | `…/<session>/subagents/*.meta.json` and `*.jsonl` | Subagents and what they are doing. |
 | `Get-Process` (Windows) or `ps` | Memory use, and a check that each PID still belongs to the Claude process that registered it. |
+| Codex's background service, through `codex app-server proxy` | Which Codex sessions are open, their names and their status. |
+| `~/.codex/sessions/<yyyy>/<mm>/<dd>/rollout-<time>-<session>.jsonl` | A Codex session's prompts, replies, tool calls, model and token usage. |
+| `~/.codex/session_index.jsonl` | Closed Codex sessions' names, for History. |
+| The `codex` processes and their tab titles | Which window each Codex session is in, and its memory use. |
 
 A session file whose process has exited, or whose PID now belongs to another process, is ignored.
 

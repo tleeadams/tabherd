@@ -29,7 +29,11 @@ const PERMISSION_MODES = {
   plan: 'plan mode',
   auto: 'auto',
   dontAsk: "don't ask",
+  'never-ask': 'never asks',
 };
+// Which app each session is, on its card and in the history.
+const APPS = { claude: 'Claude', codex: 'Codex' };
+const appTag = (x) => el('span', { class: `app app-${x.app || 'claude'}`, title: x.app === 'codex' ? 'A Codex session' : 'A Claude Code session' }, APPS[x.app] || APPS.claude);
 
 const $ = (id) => document.getElementById(id);
 const list = $('list');
@@ -102,7 +106,7 @@ function shortPath(p) {
 const status = (a) => STATUS[a.status] || STATUS.unknown;
 // What the terminal tab shows, falling back to Claude's own names.
 const displayName = (a) => a.terminalTitle || a.title || a.name;
-const resumeCommand = (a) => `cd "${a.cwd}"; claude --resume ${a.id}`;
+const resumeCommand = (a) => `cd "${a.cwd}"; ${a.app === 'codex' ? 'codex resume' : 'claude --resume'} ${a.id}`;
 
 function toast(message, isError) {
   const t = $('toast');
@@ -163,8 +167,11 @@ async function renewToken() {
 
 const post = (agent, action) => api(`/api/agents/${agent.id}/${action}`);
 
-// The server says whether this computer has a terminal it can drive.
-const canFocus = (a) => Boolean(snap?.terminals) && (!a.kind || a.kind === 'interactive');
+// The server says whether this computer has a terminal it can drive. A Codex
+// session's window is known once its tab's title names it.
+const canFocus = (a) => Boolean(snap?.terminals) && (!a.kind || a.kind === 'interactive') && Boolean(a.pid);
+// Catch up and Stop for Codex are still to come.
+const canDrive = (a) => canFocus(a) && a.app !== 'codex';
 
 async function goToWindow(a, button) {
   if (button) button.disabled = true;
@@ -351,7 +358,7 @@ function actions(a) {
     'div',
     { class: 'actions' },
     canFocus(a) ? btn('Go to window', (e) => goToWindow(a, e.currentTarget), 'btn-primary') : null,
-    canFocus(a)
+    canDrive(a)
       ? btn('Catch up', (e) => catchUp(a, e.currentTarget), 'btn-accent', {
           disabled: waiting,
           title: waiting
@@ -375,7 +382,7 @@ function actions(a) {
       await copy(resumeCommand(a));
       toast('Resume command copied');
     }),
-    btn('Stop…', () => confirmStop(a), 'btn-stop'),
+    a.app !== 'codex' ? btn('Stop…', () => confirmStop(a), 'btn-stop') : null,
   );
 }
 
@@ -391,7 +398,8 @@ function card(a) {
 
   const heading = displayName(a);
   const subtitle = a.title && a.title.toLowerCase() !== heading.toLowerCase() ? a.title : null;
-  const proc = [a.name, `PID ${a.pid}`];
+  const proc = a.app === 'codex' ? [] : [a.name];
+  if (a.pid) proc.push(`PID ${a.pid}`);
   if (a.memBytes) proc.push(`${Math.round(a.memBytes / 1048576)} MB`);
 
   return el(
@@ -403,6 +411,7 @@ function card(a) {
       el('span', { class: `badge s-${a.status}`, title: st.hint }, el('span', { class: 'dot' }), st.label),
       since(a.statusSince),
       el('span', { class: 'spacer' }),
+      appTag(a),
       el('span', { class: 'proc', title: `Session ${a.id}\nStarted ${new Date(a.startedAt).toLocaleString()}`, text: proc.join(' · ') }),
     ),
     el(
@@ -1156,7 +1165,7 @@ function pastItem(s) {
   return el(
     'li',
     { class: 'past' },
-    el('div', { class: 'past-head' }, el('span', { class: 'past-name', text: name, title: name }), since(s.closedAt, ' ago')),
+    el('div', { class: 'past-head' }, el('span', { class: 'past-name', text: name, title: name }), appTag(s), since(s.closedAt, ' ago')),
     subtitle ? el('p', { class: 'past-title', text: subtitle, title: subtitle }) : null,
     s.todo ? el('p', { class: 'past-title', title: todoText(s.todo) }, el('b', {}, 'To-do · '), s.todo.title) : null,
     el(

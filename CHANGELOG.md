@@ -2,6 +2,11 @@
 
 Notable changes in each release. Version numbers follow [Semantic Versioning](https://semver.org). The release build takes each release's notes from its section here.
 
+## Unreleased
+
+- Codex sessions show on the dashboard beside Claude's, and each card says which app it is. A Codex card has its status, with *Needs you* when it's waiting for an approval or an answer, what it's doing, its last reply, model and tokens, and Go to window. Closed Codex sessions are in History, where Resume runs `codex resume`. Catch up, Stop and starting Codex sessions are still to come. See [Codex](README.md#codex).
+- Tabs the dashboard opens no longer take on the variables of a Codex session the dashboard was started from, which turn off colour and give them that session's IDs.
+
 ## 0.3.2 - 2026-11-22
 
 - A to-do can start without a folder: it starts in Settings → To-dos → *Start in*, your repos folder unless you set another, where Claude can make a new project. **Choose folder** is there for picking one first. The card says where it will start.

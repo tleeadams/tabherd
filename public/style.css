@@ -201,6 +201,19 @@ main { padding: 20px 24px 48px; }
 .card-head { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
 .card-head .spacer { flex: 1; }
 .proc { color: var(--faint); font-family: var(--mono); font-size: 11.5px; }
+/* Which app a session is: Claude's clay, and Codex in plain ink, so neither
+   reads as a status. */
+.app {
+  flex: none;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 17px;
+}
+.app-claude { color: light-dark(#a8502b, #e3916b); border-color: light-dark(#ecd3c6, #4a3127); }
+.app-codex { color: var(--text); background: var(--panel-2); }
 
 .badge {
   display: inline-flex;

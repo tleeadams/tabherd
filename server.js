@@ -154,6 +154,14 @@ async function action(res, sessionId, name) {
     terminals.openFolder(agent.cwd);
     return send(res, 200, { ok: true });
   }
+  // Codex's window is only known when its tab's title names the session, and
+  // typing into it or ending it waits for a way that goes through Codex.
+  if (agent.app === 'codex' && name !== 'focus') {
+    return send(res, 400, { ok: false, error: `${name === 'stop' ? 'Stop' : 'Catch up'} isn't available for Codex sessions yet.` });
+  }
+  if (name === 'focus' && !agent.pid) {
+    return send(res, 409, { ok: false, error: `Couldn't tell which window ${agent.title || agent.name} is in.` });
+  }
   if (name === 'focus' || name === 'catch-up') {
     if (name === 'catch-up' && agent.status === 'waiting') {
       const label = agent.terminalTitle || agent.name;
@@ -271,7 +279,8 @@ const server = http.createServer(async (req, res) => {
       if (history.isLive(past.id)) return send(res, 409, { ok: false, error: 'That session is already running.' });
       if (!fs.existsSync(past.cwd)) return send(res, 400, { ok: false, error: `Its folder no longer exists: ${past.cwd}` });
       // The ID comes from the history's own records, which only hold UUIDs.
-      const result = await openClaude(past.cwd, `${claudeCommand()} --resume ${past.id}`);
+      const command = past.app === 'codex' ? `codex resume ${past.id}` : `${claudeCommand()} --resume ${past.id}`;
+      const result = await openClaude(past.cwd, command);
       return send(res, result.ok ? 200 : 500, result);
     }
 
@@ -327,7 +336,7 @@ async function main() {
     const snap = await snapshot();
     for (const a of snap.agents) {
       const doing = a.tools?.length ? `${a.tools[0].name}: ${a.tools[0].detail}` : a.waitingFor || '';
-      console.log(`${String(a.pid).padEnd(7)} ${a.status.padEnd(8)} ${a.name.padEnd(28)} ${doing}`);
+      console.log(`${String(a.pid ?? '-').padEnd(7)} ${a.app.padEnd(7)} ${a.status.padEnd(8)} ${a.name.padEnd(28)} ${doing}`);
     }
     console.log(`${snap.agents.length} running session(s)`);
     return;
