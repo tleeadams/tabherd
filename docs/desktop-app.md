@@ -218,8 +218,6 @@ A short spike on Windows, before the rest:
   - The zip, unpacked, did the same.
 - **Signing in two stages works,** with one catch. `tauri bundle` normally writes the package type into the app (for Tauri's updater), which would break a signature applied before packaging. `--no-binary-patching` stops that: the app's bytes are unchanged by packaging, and the installer holds the identical file.
 - **Building on Windows needs Rust's MSVC toolchain.** A machine whose default is the GNU one can add MSVC alongside and use `RUSTUP_TOOLCHAIN=stable-x86_64-pc-windows-msvc`.
-- **Still to check by hand:**
-  - Go to window, Catch up and the folder picker with Tabherd in front.
-  - PR links opening in the browser.
-  - The first signed release.
+- **Checked by hand on Windows** (the owner, 2026-11-24): Go to window, Catch up and the folder picker bring their windows forward with Tabherd in front, and PR links open in the browser.
+- **Still to check:** the first signed release.
 - **Next:** phase 2, macOS. CI already lints and compiles the app on macOS and Linux.
