@@ -1011,3 +1011,17 @@ button:focus-visible, a:focus-visible, summary:focus-visible, .msg .text:focus-v
 .history-background { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
 .history-background input { margin: 0; accent-color: var(--accent); }
 .drawer-search .history-background input { width: auto; padding: 0; }
+
+/* Other apps' cards: ComfyUI's jobs and LocalAI's models, downloads and chats. */
+.app-comfy { color: light-dark(#7a3fb0, #c49af0); border-color: light-dark(#e3d3f2, #3e2d52); }
+.app-localai { color: light-dark(#0f766e, #5fd0c3); border-color: light-dark(#cdeae6, #1e4440); }
+.badge.s-queued { color: var(--muted); background: var(--idle-bg); }
+.card.s-queued { border-left-color: var(--faint); }
+.progress { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.progress .bar { flex: 1; height: 6px; border-radius: 3px; background: var(--bar); overflow: hidden; }
+.progress .bar i { display: block; height: 100%; background: var(--busy); border-radius: 3px; transition: width 0.4s; }
+.preview { display: block; max-width: 100%; max-height: 180px; margin-top: 10px; border-radius: 6px; background: var(--panel-2); object-fit: contain; }
+.facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 12px; margin: 10px 0 0; font-size: 12.5px; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+a.btn { display: inline-flex; align-items: center; text-decoration: none; }

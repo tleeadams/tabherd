@@ -17,8 +17,12 @@ const STATUS = {
   waiting: { label: 'Needs you', group: 'needs', rank: 0 },
   busy: { label: 'Working', group: 'working', rank: 1 },
   shell: { label: 'Shell running', group: 'working', rank: 2, hint: 'At the prompt while a background shell task runs' },
-  idle: { label: 'Idle', group: 'idle', rank: 3 },
-  unknown: { label: 'Starting', group: 'idle', rank: 4 },
+  // A ComfyUI job or a download waiting its turn.
+  queued: { label: 'Queued', group: 'working', rank: 3, hint: 'Waiting for the ones before it' },
+  idle: { label: 'Idle', group: 'idle', rank: 4 },
+  unknown: { label: 'Starting', group: 'idle', rank: 5 },
+  // A model loaded in LocalAI: not anyone's turn, so in no filter but All.
+  loaded: { label: 'Loaded', group: 'resource', rank: 6 },
 };
 // Filters that cover more than one status group. Todo is every agent whose
 // turn it is, and the to-do cards too.
@@ -32,8 +36,12 @@ const PERMISSION_MODES = {
   'never-ask': 'never asks',
 };
 // Which app each session is, on its card and in the history.
-const APPS = { claude: 'Claude', codex: 'Codex' };
-const appTag = (x) => el('span', { class: `app app-${x.app || 'claude'}`, title: x.app === 'codex' ? 'A Codex session' : 'A Claude Code session' }, APPS[x.app] || APPS.claude);
+const APPS = { claude: 'Claude', codex: 'Codex', comfy: 'Comfy', localai: 'LocalAI' };
+// Cards for things other than sessions: ComfyUI's jobs, and LocalAI's
+// models, downloads and chats.
+const isItem = (a) => a.app === 'comfy' || a.app === 'localai';
+const APP_HINTS = { claude: 'A Claude Code session', codex: 'A Codex session', comfy: 'A ComfyUI job', localai: 'From LocalAI' };
+const appTag = (x) => el('span', { class: `app app-${x.app || 'claude'}`, title: APP_HINTS[x.app] || APP_HINTS.claude }, APPS[x.app] || APPS.claude);
 // The colours a group can have, as the server knows them. Each is set for
 // light and dark in the stylesheet, as .g-<name>.
 const GROUP_COLORS = { rose: 'Rose', orange: 'Orange', olive: 'Olive', teal: 'Teal', indigo: 'Indigo', plum: 'Plum', brown: 'Brown', slate: 'Slate' };
@@ -61,6 +69,13 @@ function el(tag, props, ...children) {
   for (const c of children.flat()) if (c !== null && c !== undefined && c !== false) node.append(c);
   return node;
 }
+
+// Enter in a text box would otherwise submit the Settings form, which closes it.
+const noSubmit = (then) => (e) => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  then?.(e.currentTarget);
+};
 
 const now = () => Date.now() + clockSkew;
 const ms = (t) => (typeof t === 'number' ? t : t ? Date.parse(t) : NaN);
@@ -168,12 +183,14 @@ async function renewToken() {
   }
 }
 
-const post = (agent, action) => api(`/api/agents/${agent.id}/${action}`);
+const post = (agent, action) => api(`/api/agents/${encodeURIComponent(agent.id)}/${action}`);
 
 // The server says whether this computer has a terminal it can drive. A Codex
 // session's window is known once its tab's title names it.
 // A background run, with `claude -p`, has no window.
-const canFocus = (a) => Boolean(snap?.terminals) && (!a.kind || a.kind === 'interactive') && !a.background && Boolean(a.pid);
+// Other apps' cards say which buttons they have.
+const canFocus = (a) =>
+  Boolean(snap?.terminals) && !a.background && Boolean(a.pid) && (a.actions ? a.actions.includes('focus') : !a.kind || a.kind === 'interactive');
 // Codex takes Catch up's prompt through its own service, so it doesn't need
 // the window; Claude's is typed into the window.
 const canCatchUp = (a) => (a.app === 'codex' ? !a.kind || a.kind === 'interactive' : canFocus(a));
@@ -503,7 +520,89 @@ function actions(a) {
   );
 }
 
+// A card for a ComfyUI job, or a LocalAI model, download or chat. The server
+// gives what it shows, `facts` as label and value pairs, and which buttons it
+// has, as `actions`.
+function itemCard(a) {
+  const st = status(a);
+  const can = (action) => (a.actions || []).includes(action);
+  const btn = (label, onclick, cls = '', props = {}) => el('button', { type: 'button', class: `btn ${cls}`, onclick, ...props }, label);
+  const proc = [a.pid && !isItem(a) ? `PID ${a.pid}` : null, a.memBytes ? `${Math.round(a.memBytes / 1048576)} MB` : null].filter(Boolean);
+  const pct = a.progress ? Math.max(0, Math.min(100, (a.progress.value / (a.progress.max || 100)) * 100)) : null;
+  const fill = el('i');
+  if (pct !== null) fill.style.width = `${pct.toFixed(1)}%`;
+  return el(
+    'article',
+    { class: `card item s-${a.status}`, 'data-id': a.id },
+    el(
+      'div',
+      { class: 'card-head' },
+      el('span', { class: `badge s-${a.status}`, title: st.hint }, el('span', { class: 'dot' }), a.statusLabel || st.label),
+      since(a.statusSince),
+      el('span', { class: 'spacer' }),
+      appTag(a),
+      proc.length ? el('span', { class: 'proc', text: proc.join(' · ') }) : null,
+    ),
+    el(
+      'h2',
+      { class: 'name' },
+      canFocus(a) ? el('button', { type: 'button', class: 'name-link', title: 'Go to its window', onclick: (e) => goToWindow(a, e.currentTarget) }, a.name) : a.name,
+    ),
+    a.host || a.where ? el('div', { class: 'where' }, el('span', { class: 'path', text: [a.host, a.where].filter(Boolean).join(' · ') })) : null,
+    el(
+      'div',
+      { class: 'card-body' },
+      a.status === 'waiting' && a.waitingFor
+        ? el('div', { class: 'now waiting' }, el('div', { class: 'now-row' }, el('span', { class: 'detail', text: a.waitingFor, title: a.waitingFor })))
+        : null,
+      pct !== null
+        ? el('div', { class: 'progress', title: `${Math.round(pct)}%` }, el('span', { class: 'bar' }, fill), el('span', { text: `${Math.round(pct)}%` }))
+        : null,
+      a.preview ? el('img', { class: 'preview', src: a.preview, alt: `Output of ${a.name}`, loading: 'lazy' }) : null,
+      a.facts?.length ? el('dl', { class: 'facts' }, a.facts.flatMap(([k, v]) => [el('dt', { text: k }), el('dd', { text: v, title: v })])) : null,
+      a.lastReply ? message(a, 'reply', 'Last reply', a.lastReply) : null,
+    ),
+    el(
+      'div',
+      { class: 'actions' },
+      canFocus(a) ? btn('Go to window', (e) => goToWindow(a, e.currentTarget), 'btn-primary') : null,
+      can('open') && a.url ? el('a', { class: 'btn btn-primary', href: a.url, target: '_blank', rel: 'noopener noreferrer' }, a.openLabel || `Open in ${APPS[a.app]}`) : null,
+      can('stop') ? btn('Stop', (e) => itemAction(a, 'stop', e.currentTarget), 'btn-stop') : null,
+      can('cancel') ? btn('Cancel', (e) => itemAction(a, 'cancel', e.currentTarget), 'btn-stop') : null,
+      can('unload') ? btn('Unload', (e) => itemAction(a, 'unload', e.currentTarget), 'btn-stop') : null,
+    ),
+  );
+}
+
+const ITEM_DONE = { stop: 'Stopped', cancel: 'Cancelled', unload: 'Unloaded' };
+
+// Stop, Cancel and Unload ask for a second click, like a to-do's Delete.
+async function itemAction(a, action, button) {
+  if (!button.classList.contains('btn-danger')) {
+    const label = button.textContent;
+    button.classList.add('btn-danger');
+    button.textContent = `${label}?`;
+    setTimeout(() => {
+      button.classList.remove('btn-danger');
+      button.textContent = label;
+    }, 3000);
+    return;
+  }
+  button.disabled = true;
+  try {
+    if (a.leavesWhenDone) stoppedHere.add(a.id);
+    await post(a, action);
+    toast(`${ITEM_DONE[action]} ${a.name}`);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    button.disabled = false;
+  }
+  refresh();
+}
+
 function card(a) {
+  if (isItem(a)) return itemCard(a);
   const st = status(a);
   const tags = [];
   if (a.gitBranch) tags.push(el('span', { class: 'tag branch', title: 'Git branch', text: `⎇ ${a.gitBranch}` }));
@@ -757,7 +856,7 @@ function render() {
   const counts = { all: agents.length + todos.length, todo: 0, needs: 0, working: 0, idle: 0 };
   for (const a of agents) counts[status(a).group]++;
   counts.todo = counts.needs + counts.idle + todos.length;
-  for (const [k, v] of Object.entries(counts)) $(`n-${k}`).textContent = v;
+  for (const [k, v] of Object.entries(counts)) if ($(`n-${k}`)) $(`n-${k}`).textContent = v;
   for (const k of ['todo', 'needs']) document.querySelector(`[data-filter="${k}"]`).classList.toggle('has', counts.needs > 0);
   // The tab's title counts every session that needs you, whatever's shown.
   const needsYou = snap.agents.filter((a) => a.status === 'waiting').length;
@@ -821,7 +920,7 @@ let appFilter = 'all';
 let groupFilter = 'all';
 try {
   const saved = JSON.parse(localStorage.getItem(VIEW_KEY) || '{}');
-  if (['all', 'claude', 'codex'].includes(saved.app)) appFilter = saved.app;
+  if (['all', 'claude', 'codex', 'comfy', 'localai'].includes(saved.app)) appFilter = saved.app;
   if (typeof saved.group === 'string') groupFilter = saved.group;
 } catch {}
 
@@ -835,7 +934,14 @@ function renderViewFilters() {
   const groups = snap?.groups || [];
   if (!['all', 'none'].includes(groupFilter) && !groups.some((g) => g.id === groupFilter)) groupFilter = 'all';
   const app = $('app-filter');
-  app.hidden = appFilter === 'all' && !snap.agents.some((a) => a.app === 'codex');
+  // Claude, and each other app with something on the dashboard.
+  const apps = ['claude', ...Object.keys(APPS).filter((k) => k !== 'claude' && (k === appFilter || snap.agents.some((a) => a.app === k)))];
+  app.hidden = appFilter === 'all' && apps.length < 2;
+  const appOptions = [['all', 'All apps'], ...apps.map((k) => [k, APPS[k]])];
+  if (app.dataset.signature !== JSON.stringify(appOptions)) {
+    app.replaceChildren(...appOptions.map(([value, text]) => el('option', { value, text })));
+    app.dataset.signature = JSON.stringify(appOptions);
+  }
   app.value = appFilter;
   const select = $('group-filter');
   select.hidden = !groups.length && groupFilter === 'all';
@@ -954,7 +1060,8 @@ function notableChanges(agents) {
     // A background run doesn't wait at a prompt when it's done: it exits.
     const running = new Set(agents.map((a) => a.id));
     for (const [id, a] of lastAgents) {
-      if (a.background && !running.has(id) && !stoppedHere.delete(id)) done.push(a);
+      // So do downloads, and anything else that leaves once it's done.
+      if ((a.background || a.leavesWhenDone) && !running.has(id) && !stoppedHere.delete(id)) done.push(a);
     }
   }
   lastAgents = new Map(agents.map((a) => [a.id, a]));
@@ -1742,6 +1849,10 @@ function renderTerminalChoice() {
 // The settings kept on the server, other than the repo menu's. The to-do
 // folder box isn't changed under someone typing in it.
 function renderServerSettings() {
+  const url = $('localai-url');
+  if (document.activeElement !== url) url.value = serverSettings?.localaiUrl || '';
+  const key = $('localai-key');
+  key.placeholder = serverSettings?.localaiKeySet ? 'Set. Type a new one to change it' : 'None';
   $('app-setting').hidden = !snap?.codexInstalled;
   const app = serverSettings?.newSessionApp || 'claude';
   for (const r of document.querySelectorAll('input[name="new-app"]')) r.checked = r.value === app;
@@ -1768,6 +1879,15 @@ async function saveServerSetting(changes) {
 }
 
 $('skip-permissions').addEventListener('change', (e) => saveServerSetting({ skipPermissions: e.currentTarget.checked }));
+$('localai-url').addEventListener('change', (e) => saveServerSetting({ localaiUrl: e.currentTarget.value }));
+$('localai-url').addEventListener('keydown', noSubmit((input) => input.blur()));
+// The key box is left empty; what's typed replaces the key, and it's cleared
+// once saved, so the key is never shown.
+$('localai-key').addEventListener('change', async (e) => {
+  const input = e.currentTarget;
+  if (await saveServerSetting({ localaiKey: input.value })) input.value = '';
+});
+$('localai-key').addEventListener('keydown', noSubmit((input) => input.blur()));
 for (const r of document.querySelectorAll('input[name="new-app"]')) {
   r.addEventListener('change', () => saveServerSetting({ newSessionApp: r.value }).then(() => refresh()));
 }
@@ -1885,13 +2005,6 @@ function deleteGroup(g, button) {
   }
   saveGroups(editedGroups().filter((x) => x.id !== g.id));
 }
-
-// Enter in a text box would otherwise submit the Settings form, which closes it.
-const noSubmit = (then) => (e) => {
-  if (e.key !== 'Enter') return;
-  e.preventDefault();
-  then?.(e.currentTarget);
-};
 
 function groupRow(g) {
   return el(

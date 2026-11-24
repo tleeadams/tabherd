@@ -15,6 +15,8 @@ const history = require('./lib/history');
 const todos = require('./lib/todos');
 const groups = require('./lib/groups');
 const codex = require('./lib/codex');
+const comfy = require('./lib/comfy');
+const localai = require('./lib/localai');
 
 const PORT = Number(process.env.PORT) || 4317;
 const HOST = '127.0.0.1';
@@ -140,6 +142,16 @@ function send(res, status, body, type = 'application/json; charset=utf-8') {
   res.end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
 }
 
+// The settings as the page sees them: LocalAI's key only says whether one is set.
+const forPage = (s) => ({ ...s, localaiKey: '', localaiKeySet: Boolean(s.localaiKey) });
+
+// Other apps' addresses and keys, from Settings.
+function configureApps() {
+  const s = settings.get();
+  localai.configure({ url: s.localaiUrl, key: s.localaiKey });
+}
+configureApps();
+
 // Opens a tab running `command` in `dir`, in the terminal chosen in Settings.
 // The command is always built here, never sent by the page.
 const openTab = (dir, command) => terminals.open(dir, command, { terminal: settings.get().terminal });
@@ -172,6 +184,17 @@ async function action(res, sessionId, name) {
     if (!agent.cwd || !fs.existsSync(agent.cwd)) return send(res, 400, { ok: false, error: 'Folder not found.' });
     terminals.openFolder(agent.cwd);
     return send(res, 200, { ok: true });
+  }
+  // LocalAI: Unload a model, Stop a chat's turn, Cancel a download or agent job.
+  if (agent.app === 'localai' && ['stop', 'cancel', 'unload'].includes(name)) {
+    const result = await localai.act(agent, name);
+    return send(res, result.ok ? 200 : 500, result);
+  }
+  // A ComfyUI job: Stop and Cancel go to its ComfyUI, which ends a running
+  // job or takes a queued one out of the queue.
+  if (agent.app === 'comfy' && (name === 'stop' || name === 'cancel')) {
+    const result = await comfy.cancel(agent);
+    return send(res, result.ok ? 200 : 500, result);
   }
   // A Codex session's window is only known once its tab's title names it.
   if (name === 'focus' && !agent.pid) {
@@ -294,11 +317,12 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname === '/api/settings') {
       // With the terminals this computer has, for the Terminal setting.
-      if (req.method === 'GET') return send(res, 200, { ok: true, settings: settings.get(), terminals: terminals.terminals() });
+      if (req.method === 'GET') return send(res, 200, { ok: true, settings: forPage(settings.get()), terminals: terminals.terminals() });
       if (req.method !== 'POST') return send(res, 405, { error: 'Use GET or POST' });
       if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
       const result = settings.update(await readJson(req));
-      return send(res, result.ok ? 200 : 400, result);
+      if (result.ok) configureApps();
+      return send(res, result.ok ? 200 : 400, result.ok ? { ...result, settings: forPage(result.settings) } : result);
     }
 
     if (url.pathname === '/api/repos/open') {
@@ -362,11 +386,28 @@ const server = http.createServer(async (req, res) => {
       return await todoAction(res, t[1], t[2] || 'edit', await readJson(req));
     }
 
-    const m = url.pathname.match(/^\/api\/agents\/([0-9a-f-]{36})\/(focus|catch-up|open-folder|stop)$/i);
+    // Sessions have UUIDs; jobs and models have IDs such as comfy:<install>:<job>.
+    // Either way it must be on the dashboard now.
+    const m = url.pathname.match(/^\/api\/agents\/([^/]{1,300})\/(focus|catch-up|open-folder|stop|cancel|unload)$/i);
     if (m) {
       if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
       if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
-      return await action(res, m[1], m[2]);
+      let id;
+      try {
+        id = decodeURIComponent(m[1]);
+      } catch {
+        return send(res, 400, { error: 'Bad ID' });
+      }
+      return await action(res, id, m[2]);
+    }
+
+    // A ComfyUI job's output, for its card. Only outputs on cards are served.
+    if (req.method === 'GET' && url.pathname === '/api/comfy/view') {
+      const p = Object.fromEntries(url.searchParams);
+      const image = typeof p.i === 'string' && typeof p.filename === 'string' ? await comfy.view(p).catch(() => null) : null;
+      if (!image) return send(res, 404, { error: 'Not found' });
+      res.writeHead(200, { 'Content-Type': image.type, 'Cache-Control': 'private, max-age=600', 'X-Content-Type-Options': 'nosniff' });
+      return res.end(image.body);
     }
 
     const file = req.method === 'GET' && STATIC[url.pathname];

@@ -129,6 +129,27 @@ Sessions run headless, with `claude -p`, show too: a background PR review, say, 
 
 A background run doesn't wait at a prompt when it's done: it exits. When one the dashboard saw running exits, it dings as finished, unless you stopped it, and its notification reads *Finished in the background*. Clicking its name there resumes it in a terminal tab, running `claude --resume <id>` in its folder, so you can ask about what it did. History lists background runs too, tagged **Background**, and its **Background runs** switch hides them, for when scripts run `claude -p` often.
 
+## ComfyUI and LocalAI
+
+The dashboard also shows what ComfyUI and LocalAI are doing, as cards marked **Comfy** and **LocalAI**. They join the app list in the header once they have something to show. Nothing needs setting up in either, unless LocalAI has an API key.
+
+**ComfyUI.** Comfy Desktop keeps a record of each ComfyUI it runs, with its port, so every installation that's running is found, and a ComfyUI run some other way is looked for on its usual port, 8188. Each job gets a card:
+
+- **Working**, the job running now. Comfy Desktop's window title gives its progress, which goes on the card as a bar on Windows. ComfyUI only sends progress to the window that queued a job, so there's no other way to see it.
+- **Queued**, with its place in the queue.
+- **Finished**, with its first output image and how long it took, or **Failed**, with the error, for five minutes after it ends. Finishing dings, and failing counts as needing you.
+
+A job is named after its saved workflow; one queued from an unsaved workflow is called *Unsaved workflow*. **Go to window** brings up Comfy Desktop. **Stop** ends the running job and **Cancel** takes a queued one out of the queue, each after a second click. The output images come through the dashboard's own server, which only passes on the ones shown on cards.
+
+**LocalAI.** It's found at Settings → Other apps → *LocalAI address*, `http://127.0.0.1:8080` unless you set another, with the API key there if LocalAI has one. It shows:
+
+- **Each loaded model**, marked *Loaded*, with the graphics memory, memory and CPU it's using, and **Unload** to free them. Loaded models only count under All, since they're never waiting on you.
+- **Each download or install** in progress, with its progress and size, and **Cancel**. Finishing dings.
+- **Each agent chat** that's running (*Working*, with **Stop**), paused at its step limit (*Needs you*), or finished in the last 15 minutes.
+- **Each agent job** running or queued, with **Cancel**, and for 15 minutes after it ends.
+
+**Open in LocalAI** opens LocalAI's own page. LocalAI keeps no list of plain API requests in progress, so a request from another app doesn't get a card.
+
 ## Groups
 
 Groups gather sessions by project, client or anything else, each with a name and a colour. Make them in Settings → **Groups**, or from a card: its group button, which reads *No group* while the card is pointed at, has **New group for** the card's folder.
@@ -173,6 +194,8 @@ The gear button in the header opens Settings.
 **Notifications**: *Keep the list after a reload* (on by default) saves the notification list, so reloading or reopening the dashboard keeps it.
 
 **Groups**: each group's name, colour and folders, and *Sections by group*. See [Groups](#groups).
+
+**Other apps**: LocalAI's address and API key. The key is kept in `~/.tabherd/settings.json` and never sent back to the page. See [ComfyUI and LocalAI](#comfyui-and-localai).
 
 **To-dos**: where a to-do's folder is chosen from (the repo menu or any folder), and the folder that choice starts at. See [To-dos](#to-dos).
 
@@ -243,7 +266,7 @@ Start the server from a normal terminal. If it's started from a sandboxed shell,
 
 ## Where the data comes from
 
-All of it is read-only, from files Claude Code and Codex already write, and from Codex's own background service:
+All of it is read-only, from files Claude Code and Codex already write, and from Codex's, ComfyUI's and LocalAI's own services:
 
 | Source | Used for |
 | --- | --- |
@@ -255,6 +278,9 @@ All of it is read-only, from files Claude Code and Codex already write, and from
 | `~/.codex/sessions/<yyyy>/<mm>/<dd>/rollout-<time>-<session>.jsonl` | A Codex session's prompts, replies, tool calls, model and token usage. |
 | `~/.codex/session_index.jsonl` | Closed Codex sessions' names, for History. |
 | The `codex` processes and their tab titles | Which window each Codex session is in, and its memory use. |
+| Comfy Desktop's `comfy-procs/*.json` and `installations.json` | Which ComfyUIs are running, on which ports, and their names. |
+| ComfyUI's `/api/jobs`, `/api/userdata` and `/view` | Its jobs, their workflows' names, and their output images. Its window's title gives the running job's progress. |
+| LocalAI's `/system`, `/api/operations`, `/api/chats` and `/api/agent/jobs` | Its loaded models, downloads, agent chats and agent jobs. |
 
 A session file whose process has exited, or whose PID now belongs to another process, is ignored.
 

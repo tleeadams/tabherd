@@ -10,7 +10,24 @@ process.env.TABHERD_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'tabherd-te
 const settings = require('../lib/settings');
 
 test('defaults are safe', () => {
-  assert.deepEqual(settings.get(), { skipPermissions: false, excludedFolders: [], todoFolderSource: 'repos', todoStartFolder: '', terminal: 'auto', newSessionApp: 'claude' });
+  assert.deepEqual(settings.get(), {
+    skipPermissions: false,
+    excludedFolders: [],
+    todoFolderSource: 'repos',
+    todoStartFolder: '',
+    terminal: 'auto',
+    newSessionApp: 'claude',
+    localaiUrl: '',
+    localaiKey: '',
+  });
+});
+
+test("LocalAI's address must be a web address, and its key one line", () => {
+  assert.equal(settings.update({ localaiUrl: ' http://127.0.0.1:8080/ ' }).settings.localaiUrl, 'http://127.0.0.1:8080');
+  assert.equal(settings.update({ localaiUrl: 'file:///etc/passwd' }).ok, false);
+  assert.equal(settings.update({ localaiUrl: 'http://user:pass@host' }).ok, false);
+  assert.equal(settings.update({ localaiKey: 'abc\ndef' }).ok, false);
+  assert.equal(settings.update({ localaiUrl: '', localaiKey: '' }).ok, true);
 });
 
 test('new sessions start in Claude or Codex, nothing else', () => {

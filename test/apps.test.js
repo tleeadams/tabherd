@@ -1,0 +1,183 @@
+'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs');
+const http = require('http');
+const os = require('os');
+const path = require('path');
+const comfy = require('../lib/comfy');
+const localai = require('../lib/localai');
+
+// ---- ComfyUI ----------------------------------------------------------------------
+
+test("Comfy Desktop's window title gives the running job's progress and the open workflow", () => {
+  assert.deepEqual(comfy.parseTitle('Studio · [39%] *Portrait v2 - ComfyUI · Comfy Desktop v1.2.1'), { percent: 39, workflow: 'Portrait v2' });
+  assert.deepEqual(comfy.parseTitle('Studio · [39%][12%] KSampler · Comfy Desktop v1.2.1'), { percent: 39, workflow: null }, "a node's name isn't a workflow's");
+  assert.deepEqual(comfy.parseTitle('Studio · Portrait v2 - ComfyUI · Comfy Desktop v1.2.1'), { percent: null, workflow: 'Portrait v2' });
+  assert.equal(comfy.parseTitle(null), null);
+});
+
+test('ComfyUI jobs become cards: running, queued in order, then recently finished', () => {
+  const inst = { id: 'inst-1', name: 'Studio', url: 'http://127.0.0.1:8188', desktopPid: 4321, installPath: '/comfy' };
+  const now = 2_000_000;
+  const active = [
+    { id: 'b', status: 'pending', priority: 2, create_time: now - 1000 },
+    { id: 'r', status: 'in_progress', create_time: now - 60000 },
+    { id: 'a', status: 'pending', priority: 1, create_time: now - 2000 },
+  ];
+  const recent = [
+    { id: 'done', status: 'completed', create_time: now - 90000, execution_start_time: now - 80000, execution_end_time: now - 20000, outputs_count: 2, preview_output: { filename: 'x.png', subfolder: '', type: 'output', mediaType: 'images' } },
+    { id: 'bad', status: 'failed', create_time: now - 90000, execution_end_time: now - 10000, execution_error: { exception_message: 'Out of memory' } },
+    { id: 'old', status: 'completed', create_time: 1, execution_end_time: 2 },
+  ];
+  const items = comfy.itemsFor(inst, active, recent, { now, title: 'Studio · [40%] Portrait - ComfyUI · Comfy Desktop v1.2.1' });
+  assert.deepEqual(
+    items.map((i) => [i.jobId, i.status, i.statusLabel || null]),
+    [
+      ['r', 'busy', null],
+      ['a', 'queued', null],
+      ['b', 'queued', null],
+      ['done', 'idle', 'Finished'],
+      ['bad', 'waiting', 'Failed'],
+    ],
+    'an hour-old job is gone',
+  );
+  const [running, first] = items;
+  assert.deepEqual(running.progress, { value: 40, max: 100 });
+  assert.deepEqual(running.actions, ['focus', 'stop']);
+  assert.equal(running.pid, 4321, 'Go to window goes to Comfy Desktop');
+  assert.equal(running.id, 'comfy:inst-1:r');
+  assert.deepEqual(first.facts, [['Queue', '1 of 2']]);
+  assert.deepEqual(first.actions, ['focus', 'cancel']);
+  assert.match(items[3].preview, /^\/api\/comfy\/view\?i=inst-1&filename=x\.png/);
+  assert.deepEqual(items[3].facts, [['Took', '1m 0s'], ['Outputs', '2']]);
+  assert.equal(items[4].waitingFor, 'Failed: Out of memory');
+});
+
+test("each ComfyUI Comfy Desktop runs is found from its records, and a crashed one's isn't", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tabherd-comfy-'));
+  fs.mkdirSync(path.join(dir, 'comfy-procs'));
+  fs.writeFileSync(path.join(dir, 'installations.json'), JSON.stringify([{ id: 'inst-1', name: 'Studio', installPath: '/comfy' }]));
+  fs.writeFileSync(path.join(dir, 'comfy-procs', 'inst-1.json'), JSON.stringify({ installationId: 'inst-1', port: 8189, childPid: process.pid, desktopPid: process.pid }));
+  fs.writeFileSync(path.join(dir, 'comfy-procs', 'inst-2.json'), JSON.stringify({ installationId: 'inst-2', port: 8190, childPid: 999999999 }));
+  const found = comfy.instances([dir]);
+  assert.deepEqual(
+    found.map((f) => [f.name, f.url]),
+    [
+      ['Studio', 'http://127.0.0.1:8189'],
+      ['ComfyUI', 'http://127.0.0.1:8188'],
+    ],
+    "and the usual port, for a ComfyUI run some other way",
+  );
+});
+
+// ---- LocalAI --------------------------------------------------------------------
+
+// A stand-in LocalAI, answering as its source says it does, and recording
+// what it was asked.
+function fakeLocalAI() {
+  const asked = [];
+  const now = Date.now();
+  const routes = {
+    'GET /.well-known/localai.json': { version: 'v5.0.1', capabilities: { chats: true, agent_jobs: true } },
+    'GET /system': { backends: ['llama-cpp'], loaded_models: [{ id: 'qwen3-8b', backend: 'llama-cpp', size_vram: 6_400_000_000, process: { pid: 77, rss_bytes: 900_000_000, cpu_percent: 12.4, started_at: new Date(now - 60000).toISOString() } }] },
+    'GET /api/operations': { operations: [{ id: 'op1', jobID: 'job-1', name: 'flux-dev', progress: 42, cancellable: true, currentBytes: 4.2e9, totalBytes: 1e10, message: 'downloading' }] },
+    'GET /api/chats': {
+      conversations: [
+        { id: 'c1', title: 'Plan the trip', model: 'qwen3-8b', kind: 'chat', running: true, created: new Date(now - 300000).toISOString(), updated: new Date(now - 1000).toISOString() },
+        { id: 'c2', title: 'Long research', model: 'qwen3-8b', kind: 'chat', running: false, last_turn: 'paused', created: new Date(now - 9e6).toISOString(), updated: new Date(now - 8e6).toISOString() },
+        { id: 'c3', title: 'Old chat', kind: 'chat', running: false, last_turn: 'done', updated: new Date(now - 9e6).toISOString() },
+        { id: 'c4', title: 'A helper', kind: 'subagent', parent_id: 'c1', running: true },
+      ],
+    },
+    'GET /api/agent/jobs': [{ id: 'j1', task_id: 'nightly-report', status: 'running', started_at: new Date(now - 5000).toISOString() }],
+    'POST /backend/shutdown': { message: 'model stopped' },
+    'POST /api/chats/c1/stop': {},
+    'POST /api/operations/job-1/cancel': { success: true },
+  };
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => (body += c));
+    req.on('end', () => {
+      const route = `${req.method} ${req.url.split('?')[0]}`;
+      asked.push({ route, auth: req.headers.authorization || null, body });
+      const answer = routes[route];
+      res.writeHead(answer ? 200 : 404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(answer || { error: 'not found' }));
+    });
+  });
+  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve({ server, asked, url: `http://127.0.0.1:${server.address().port}` })));
+}
+
+const settle = async () => {
+  localai.snapshot();
+  for (let i = 0; i < 50; i++) {
+    await new Promise((r) => setTimeout(r, 40));
+    const items = localai.snapshot();
+    if (items.length) return items;
+  }
+  return localai.snapshot();
+};
+
+test("LocalAI's loaded models, downloads, agent chats and agent jobs become cards", async () => {
+  const fake = await fakeLocalAI();
+  try {
+    localai.configure({ url: fake.url, key: 'secret' });
+    const items = await settle();
+    const byKind = (k) => items.filter((i) => i.kind === k);
+    const [model] = byKind('model');
+    assert.equal(model.name, 'qwen3-8b');
+    assert.equal(model.status, 'loaded');
+    assert.deepEqual(model.facts, [['Graphics memory', '6.4 GB'], ['Memory', '900 MB'], ['CPU', '12%']]);
+    assert.deepEqual(model.actions, ['open', 'unload']);
+    const [download] = byKind('download');
+    assert.deepEqual([download.status, download.statusLabel, download.progress], ['busy', 'Downloading', { value: 42, max: 100 }]);
+    assert.ok(download.leavesWhenDone, 'its leaving counts as finishing');
+    assert.deepEqual(
+      byKind('chat').map((c) => [c.name, c.status, c.waitingFor || null]),
+      [
+        ['Plan the trip', 'busy', null],
+        ['Long research', 'waiting', 'Paused: reply to continue'],
+      ],
+      "an old finished chat, and a subagent's, don't get cards",
+    );
+    assert.deepEqual(byKind('chat')[0].actions, ['open', 'stop']);
+    assert.deepEqual(byKind('agent-job').map((j) => [j.name, j.status]), [['nightly-report', 'busy']]);
+    assert.ok(items.every((i) => i.host === 'LocalAI v5.0.1'));
+    assert.ok(fake.asked.every((a) => a.auth === 'Bearer secret'), 'the key goes with every request');
+
+    assert.deepEqual(await localai.act(model, 'unload'), { ok: true });
+    assert.deepEqual(await localai.act(byKind('chat')[0], 'stop'), { ok: true });
+    assert.deepEqual(await localai.act(download, 'cancel'), { ok: true });
+    assert.equal(fake.asked.find((a) => a.route === 'POST /backend/shutdown').body, '{"model":"qwen3-8b"}');
+    assert.ok(fake.asked.some((a) => a.route === 'POST /api/chats/c1/stop'));
+    assert.ok(fake.asked.some((a) => a.route === 'POST /api/operations/job-1/cancel'));
+    assert.equal((await localai.act(model, 'stop')).ok, false, "a model can't be stopped, only unloaded");
+  } finally {
+    fake.server.close();
+    localai.configure({});
+  }
+});
+
+test("nothing shows while LocalAI isn't running, and a refused key says so", async () => {
+  localai.configure({ url: 'http://127.0.0.1:1' });
+  await new Promise((r) => setTimeout(r, 300));
+  localai.snapshot();
+  await new Promise((r) => setTimeout(r, 300));
+  assert.deepEqual(localai.snapshot(), []);
+
+  const server = http.createServer((req, res) => {
+    res.writeHead(401);
+    res.end('{}');
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  try {
+    localai.configure({ url: `http://127.0.0.1:${server.address().port}` });
+    const items = await settle();
+    assert.deepEqual(items.map((i) => [i.kind, i.status, i.waitingFor]), [['service', 'waiting', 'LocalAI wants an API key: set it in Settings.']]);
+  } finally {
+    server.close();
+    localai.configure({});
+  }
+});

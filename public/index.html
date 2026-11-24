@@ -29,11 +29,7 @@
       <button type="button" data-filter="idle" aria-pressed="false">Idle <b id="n-idle">0</b></button>
     </nav>
     <div class="view-filters">
-      <select id="app-filter" class="view-select" aria-label="Show sessions from" hidden>
-        <option value="all">All apps</option>
-        <option value="claude">Claude</option>
-        <option value="codex">Codex</option>
-      </select>
+      <select id="app-filter" class="view-select" aria-label="Show sessions from" hidden></select>
       <select id="group-filter" class="view-select" aria-label="Show a group" hidden></select>
     </div>
     <button type="button" id="todo-new" class="todo-new" title="New to-do: a task to start a Claude session for later" aria-haspopup="dialog" aria-controls="todo-dialog">
@@ -194,6 +190,19 @@
           </label>
           <p class="settings-help">Where the repo menu, Resume and to-dos open Claude. Automatic uses one this computer has.</p>
         </div>
+      </fieldset>
+      <fieldset>
+        <legend>Other apps</legend>
+        <p class="settings-help">ComfyUI's jobs and LocalAI's models, downloads and agent chats show as cards while they run. Comfy Desktop's ComfyUI is found by itself, as is one on port 8188.</p>
+        <label class="field">
+          <span>LocalAI address</span>
+          <input id="localai-url" type="text" placeholder="http://127.0.0.1:8080" autocomplete="off" spellcheck="false">
+        </label>
+        <label class="field">
+          <span>LocalAI API key</span>
+          <input id="localai-key" type="password" autocomplete="off" spellcheck="false">
+        </label>
+        <p class="settings-help">Only if LocalAI has one set. It's kept on this computer and never shown again.</p>
       </fieldset>
       <fieldset>
         <legend>To-dos</legend>
