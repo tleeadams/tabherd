@@ -4,6 +4,7 @@ Notable changes in each release. Version numbers follow [Semantic Versioning](ht
 
 ## Unreleased
 
+- Each model on the Memory and models card shows the memory it takes, with how much is on the GPU where Ollama has put some of it in the computer's memory. Where the app doesn't say, as ComfyUI, LM Studio and llama.cpp don't, it's the model's size, marked ≈. The line above the models says how many there are and what they take together, and closes the list and opens it again. See [What it shows](README.md#what-it-shows).
 - The dashboard speaks Spanish: Settings → Appearance → **Language** chooses English or Español, or *Automatic*, the default, which follows the browser. Changing it reloads the page. Durations, dates and sizes follow the language too. It's a first translation, and corrections are welcome. A few of the server's messages, those with details in them, stay English. See [Settings](README.md#settings).
 - ComfyUI's loaded models join the Memory and models card, each with what it is and the workflow that loaded it, and Unload, which frees all of them, as ComfyUI does. They're the models its latest job's workflow names, since ComfyUI keeps those in memory for the next job. See [ComfyUI and LocalAI](README.md#comfyui-and-localai).
 - The Memory and models card can stay in view: Settings → Appearance → *Keep it in view* holds it under the header while the cards below it scroll. It's off unless chosen, and kept in the browser.

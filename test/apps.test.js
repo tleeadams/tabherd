@@ -127,6 +127,42 @@ test("ComfyUI's loaded models are the ones its latest job's loaders name", () =>
   );
 });
 
+test("ComfyUI's loaded models are as big as their files, looked for in their own type's folder first", async () => {
+  const lists = {
+    checkpoints: [{ name: 'ae.sft', size: 9e9 }],
+    vae: [{ name: 'ae.sft', size: 3.4e8 }],
+    diffusion_models: [{ name: 'flux\\dev.safetensors', size: 2.38e10 }],
+  };
+  const server = http.createServer((req, res) => {
+    const folder = decodeURIComponent(req.url.match(/^\/experiment\/models\/?(.*)$/)?.[1] ?? '');
+    const body = req.url === '/experiment/models' ? Object.keys(lists).map((name) => ({ name, folders: [] })) : lists[folder];
+    res.writeHead(body ? 200 : 404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(body || {}));
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  try {
+    const inst = { id: 'inst-1', name: 'Studio', url: `http://127.0.0.1:${server.address().port}` };
+    const models = [
+      { file: 'flux\\dev.safetensors', type: 'Diffusion model' },
+      { file: 'ae.sft', type: 'VAE' },
+      { file: 'gone.safetensors', type: 'LoRA' },
+    ];
+    const sized = await comfy.withSizes(inst, models);
+    assert.deepEqual(
+      sized.map((m) => m.size),
+      [2.38e10, 3.4e8, undefined],
+      'a VAE named like a checkpoint is the VAE, and a file not listed has no size',
+    );
+    const [item] = comfy.modelItems(inst, { jobId: 'j', workflowId: null, models: sized });
+    assert.deepEqual(item.facts, [['Type', 'Diffusion model'], ['Size', '23.8 GB']]);
+    assert.deepEqual(item.memory, { used: 2.38e10, about: true });
+    assert.equal(comfy.modelItems(inst, { jobId: 'j', workflowId: null, models: sized.slice(2) })[0].memory, null);
+  } finally {
+    server.close();
+  }
+  assert.deepEqual(await comfy.withSizes({ url: 'http://127.0.0.1:9' }, [{ file: 'a.safetensors', type: null }]), [{ file: 'a.safetensors', type: null }], 'none when ComfyUI gives no lists');
+});
+
 // ---- LocalAI --------------------------------------------------------------------
 
 // A stand-in LocalAI, answering as its source says it does, and recording
@@ -186,6 +222,7 @@ test("LocalAI's loaded models, downloads, agent chats and agent jobs become card
     assert.equal(model.name, 'qwen3-8b');
     assert.equal(model.status, 'loaded');
     assert.deepEqual(model.facts, [['Graphics memory', '6.4 GB'], ['Memory', '900 MB'], ['CPU', '12%']]);
+    assert.deepEqual(model.memory, { used: 6_400_000_000, graphics: 6_400_000_000 }, 'what it takes is its graphics memory');
     assert.deepEqual(model.actions, ['open', 'unload']);
     const [download] = byKind('download');
     assert.deepEqual([download.status, download.statusLabel, download.progress], ['busy', 'Downloading', { value: 42, max: 100 }]);
@@ -263,6 +300,14 @@ test("Ollama's loaded models become cards, with when they'll unload", () => {
   assert.equal(items[0].host, 'Ollama 0.40.16');
   assert.deepEqual(items[0].actions, ['unload']);
   assert.deepEqual(items[1].facts, [['Graphics memory', 'None, on the CPU'], ['Size', '6.0 GB'], ['Unloads', 'Stays loaded']]);
+  assert.deepEqual(
+    items.map((i) => i.memory),
+    [
+      { used: 2.1e9, graphics: 2.1e9 },
+      { used: 6e9, graphics: 0 },
+    ],
+    'what each takes, and how much of it is graphics memory',
+  );
 });
 
 test('OLLAMA_HOST is read the ways Ollama reads it', () => {
@@ -284,6 +329,7 @@ test("LM Studio's loaded instances become cards, and Unload goes by instance", a
   assert.equal(items[0].name, 'Qwen3 4B');
   assert.equal(items[0].where, 'Q4_K_M');
   assert.deepEqual(items[0].facts, [['Size', '2.5 GB'], ['Context', '8,192 tokens'], ['Parallel', '4']]);
+  assert.deepEqual(items[0].memory, { used: 2.5e9, about: true }, 'its size, about what it takes');
 
   const asked = [];
   const server = http.createServer((req, res) => {
@@ -349,6 +395,7 @@ test("llama.cpp's one model becomes a row, with no Unload", () => {
   assert.equal(item.where, '7.5B · Q4_K - Medium');
   assert.deepEqual(item.facts, [['Size', '5.3 GB'], ['Context', '8,192 tokens'], ['Answering', '1 of 4 at once'], ['File', 'gemma-4-E4B-it-Q4_K_M.gguf']]);
   assert.deepEqual(item.actions, [], 'a server started with one model keeps it');
+  assert.deepEqual(item.memory, { used: 5319465128, about: true }, 'its size, about what it takes');
   const [unnamed] = llamacpp.itemsFrom({
     build: null,
     router: false,
@@ -356,6 +403,7 @@ test("llama.cpp's one model becomes a row, with no Unload", () => {
   });
   assert.equal(unnamed.host, 'llama.cpp');
   assert.deepEqual(unnamed.facts, [], 'named for its file, so the file goes unsaid');
+  assert.equal(unnamed.memory, null, 'no size, so nothing said');
 });
 
 test("llama.cpp's router shows each model loaded or loading, and loaded ones unload", () => {

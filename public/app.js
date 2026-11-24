@@ -1108,9 +1108,43 @@ function memoryBar(label, used, total, extra) {
   );
 }
 
+// What a model takes in memory, for its line on the card. Where all an app
+// gives is the model's size, it's about what it takes. Where some or all of
+// it isn't in graphics memory, as Ollama says, how much of it is.
+function modelMemory(mem) {
+  if (!mem) return el('span', { class: 'mem-model-size' });
+  const size = gb(mem.used);
+  if (mem.about) return el('span', { class: 'mem-model-size', text: `≈ ${size}`, title: tr("{size}, the model's size: about what it takes in memory", { size }) });
+  const known = Number.isFinite(mem.graphics);
+  const split = known && mem.graphics < mem.used;
+  const share = !split ? null : mem.graphics > 0 ? tr('{pct}% GPU', { pct: Math.floor((mem.graphics / mem.used) * 100) }) : tr('CPU only');
+  return el('span', {
+    class: 'mem-model-size',
+    text: [size, share].filter(Boolean).join(' · '),
+    title: !known
+      ? tr('{size} in memory', { size })
+      : !split
+        ? tr('{size} in graphics memory', { size })
+        : mem.graphics > 0
+          ? tr('{size} in memory, {graphics} of it in graphics memory', { size, graphics: gb(mem.graphics) })
+          : tr('{size} in memory, none of it in graphics memory', { size }),
+  });
+}
+
+// What a model's line leaves out of its facts, as its memory says it.
+const MEMORY_FACTS = new Set(['Size', 'Graphics memory', 'Memory']);
+
+// The list of models can be closed to its count and what they take
+// together. Open unless closed, kept in this browser.
+const MODELS_OPEN_KEY = 'tabherd:memory-models';
+let modelsOpen = true;
+try {
+  modelsOpen = localStorage.getItem(MODELS_OPEN_KEY) !== 'closed';
+} catch {}
+
 // The card at the top: the computer's RAM and each graphics card's memory,
-// used against what there is, and the models loaded in LocalAI, Ollama and LM
-// Studio, each with Unload.
+// used against what there is, and the models loaded in ComfyUI, LocalAI,
+// Ollama, LM Studio and llama.cpp, each with what it takes and Unload.
 function memoryCard({ memory, models }) {
   const rows = [memoryBar('RAM', memory.ram.used, memory.ram.total)];
   for (const g of memory.gpus || []) rows.push(memoryBar(g.name, g.used, g.total, Number.isFinite(g.busy) ? tr('{pct}% busy', { pct: g.busy }) : null));
@@ -1120,7 +1154,14 @@ function memoryCard({ memory, models }) {
       { class: 'mem-model' },
       appTag(m),
       el('span', { class: 'mem-model-name', text: m.name, title: [m.name, m.where].filter(Boolean).join(' · ') }),
-      el('span', { class: 'mem-model-facts', text: (m.facts || []).map(([k, v]) => `${tr(k)} ${tr(v)}`).join(' · ') }),
+      el('span', {
+        class: 'mem-model-facts',
+        text: (m.facts || [])
+          .filter(([k]) => !(m.memory && MEMORY_FACTS.has(k)))
+          .map(([k, v]) => `${tr(k)} ${tr(v)}`)
+          .join(' · '),
+      }),
+      modelMemory(m.memory),
       (m.actions || []).includes('unload')
         ? el(
             'button',
@@ -1135,13 +1176,31 @@ function memoryCard({ memory, models }) {
         : null,
     ),
   );
+  // Together, about what they take if any one's figure is about, or missing.
+  const total = models.reduce((sum, m) => sum + (m.memory?.used || 0), 0);
+  const about = models.some((m) => !m.memory || m.memory.about);
+  const summary = [trn(models.length, '{n} model loaded', '{n} models loaded'), total ? `${about ? '≈ ' : ''}${gb(total)}` : null];
   return el(
     'article',
     { class: 'card memory-card', 'data-id': 'memory' },
     el('div', { class: 'card-head' }, el('h2', { class: 'mem-title', text: tr('Memory and models') })),
     el('div', { class: 'mem-bars' }, rows),
     modelRows.length
-      ? el('ul', { class: 'mem-models' }, modelRows)
+      ? el(
+          'details',
+          {
+            class: 'mem-models-box',
+            open: modelsOpen,
+            ontoggle: (e) => {
+              modelsOpen = e.currentTarget.open;
+              try {
+                localStorage.setItem(MODELS_OPEN_KEY, modelsOpen ? 'open' : 'closed');
+              } catch {}
+            },
+          },
+          el('summary', {}, el('span', { class: 'chev' }), summary.filter(Boolean).join(' · ')),
+          el('ul', { class: 'mem-models' }, modelRows),
+        )
       : el('p', { class: 'mem-none', text: tr('No models loaded in ComfyUI, LocalAI, Ollama, LM Studio or llama.cpp.') }),
   );
 }
