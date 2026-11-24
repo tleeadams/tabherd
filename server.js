@@ -99,6 +99,9 @@ function currentSnapshot() {
         snap.terminals = terminals.terminals().some((t) => t.available);
         // Whether Codex can be chosen for new sessions, and which app they start in.
         snap.codexInstalled = codex.installed();
+        // Whether Codex's open sessions are known yet, so the first-run tour
+        // waits for them.
+        snap.settled = codex.settled();
         snap.copilotInstalled = copilot.installed();
         snap.newSessionApp = newSessionApp();
         history.observe(snap.agents, snap.now);

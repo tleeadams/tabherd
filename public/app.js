@@ -13,6 +13,13 @@ try {
   }
 } catch {}
 
+// Whether this browser has used the dashboard before, from the settings it
+// keeps, read before this visit keeps any. A first visit gets the tour.
+let firstVisit = false;
+try {
+  firstVisit = !Object.keys(localStorage).some((key) => key.startsWith('tabherd:'));
+} catch {}
+
 const STATUS = {
   waiting: { label: 'Needs you', group: 'needs', rank: 0 },
   busy: { label: 'Working', group: 'working', rank: 1 },
@@ -1674,9 +1681,11 @@ function apply(next) {
   $('updated').textContent = `Live · ${new Date(snap.now).toLocaleTimeString()}`;
   list.classList.remove('stale');
   const changes = notableChanges(snap.agents);
-  render();
+  // The cards hold still while the tour runs; dings and notifications don't.
+  if (!tourOn) render();
   announce(changes);
   updateNotes(snap.agents, changes);
+  if (tourPending) startTourWhenSettled();
 }
 
 function disconnected() {
@@ -2650,6 +2659,242 @@ function openSettings(elementId) {
   loadServerSettings();
   loadRepos(false);
 }
+
+// ---- first-run tour ----------------------------------------------------------
+
+// A short look around the dashboard, on a browser's first visit and from
+// Settings → Help. While it runs the page is frozen: the cards don't update,
+// nothing scrolls, and only the tour can be clicked, so nothing moves under
+// it. A first visit's tour waits until every session is on the page, so none
+// look lost.
+const TOUR_KEY = 'tabherd:tour';
+let tourOn = false;
+let tourPending = firstVisit;
+let tourSteps = [];
+let tourAt = 0;
+let tourCard = null;
+let tourSample = null;
+
+const sessionCount = () => (snap?.agents || []).filter((a) => !isItem(a) && a.kind !== 'model').length;
+const tourAll = (selector) => () => [...document.querySelectorAll(selector)];
+
+const TOUR_STEPS = [
+  {
+    title: 'Welcome to Tabherd',
+    text: () => {
+      const n = sessionCount();
+      const yours = n ? ` The ${n === 1 ? 'one' : `${n}`} running now ${n === 1 ? 'is' : 'are'} on the page.` : '';
+      return `Every Claude Code, Codex and Copilot session on this computer gets a card here, and a ding when it needs you.${yours} This is a quick look around: nothing on the page changes while it runs, and your sessions carry on as usual.`;
+    },
+  },
+  {
+    target: () => [tourCard],
+    title: 'A card for each session',
+    text: () =>
+      `Its status, Needs you, Working or Idle, and for how long; what it's doing; its last prompt and reply; and its model and tokens. Go to window brings up its terminal tab, and Catch up asks it where things stand.${tourSample ? ' This one is only an example, and goes when the tour ends.' : ''}`,
+  },
+  {
+    target: tourAll('#list .memory-card'),
+    title: 'Memory and models',
+    text: 'Memory in use, on the computer and each graphics card, and the models loaded in LocalAI, Ollama or LM Studio, each with Unload. Settings → Appearance turns it off.',
+  },
+  {
+    target: tourAll('#filters'),
+    title: 'Filters',
+    text: 'All, then filters of your own. Each tab counts its cards, in amber when one needs you. The ⋯ at the end makes a new filter or changes the one shown.',
+  },
+  {
+    target: tourAll('.view-filters > :not([hidden])'),
+    title: 'Apps and groups',
+    text: "Show only one app's sessions, or one group's. The counts on the tabs follow them.",
+  },
+  {
+    target: tourAll('#menu-button'),
+    title: 'Your repos',
+    text: 'Every repo in your repos folder. Pick one to start a session in it, in a new terminal tab.',
+  },
+  {
+    target: tourAll('#todo-new'),
+    title: 'To-dos',
+    text: "Note a task to start later. Its card's Start opens a session for it in its folder, named after it.",
+  },
+  {
+    target: tourAll('#sessions-button, #history-button'),
+    title: 'Save and close, and History',
+    text: 'Save and close every session at once, then resume them all later. History lists the sessions closed in the last 30 days, each with Resume.',
+  },
+  {
+    target: tourAll('#notes-button, #sound'),
+    title: 'Notifications and sound',
+    text: "A ding when a session needs you or finishes, and a list of what happened while you were away. Browsers only play sound once you've clicked the page, so the bell may ask for a click.",
+  },
+  {
+    target: tourAll('#settings-button'),
+    title: 'Settings',
+    text: 'Theme, card size, groups, filters, the app and terminal new sessions open in, and more. This tour is in Settings → Help whenever you want it again.',
+  },
+];
+
+// The first session card on the page, or else an example one, put in for the
+// tour and taken out after.
+function tourSessionCard() {
+  const sessions = new Set((snap?.agents || []).filter((a) => !isItem(a) && a.kind !== 'model').map((a) => a.id));
+  const shown = [...list.children].find((n) => sessions.has(n.dataset.id));
+  if (shown) return shown;
+  const t = now();
+  const sep = snap?.platform === 'win32' ? '\\' : '/';
+  tourSample = card({
+    app: 'claude',
+    id: 'tour-example',
+    pid: 18244,
+    name: 'my-app',
+    title: 'Add a sign-up page',
+    cwd: [snap?.home || '', 'projects', 'my-app'].join(sep),
+    gitBranch: 'main',
+    status: 'busy',
+    statusSince: t - 95e3,
+    startedAt: t - 42 * 60e3,
+    tools: [{ name: 'Bash', detail: 'npm test', at: t - 8e3 }],
+    lastReply: { text: 'The form and its checks are in. Running the tests now.', at: t - 20e3 },
+    lastPrompt: { text: 'Add a sign-up page with email and password, and tests for it.', at: t - 6 * 60e3 },
+    model: 'claude-sonnet-5-5',
+    contextTokens: 61000,
+    contextLimit: 200000,
+    outputTokens: 18400,
+    prompts: 3,
+  });
+  tourSample.classList.add('tour-sample');
+  tourSample.removeAttribute('data-id');
+  // After the memory card, if it's there.
+  const memory = list.querySelector('.memory-card');
+  if (memory) memory.after(tourSample);
+  else list.prepend(tourSample);
+  $('empty').hidden = true;
+  return tourSample;
+}
+
+// What a step points at, as one box on screen, or null if it's not showing.
+function tourRect(step) {
+  if (!step.target) return null;
+  const rects = step
+    .target()
+    .filter(Boolean)
+    .map((n) => n.getBoundingClientRect())
+    .filter((r) => r.width && r.height);
+  if (!rects.length) return null;
+  const left = Math.max(0, Math.min(...rects.map((r) => r.left)));
+  const top = Math.max(0, Math.min(...rects.map((r) => r.top)));
+  const right = Math.min(innerWidth, Math.max(...rects.map((r) => r.right)));
+  const bottom = Math.min(innerHeight, Math.max(...rects.map((r) => r.bottom)));
+  return right > left && bottom > top ? { left, top, right, bottom, width: right - left, height: bottom - top } : null;
+}
+
+// Lights up what the step is about, with the panel beside it where there's
+// room: below, above, to the right or left, else at the bottom of the screen.
+function placeTour() {
+  const r = tourRect(tourSteps[tourAt]);
+  const spot = $('tour-spot');
+  const panel = $('tour-panel');
+  const pad = 6;
+  const gap = 12;
+  const edge = 12;
+  const pw = panel.offsetWidth;
+  const ph = panel.offsetHeight;
+  const x = (v) => Math.max(edge, Math.min(innerWidth - pw - edge, v));
+  const y = (v) => Math.max(edge, Math.min(innerHeight - ph - edge, v));
+  $('tour').classList.toggle('no-spot', !r);
+  let left = (innerWidth - pw) / 2;
+  let top = (innerHeight - ph) / 2;
+  if (r) {
+    Object.assign(spot.style, { left: `${r.left - pad}px`, top: `${r.top - pad}px`, width: `${r.width + pad * 2}px`, height: `${r.height + pad * 2}px` });
+    const middle = r.left + r.width / 2 - pw / 2;
+    if (r.bottom + pad + gap + ph <= innerHeight - edge) [left, top] = [x(middle), r.bottom + pad + gap];
+    else if (r.top - pad - gap - ph >= edge) [left, top] = [x(middle), r.top - pad - gap - ph];
+    else if (r.right + pad + gap + pw <= innerWidth - edge) [left, top] = [r.right + pad + gap, y(r.top)];
+    else if (r.left - pad - gap - pw >= edge) [left, top] = [r.left - pad - gap - pw, y(r.top)];
+    else [left, top] = [x((innerWidth - pw) / 2), innerHeight - ph - edge];
+  }
+  panel.style.left = `${left}px`;
+  panel.style.top = `${top}px`;
+}
+
+function showTourStep(i) {
+  tourAt = i;
+  const step = tourSteps[i];
+  const last = i === tourSteps.length - 1;
+  $('tour-step').textContent = `${i + 1} of ${tourSteps.length}`;
+  $('tour-title').textContent = step.title;
+  $('tour-text').textContent = typeof step.text === 'function' ? step.text() : step.text;
+  $('tour-back').hidden = i === 0;
+  $('tour-next').textContent = i === 0 ? 'Show me around' : last ? 'Done' : 'Next';
+  $('tour-skip').hidden = last;
+  // A card it points at is brought into view below the header, which stays put.
+  const first = step.target?.().find(Boolean);
+  if (first && !first.closest('.top')) {
+    const r = first.getBoundingClientRect();
+    const below = document.querySelector('.top').getBoundingClientRect().bottom + 12;
+    if (r.top < below || r.top > innerHeight / 2) scrollBy(0, r.top - below);
+  }
+  placeTour();
+  $('tour-next').focus();
+}
+
+function startTour() {
+  if (tourOn || !snap) return;
+  tourPending = false;
+  // Brought up to date, then frozen.
+  render();
+  tourOn = true;
+  window.scrollTo(0, 0);
+  tourCard = tourSessionCard();
+  tourSteps = TOUR_STEPS.filter((s) => !s.target || tourRect(s));
+  $('tour').showModal();
+  showTourStep(0);
+  try {
+    localStorage.setItem(TOUR_KEY, 'seen');
+  } catch {}
+}
+
+// A first visit's tour starts once the sessions have all arrived: Codex's are
+// known, and the same cards came in two updates running. It waits for any
+// dialog that's open to close.
+let tourIds = null;
+let tourWaitFrom = 0;
+
+function startTourWhenSettled() {
+  const ids = [...snap.agents.map((a) => a.id), ...(snap.todos || []).map((t) => t.id)].sort().join();
+  const steady = ids === tourIds && snap.settled !== false;
+  tourIds = ids;
+  tourWaitFrom ||= Date.now();
+  if ((steady || Date.now() - tourWaitFrom > 15000) && !document.querySelector('dialog[open]')) startTour();
+}
+
+$('tour-next').addEventListener('click', () => (tourAt === tourSteps.length - 1 ? $('tour').close() : showTourStep(tourAt + 1)));
+$('tour-back').addEventListener('click', () => tourAt > 0 && showTourStep(tourAt - 1));
+$('tour-skip').addEventListener('click', () => $('tour').close());
+// Esc closes it too, as it does any dialog. The arrow keys move through it,
+// and nothing else scrolls the page under it.
+$('tour').addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight' && tourAt < tourSteps.length - 1) showTourStep(tourAt + 1);
+  else if (e.key === 'ArrowLeft' && tourAt > 0) showTourStep(tourAt - 1);
+  else if (!['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(e.key)) return;
+  e.preventDefault();
+});
+for (const type of ['wheel', 'touchmove']) $('tour').addEventListener(type, (e) => e.preventDefault(), { passive: false });
+addEventListener('resize', () => tourOn && placeTour());
+$('tour').addEventListener('close', () => {
+  tourOn = false;
+  tourSample?.remove();
+  tourSample = null;
+  tourCard = null;
+  render();
+});
+$('tour-again').addEventListener('click', () => {
+  $('settings').close();
+  startTour();
+});
+
+// ---- start ---------------------------------------------------------------------
 
 $('settings-button').addEventListener('click', () => openSettings());
 $('settings').addEventListener('click', (e) => e.target === e.currentTarget && e.currentTarget.close());
