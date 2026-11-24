@@ -17,6 +17,7 @@ const groups = require('./lib/groups');
 const codex = require('./lib/codex');
 const comfy = require('./lib/comfy');
 const localai = require('./lib/localai');
+const saved = require('./lib/saved');
 
 const PORT = Number(process.env.PORT) || 4317;
 const HOST = '127.0.0.1';
@@ -85,6 +86,11 @@ function currentSnapshot() {
         snap.codexInstalled = codex.installed();
         snap.newSessionApp = newSessionApp();
         history.observe(snap.agents, snap.now);
+        // Sessions Save and close is waiting on: each closes once it's done.
+        closeFinished(snap.agents);
+        snap.closing = [...closing.keys()];
+        const last = saved.get();
+        snap.saved = last ? { savedAt: last.savedAt, count: last.sessions.length } : null;
         cached = snap;
         cachedAt = Date.now();
         return snap;
@@ -233,6 +239,92 @@ async function action(res, sessionId, name) {
   return send(res, 404, { ok: false, error: 'Unknown action.' });
 }
 
+// ---- Save and close, and Resume last session ----------------------------------
+
+// The sessions Save and close takes: Claude and Codex sessions in a
+// terminal. Not background runs, which have no tab, nor sessions in a VS Code
+// panel, which has no shell to close.
+const closable = (a) =>
+  (a.app === 'claude' && !a.background && (!a.kind || a.kind === 'interactive') && (!a.entrypoint || a.entrypoint === 'cli')) || a.app === 'codex';
+const working = (a) => a.status === 'busy' || a.status === 'shell';
+// Waiting to close once they're done: session ID -> its name.
+const closing = new Map();
+
+// Ends a session and its tab. A Codex session's turn is interrupted first,
+// and one whose window isn't known can't be closed from here.
+async function closeSession(a) {
+  if (a.app === 'codex') {
+    await codex.interrupt(a.id);
+    if (!a.pid) return { ok: false, error: "its window isn't known" };
+  }
+  return terminals.close(a.pid);
+}
+
+function closeFinished(agents) {
+  for (const [id] of closing) {
+    const a = agents.find((x) => x.id === id);
+    if (!a) closing.delete(id);
+    else if (!working(a)) {
+      closing.delete(id);
+      closeSession(a).catch(() => {});
+    }
+  }
+}
+
+// Saves every open session, replacing the last saved set, then closes them.
+// Working ones close now, or with `wait` once they finish their turn. A
+// session that was never asked anything has nothing to resume, so it's
+// closed but not saved.
+async function saveAndClose(res, body) {
+  cached = null;
+  const snap = await currentSnapshot();
+  const open = snap.agents.filter(closable);
+  const set = saved.save(
+    open.filter((a) => a.prompts > 0).map((a) => ({ app: a.app, id: a.id, cwd: a.cwd, name: a.terminalTitle || a.title || a.name })),
+    snap.now,
+  );
+  const failed = [];
+  let closed = 0;
+  for (const a of open) {
+    if (body.wait && working(a)) {
+      closing.set(a.id, a.name);
+      continue;
+    }
+    const result = await closeSession(a).catch((err) => ({ ok: false, error: err.message }));
+    if (result.ok) closed++;
+    else failed.push({ name: a.terminalTitle || a.title || a.name, error: result.error });
+  }
+  cached = null;
+  pushSnapshot();
+  return send(res, 200, { ok: true, saved: set.sessions.length, closed, waiting: closing.size, failed });
+}
+
+// Opens each session in the saved set in a terminal tab, carrying on its
+// conversation. Ones that are open already, or whose folder has gone, are
+// skipped.
+async function resumeLast(res) {
+  const set = saved.get();
+  if (!set?.sessions.length) return send(res, 404, { ok: false, error: 'There is no saved session to resume.' });
+  cached = null;
+  const snap = await currentSnapshot();
+  const open = new Set(snap.agents.map((a) => a.id));
+  const skipped = [];
+  let opened = 0;
+  for (const s of set.sessions) {
+    if (open.has(s.id)) skipped.push({ name: s.name, why: 'already open' });
+    else if (!fs.existsSync(s.cwd)) skipped.push({ name: s.name, why: 'its folder is gone' });
+    else {
+      // The ID comes from the saved set, which only holds UUIDs.
+      const result = await openTab(s.cwd, sessionCommand(s.app, s.id));
+      if (result.ok) opened++;
+      else skipped.push({ name: s.name, why: result.error });
+      // One at a time, so each tab opens before the next.
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    }
+  }
+  return send(res, 200, { ok: true, opened, skipped });
+}
+
 // Everything about a to-do's folder and session is decided here: the folder
 // comes from the repo scan or the folder picker, never from the page, and the
 // session ID is made here.
@@ -353,6 +445,21 @@ const server = http.createServer(async (req, res) => {
       // The ID comes from the history's own records, which only hold UUIDs.
       const result = await openTab(past.cwd, sessionCommand(past.app || 'claude', past.id));
       return send(res, result.ok ? 200 : 500, result);
+    }
+
+    // Save and close every open session, stop waiting on one, or resume the
+    // last saved set.
+    const sessionsAction = url.pathname.match(/^\/api\/sessions\/(save-close|keep-open|resume-last)$/);
+    if (sessionsAction) {
+      if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
+      if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
+      const body = await readJson(req);
+      if (sessionsAction[1] === 'save-close') return await saveAndClose(res, body);
+      if (sessionsAction[1] === 'resume-last') return await resumeLast(res);
+      closing.delete(String(body.id));
+      cached = null;
+      pushSnapshot();
+      return send(res, 200, { ok: true });
     }
 
     // Every group at once, from the Settings editor; or one session or to-do

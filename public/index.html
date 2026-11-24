@@ -36,6 +36,13 @@
       <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path d="M10 4.25v11.5M4.25 10h11.5"/></svg>
       To-do
     </button>
+    <button type="button" id="sessions-button" class="icon-btn header-icon" title="Save and close all sessions, or resume the last saved ones" aria-label="Save and close, or resume" aria-haspopup="menu">
+      <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+        <path d="M3.5 5.5h13v2h-13z"/>
+        <path d="M4.5 7.5v7.25a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V7.5"/>
+        <path d="M8.25 10.5h3.5"/>
+      </svg>
+    </button>
     <button type="button" id="history-button" class="icon-btn header-icon history-button" title="History of closed sessions" aria-label="History" aria-haspopup="dialog" aria-controls="history">
       <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
         <path d="M3.6 10a6.4 6.4 0 1 0 1.9-4.55"/>
@@ -268,6 +275,24 @@
     </form>
   </dialog>
 
+  <dialog id="save-close" class="confirm">
+    <form method="dialog">
+      <h2 id="save-close-title"></h2>
+      <p>Each one's tab closes too. <b>Resume last session</b>, in the same menu, opens them again, carrying on each conversation.</p>
+      <ul id="save-close-list" class="save-close-list"></ul>
+      <fieldset id="save-close-busy" class="save-close-busy">
+        <legend id="save-close-busy-text"></legend>
+        <label><input type="radio" name="save-close-busy" value="wait" checked> Wait for them to finish, then close them</label>
+        <label><input type="radio" name="save-close-busy" value="now"> Close them now: their current turn is lost</label>
+      </fieldset>
+      <p id="save-close-left" class="save-close-left"></p>
+      <div class="confirm-actions">
+        <button value="cancel" class="btn" autofocus>Cancel</button>
+        <button value="save" class="btn btn-danger">Save and close</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="confirm" class="confirm">
     <form method="dialog">
       <h2>Stop <span id="confirm-name"></span>?</h2>
@@ -291,6 +316,7 @@
   </div>
 
   <div id="group-menu" class="menu" popover role="menu" aria-label="Group"></div>
+  <div id="sessions-menu" class="menu" popover role="menu" aria-label="Save and close, or resume"></div>
 
   <div id="toast" class="toast" role="status" aria-live="polite" popover="manual"></div>
   <script src="/app.js"></script>

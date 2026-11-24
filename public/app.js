@@ -329,15 +329,94 @@ function openGroupMenu(x, cwd, button) {
     }),
   ];
   menu.replaceChildren(...items.filter(Boolean));
+  showMenu(menu, button);
+  menu.querySelector('[aria-checked="true"]')?.focus();
+}
+
+// Opens a menu under the button that opened it, kept on screen.
+function showMenu(menu, button) {
   menu.showPopover();
-  // Under the button, kept on screen.
   const r = button.getBoundingClientRect();
   const w = menu.offsetWidth;
   const h = menu.offsetHeight;
   menu.style.left = `${Math.max(8, Math.min(r.left, innerWidth - w - 8))}px`;
   menu.style.top = `${r.bottom + 4 + h > innerHeight - 8 ? Math.max(8, r.top - h - 4) : r.bottom + 4}px`;
-  menu.querySelector('[aria-checked="true"]')?.focus();
 }
+
+// ---- save and close, resume ----------------------------------------------------
+
+// The sessions Save and close takes: Claude and Codex sessions in a terminal.
+const closable = (a) =>
+  (a.app === 'claude' && !a.background && (!a.kind || a.kind === 'interactive') && (!a.entrypoint || a.entrypoint === 'cli')) || a.app === 'codex';
+const isWorking = (a) => a.status === 'busy' || a.status === 'shell';
+
+function openSessionsMenu(button) {
+  const menu = $('sessions-menu');
+  const open = (snap?.agents || []).filter(closable);
+  const last = snap?.saved;
+  const item = (label, onclick, disabled) => el('button', { type: 'button', class: 'menu-item', role: 'menuitem', disabled: disabled || null, onclick }, label);
+  menu.replaceChildren(
+    item(open.length ? `Save and close all (${open.length})` : 'No sessions to close', () => (menu.hidePopover(), confirmSaveClose()), !open.length),
+    last?.count
+      ? item([el('span', { text: 'Resume last session' }), el('span', { class: 'menu-meta', text: `${last.count} · saved ${dur(now() - last.savedAt)} ago` })], () => (menu.hidePopover(), resumeLast()))
+      : item('No saved session to resume', null, true),
+    snap?.closing?.length ? el('p', { class: 'menu-note', text: `${snap.closing.length} will close when ${snap.closing.length === 1 ? 'its turn ends' : 'their turns end'}` }) : null,
+  );
+  showMenu(menu, button);
+}
+
+function confirmSaveClose() {
+  const open = (snap?.agents || []).filter(closable);
+  const busy = open.filter(isWorking);
+  const left = (snap?.agents || []).filter((a) => !closable(a) && !isItem(a) && !a.background);
+  $('save-close-title').textContent = `Save and close ${open.length} session${open.length === 1 ? '' : 's'}?`;
+  $('save-close-list').replaceChildren(
+    ...open.map((a) => el('li', {}, el('span', { class: 'save-close-name', text: displayName(a) }), el('span', { class: `badge s-${a.status}` }, el('span', { class: 'dot' }), status(a).label))),
+  );
+  $('save-close-busy').hidden = !busy.length;
+  $('save-close-busy-text').textContent = `${busy.length} ${busy.length === 1 ? 'is' : 'are'} still working:`;
+  $('save-close-left').hidden = !left.length;
+  $('save-close-left').textContent = left.length ? `${left.length} in VS Code or another app ${left.length === 1 ? 'stays' : 'stay'} open.` : '';
+  const dialog = $('save-close');
+  dialog.returnValue = '';
+  dialog.onclose = async () => {
+    if (dialog.returnValue !== 'save') return;
+    const wait = busy.length > 0 && document.querySelector('input[name="save-close-busy"]:checked')?.value === 'wait';
+    try {
+      const r = await api('/api/sessions/save-close', { wait });
+      const parts = [`Saved ${r.saved}, closed ${r.closed}`];
+      if (r.waiting) parts.push(`${r.waiting} closing when done`);
+      if (r.failed.length) parts.push(`couldn't close ${r.failed.map((f) => `${f.name} (${f.error})`).join(', ')}`);
+      toast(parts.join('. '), r.failed.length > 0);
+    } catch (err) {
+      toast(err.message, true);
+    }
+    refresh();
+  };
+  dialog.showModal();
+}
+
+async function resumeLast() {
+  try {
+    const r = await api('/api/sessions/resume-last');
+    const skipped = r.skipped.length ? `. Skipped ${r.skipped.map((s) => `${s.name || 'one'} (${s.why})`).join(', ')}` : '';
+    toast(`Opening ${r.opened} session${r.opened === 1 ? '' : 's'}${skipped}`, r.skipped.length > 0 && !r.opened);
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+async function keepOpen(a) {
+  try {
+    await api('/api/sessions/keep-open', { id: a.id });
+    toast(`${displayName(a)} stays open`);
+  } catch (err) {
+    toast(err.message, true);
+  }
+  refresh();
+}
+
+$('sessions-button').addEventListener('click', (e) => openSessionsMenu(e.currentTarget));
 
 // ---- card ------------------------------------------------------------------
 
@@ -607,6 +686,9 @@ function card(a) {
   const tags = [];
   if (a.gitBranch) tags.push(el('span', { class: 'tag branch', title: 'Git branch', text: `⎇ ${a.gitBranch}` }));
   if (a.kind && a.kind !== 'interactive') tags.push(el('span', { class: 'tag', text: a.kind }));
+  if (snap?.closing?.includes(a.id)) {
+    tags.push(el('button', { type: 'button', class: 'tag closing', title: 'Save and close will close it when this turn ends. Click to keep it open.', onclick: () => keepOpen(a) }, 'Closes when done ✕'));
+  }
   if (a.background) tags.push(el('span', { class: 'tag background', title: `Running in the background (${a.entrypoint}), with no window`, text: 'Background' }));
   else if (a.entrypoint && a.entrypoint !== 'cli') tags.push(el('span', { class: 'tag', text: a.entrypoint }));
   const perm = PERMISSION_MODES[a.permissionMode];

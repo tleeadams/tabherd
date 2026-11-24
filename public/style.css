@@ -1025,3 +1025,19 @@ button:focus-visible, a:focus-visible, summary:focus-visible, .msg .text:focus-v
 .facts dt { color: var(--muted); }
 .facts dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 a.btn { display: inline-flex; align-items: center; text-decoration: none; }
+
+/* Save and close all. */
+.save-close-list { list-style: none; margin: 8px 0; padding: 0; max-height: 240px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+.save-close-list li { display: flex; align-items: center; gap: 8px; padding: 5px 10px; font-size: 13px; }
+.save-close-list li + li { border-top: 1px solid var(--border); }
+.save-close-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.save-close-list .badge { flex: none; font-size: 11.5px; }
+.save-close-busy { display: grid; gap: 4px; margin: 10px 0 0; padding: 0; border: 0; font-size: 13px; }
+.save-close-busy legend { padding: 0; margin-bottom: 4px; font-weight: 600; color: var(--text); }
+.save-close-busy[hidden] { display: none; }
+.save-close-busy input { accent-color: var(--accent); }
+.save-close-left { font-size: 12.5px; }
+.menu-item:disabled { color: var(--faint); cursor: default; background: none; }
+.menu-meta { margin-left: auto; color: var(--faint); font-size: 12px; }
+.menu-note { margin: 4px 8px 2px; font-size: 12px; color: var(--muted); }
+.tag.closing { cursor: pointer; color: var(--wait); border-color: color-mix(in srgb, var(--wait) 45%, transparent); background: none; font: inherit; font-size: 11px; }

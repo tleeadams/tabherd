@@ -46,3 +46,19 @@ test('a background run is kept as one, to list or hide in History', () => {
   assert.equal(history.find(id).background, true);
   assert.equal(history.find(USED).background, false);
 });
+
+test('Save and close keeps one set of sessions to resume, and only what resuming needs', () => {
+  const saved = require('../lib/saved');
+  const a = '01900000-0000-7000-8000-0000000000e1';
+  const set = saved.save(
+    [
+      { app: 'claude', id: a, cwd: os.tmpdir(), name: 'Fix the build', pid: 42, status: 'idle' },
+      { app: 'codex', id: 'not-an-id', cwd: os.tmpdir() },
+      { app: 'comfy', id: a, cwd: os.tmpdir() },
+    ],
+    1234,
+  );
+  assert.deepEqual(set, { savedAt: 1234, sessions: [{ app: 'claude', id: a, cwd: os.tmpdir(), name: 'Fix the build' }] });
+  assert.deepEqual(saved.get(), set);
+  assert.equal(saved.save([], 5678).sessions.length, 0, 'the next save replaces it');
+});
