@@ -116,3 +116,27 @@ The Windows app and its installer are signed by [SignPath Foundation](https://si
 4. In the repository's settings, under **Secrets and variables → Actions**, add the token as the secret `SIGNPATH_API_TOKEN` and the organization's ID as the variable `SIGNPATH_ORGANIZATION_ID`. If the project, signing policy or installer configuration aren't called `tabherd`, `release-signing` and `installer`, add `SIGNPATH_PROJECT_SLUG`, `SIGNPATH_POLICY_SLUG` or `SIGNPATH_INSTALLER_CONFIGURATION_SLUG` too.
 
 The variable turns signing on. The app is signed first, and the installer is then built around the signed app and signed in a second request. Packaging is told not to touch the app (`--no-binary-patching`), which would break its signature. The workflow checks each signature, and fails rather than release a file that isn't validly signed.
+
+### Apple signing
+
+The macOS desktop app is signed with a Developer ID and notarized by Apple in the Release workflow, so a downloaded copy opens without Gatekeeper's warnings. Until it's set up, releases leave the app out and macOS ships the `tar.gz` archives. The keys go into GitHub as secrets, from your own computer, never into the repository or a chat. To set it up:
+
+1. Join the [Apple Developer Program](https://developer.apple.com/programs/). Only the account holder can make the certificate.
+2. Make a **Developer ID Application** certificate: on a Mac, in Xcode, **Settings → Accounts → Manage Certificates → + → Developer ID Application**. Then, in Keychain Access, under **My Certificates**, export it with its private key as a `.p12`, with a password.
+3. Make an API key for notarizing: in [App Store Connect](https://appstoreconnect.apple.com), **Users and Access → Integrations → App Store Connect API → Team Keys**, add a key with the Developer role. Download its `.p8` (Apple only lets you do that once), and note its key ID and the issuer ID above the list.
+4. Make a `release` environment that only version tags can use, and put the secrets in it:
+
+   ```
+   gh api -X PUT repos/tleeadams/tabherd/environments/release -F "deployment_branch_policy[protected_branches]=false" -F "deployment_branch_policy[custom_branch_policies]=true"
+   gh api -X POST repos/tleeadams/tabherd/environments/release/deployment-branch-policies -f name='v*' -f type=tag
+   base64 -i DeveloperID.p12 | gh secret set APPLE_CERTIFICATE --env release
+   gh secret set APPLE_CERTIFICATE_PASSWORD --env release
+   gh secret set APPLE_API_KEY --env release              # the key ID
+   gh secret set APPLE_API_ISSUER --env release           # the issuer ID
+   gh secret set APPLE_API_PRIVATE_KEY --env release < AuthKey_<key ID>.p8
+   ```
+
+   Each `gh secret set` without a file asks for the value, so it isn't kept in your shell's history.
+5. Turn it on: `gh variable set APPLE_SIGNING --body on`.
+
+From the next version tag, the Release workflow builds the app for Apple silicon and Intel Macs on a macOS runner. Tauri signs the app and its Node with the hardened runtime and the entitlements in `app/src-tauri/macos/Entitlements.plist`, Apple notarizes it, and the ticket is stapled. The workflow then checks the signature, Gatekeeper's verdict and the stapled ticket, and fails rather than release an app that doesn't pass. The disk images go in the release beside the archives. If the variable is on but a secret is missing, the build fails and names it.
