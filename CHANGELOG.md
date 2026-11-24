@@ -19,6 +19,8 @@ Notable changes in each release. Version numbers follow [Semantic Versioning](ht
 - ComfyUI's jobs and LocalAI's models, downloads, agent chats and agent jobs show as cards, marked **Comfy** and **LocalAI**, and join the app list in the header. A ComfyUI job shows as Working, with its progress on Windows, Queued with its place, or Finished with its output image, and has Stop or Cancel and Go to window. A LocalAI model shows the memory it's using and has Unload; downloads show their progress and have Cancel; agent chats show as Working, or Needs you when paused, and have Stop. Finishing dings. Settings → Other apps has ComfyUI's and LocalAI's addresses, and LocalAI's API key; Comfy Desktop's ComfyUIs are found by themselves, on whatever port. See [ComfyUI and LocalAI](README.md#comfyui-and-localai).
 - On Windows, the title-reading helper also reads the main window title of apps without a console, which is how Comfy Desktop's progress is read.
 
+- A to-do's **Delete?**, the second click it asks for, is readable: it was red text on red. In dark mode, every button asking for a second click is a deeper red, which white text reads better on.
+
 ## 0.4.0 - 2026-11-23
 
 - Codex sessions show on the dashboard beside Claude's, and each card says which app it is. A Codex card has its status, with *Needs you* when it's waiting for an approval or an answer, what it's doing, its last reply, model and tokens, and Go to window. Closed Codex sessions are in History, where Resume runs `codex resume`. See [Codex](README.md#codex).

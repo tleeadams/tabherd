@@ -1270,12 +1270,14 @@ function openFilterMenu(button) {
   const full = (snap?.filters || []).length >= MAX_FILTERS;
   const item = (label, onclick, disabled) =>
     el('button', { type: 'button', class: 'menu-item', role: 'menuitem', disabled: disabled || null, onclick: () => (menu.hidePopover(), onclick()) }, label);
-  menu.replaceChildren(
+  // All isn't a filter of its own, so with it shown there's none to change.
+  const items = [
     item(full ? `New filter (up to ${MAX_FILTERS})` : 'New filter…', () => editFilter(null), full),
     shown ? item(`Edit “${shown.name}”…`, () => editFilter(shown)) : null,
     el('hr'),
     item('Edit filters…', () => openSettings('filters-setting')),
-  );
+  ];
+  menu.replaceChildren(...items.filter(Boolean));
   showMenu(menu, button);
 }
 
