@@ -31,8 +31,10 @@ const STATUS = {
   // A model loaded in LocalAI: not anyone's turn, so in no filter but All.
   loaded: { label: 'Loaded', group: 'resource', rank: 6 },
 };
-// The statuses a filter can pick, as status groups.
-const FILTER_STATUSES = { needs: 'Needs you', working: 'Working', idle: 'Idle' };
+// The statuses a filter can pick: status groups, with Shell running apart
+// from the rest of Working.
+const FILTER_STATUSES = { needs: 'Needs you', working: 'Working', shell: 'Shell running', idle: 'Idle' };
+const filterStatus = (x) => (x.status === 'shell' ? 'shell' : status(x).group);
 const MAX_FILTERS = 12;
 const PERMISSION_MODES = {
   bypassPermissions: 'bypass',
@@ -43,10 +45,10 @@ const PERMISSION_MODES = {
   'never-ask': 'never asks',
 };
 // Which app each session is, on its card and in the history.
-const APPS = { claude: 'Claude', codex: 'Codex', copilot: 'Copilot', comfy: 'Comfy', localai: 'LocalAI', ollama: 'Ollama', lmstudio: 'LM Studio' };
-// Cards for things other than sessions: ComfyUI's jobs, and LocalAI's
-// models, downloads and chats.
-const isItem = (a) => ['comfy', 'localai', 'ollama', 'lmstudio'].includes(a.app);
+const APPS = { claude: 'Claude', codex: 'Codex', copilot: 'Copilot', comfy: 'Comfy', localai: 'LocalAI', ollama: 'Ollama', lmstudio: 'LM Studio', llamacpp: 'llama.cpp' };
+// Cards for things other than sessions: ComfyUI's jobs, LocalAI's models,
+// downloads and chats, and the other model servers' loaded models.
+const isItem = (a) => ['comfy', 'localai', 'ollama', 'lmstudio', 'llamacpp'].includes(a.app);
 const APP_HINTS = {
   claude: 'A Claude Code session',
   codex: 'A Codex session',
@@ -55,6 +57,7 @@ const APP_HINTS = {
   localai: 'From LocalAI',
   ollama: 'From Ollama',
   lmstudio: 'From LM Studio',
+  llamacpp: "From llama.cpp's server",
 };
 const appTag = (x) => el('span', { class: `app app-${x.app || 'claude'}`, title: APP_HINTS[x.app] || APP_HINTS.claude }, APPS[x.app] || APPS.claude);
 // The colours a group can have, as the server knows them. Each is set for
@@ -367,6 +370,7 @@ const APP_ADDRESSES = [
   ['localai-url', 'localaiUrl'],
   ['ollama-url', 'ollamaUrl'],
   ['lmstudio-url', 'lmstudioUrl'],
+  ['llamacpp-url', 'llamacppUrl'],
 ];
 
 // Codex or the Copilot CLI is installed, so there's an app to choose.
@@ -722,8 +726,9 @@ async function itemAction(a, action, button) {
   button.disabled = true;
   try {
     if (a.leavesWhenDone) stoppedHere.add(a.id);
-    await post(a, action);
-    toast(`${ITEM_DONE[action]} ${a.name}`);
+    const result = await post(a, action);
+    // ComfyUI's Unload frees all its models, and says so.
+    toast(result?.done || `${ITEM_DONE[action]} ${a.name}`);
   } catch (err) {
     toast(err.message, true);
   } finally {
@@ -1011,7 +1016,11 @@ function memoryCard({ memory, models }) {
       el('span', { class: 'mem-model-name', text: m.name, title: [m.name, m.where].filter(Boolean).join(' · ') }),
       el('span', { class: 'mem-model-facts', text: (m.facts || []).map(([k, v]) => `${k} ${v}`).join(' · ') }),
       (m.actions || []).includes('unload')
-        ? el('button', { type: 'button', class: 'btn btn-stop', onclick: (e) => itemAction(m, 'unload', e.currentTarget) }, 'Unload')
+        ? el(
+            'button',
+            { type: 'button', class: 'btn btn-stop', title: m.app === 'comfy' ? `Unloads all of ${m.host}'s models: ComfyUI can't unload one alone` : null, onclick: (e) => itemAction(m, 'unload', e.currentTarget) },
+            'Unload',
+          )
         : null,
     ),
   );
@@ -1022,7 +1031,7 @@ function memoryCard({ memory, models }) {
     el('div', { class: 'mem-bars' }, rows),
     modelRows.length
       ? el('ul', { class: 'mem-models' }, modelRows)
-      : el('p', { class: 'mem-none', text: 'No models loaded in LocalAI, Ollama or LM Studio.' }),
+      : el('p', { class: 'mem-none', text: 'No models loaded in ComfyUI, LocalAI, Ollama, LM Studio or llama.cpp.' }),
   );
 }
 
@@ -1041,8 +1050,32 @@ $('memory-card').addEventListener('change', (e) => {
   try {
     localStorage.setItem(MEMORY_CARD_KEY, memoryCardOn ? 'on' : 'off');
   } catch {}
+  $('memory-float').disabled = !memoryCardOn;
   render();
 });
+
+// It can also stay in view, under the header, while the cards scroll. Off
+// unless chosen, kept in this browser.
+const MEMORY_FLOAT_KEY = 'tabherd:memory-float';
+let memoryFloat = false;
+try {
+  memoryFloat = localStorage.getItem(MEMORY_FLOAT_KEY) === 'on';
+} catch {}
+list.classList.toggle('memory-float', memoryFloat);
+$('memory-float').checked = memoryFloat;
+$('memory-float').disabled = !memoryCardOn;
+$('memory-float').addEventListener('change', (e) => {
+  memoryFloat = e.currentTarget.checked;
+  try {
+    localStorage.setItem(MEMORY_FLOAT_KEY, memoryFloat ? 'on' : 'off');
+  } catch {}
+  list.classList.toggle('memory-float', memoryFloat);
+});
+// The header wraps onto more lines in a narrow window, so the card stops
+// wherever its bottom is.
+new ResizeObserver(([entry]) => document.documentElement.style.setProperty('--top-height', `${entry.target.offsetHeight}px`)).observe(
+  document.querySelector('.top'),
+);
 
 // A group's heading, when the cards are in sections by group.
 function sectionHead(s) {
@@ -1186,7 +1219,7 @@ const filterDef = (id) => (snap?.filters || []).find((f) => f.id === id) || null
 // no status, so they show under the filters that ask for them.
 function matchesFilter(f, x, isTodo) {
   if (!f) return true;
-  if (isTodo ? !f.todos : f.statuses.length && !f.statuses.includes(status(x).group)) return false;
+  if (isTodo ? !f.todos : f.statuses.length && !f.statuses.includes(filterStatus(x))) return false;
   if (f.apps.length && !f.apps.includes(x.app || 'claude')) return false;
   if (f.groups.length && !f.groups.includes(x.group || 'none')) return false;
   if (f.text) {
@@ -2752,7 +2785,7 @@ const TOUR_STEPS = [
   {
     target: tourAll('#list .memory-card'),
     title: 'Memory and models',
-    text: 'Memory in use, on the computer and each graphics card, and the models loaded in LocalAI, Ollama or LM Studio, each with Unload. Settings → Appearance turns it off.',
+    text: 'Memory in use, on the computer and each graphics card, and the models loaded in ComfyUI, LocalAI, Ollama, LM Studio or llama.cpp, with Unload where it can. Settings → Appearance turns it off.',
   },
   {
     target: tourAll('#filters'),

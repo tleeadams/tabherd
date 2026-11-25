@@ -82,6 +82,51 @@ test("each ComfyUI Comfy Desktop runs is found from its records, and a crashed o
   );
 });
 
+test("ComfyUI's loaded models are the ones its latest job's loaders name", () => {
+  const prompt = {
+    1: { class_type: 'UNETLoader', inputs: { unet_name: 'flux\\dev.safetensors', weight_dtype: 'default' } },
+    2: { class_type: 'DualCLIPLoader', inputs: { clip_name1: 't5xxl.safetensors', clip_name2: 'clip_l.safetensors', type: 'flux' } },
+    3: { class_type: 'VAELoader', inputs: { vae_name: 'ae.sft' } },
+    4: { class_type: 'LoraLoader', inputs: { lora_name: 'style.safetensors', model: ['1', 0], strength_model: 1 } },
+    5: { class_type: 'SaveImage', inputs: { filename_prefix: 'cat.png', images: ['9', 0] } },
+    6: { class_type: 'UNETLoader', inputs: { unet_name: 'flux\\dev.safetensors' } },
+  };
+  assert.deepEqual(
+    comfy.modelsIn(prompt),
+    [
+      { file: 'flux\\dev.safetensors', type: 'Diffusion model' },
+      { file: 't5xxl.safetensors', type: 'Text encoder' },
+      { file: 'clip_l.safetensors', type: 'Text encoder' },
+      { file: 'ae.sft', type: 'VAE' },
+      { file: 'style.safetensors', type: 'LoRA' },
+    ],
+    'only model files, and one named twice once',
+  );
+
+  const queued = [{ id: 'q', status: 'pending' }];
+  const recent = [
+    { id: 'skipped', status: 'cancelled', create_time: 9 },
+    { id: 'last', status: 'completed', execution_start_time: 5 },
+    { id: 'older', status: 'failed', execution_start_time: 3 },
+  ];
+  assert.equal(comfy.latestRun(queued, recent).id, 'last', 'a job cancelled before it ran loaded nothing');
+  assert.equal(comfy.latestRun([{ id: 'now', status: 'in_progress' }, ...queued], recent).id, 'now');
+  assert.equal(comfy.latestRun(queued, []), null);
+
+  const items = comfy.modelItems({ id: 'inst-1', name: 'Studio' }, { jobId: 'last', workflowId: null, models: comfy.modelsIn(prompt).slice(0, 2) });
+  assert.deepEqual(
+    items.map((i) => [i.id, i.name, i.where, i.facts]),
+    [
+      ['comfy:inst-1:model:flux\\dev.safetensors', 'dev.safetensors', 'flux\\dev.safetensors', [['Type', 'Diffusion model']]],
+      ['comfy:inst-1:model:t5xxl.safetensors', 't5xxl.safetensors', null, [['Type', 'Text encoder']]],
+    ],
+  );
+  assert.ok(
+    items.every((i) => i.app === 'comfy' && i.kind === 'model' && i.host === 'Studio' && i.actions.includes('unload')),
+    'rows for the Memory and models card, each with Unload',
+  );
+});
+
 // ---- LocalAI --------------------------------------------------------------------
 
 // A stand-in LocalAI, answering as its source says it does, and recording
@@ -277,4 +322,65 @@ test("nvidia-smi's lines give each graphics card's memory and load", () => {
   assert.deepEqual(memory.parseSmi('No devices were found'), []);
   const s = memory.snapshot();
   assert.ok(s.ram.total > 0 && s.ram.used > 0 && s.ram.used <= s.ram.total);
+});
+
+// ---- llama.cpp ---------------------------------------------------------------------
+
+const llamacpp = require('../lib/llamacpp');
+
+test("llama.cpp's one model becomes a row, with no Unload", () => {
+  const [item] = llamacpp.itemsFrom({
+    build: 'b12669-30ec35ae2',
+    router: false,
+    models: [
+      {
+        id: 'gemma-4-e4b',
+        file: 'C:\\models\\gemma-4-E4B-it-Q4_K_M.gguf',
+        ftype: 'Q4_K - Medium',
+        sleeping: false,
+        meta: { n_params: 7518069290, size: 5319465128, n_ctx: 8192 },
+        slots: [{ is_processing: true }, { is_processing: false }, { is_processing: false }, { is_processing: false }],
+      },
+    ],
+  });
+  assert.equal(item.app, 'llamacpp');
+  assert.equal(item.kind, 'model', 'it goes on the memory card');
+  assert.equal(item.host, 'llama.cpp build 12669');
+  assert.equal(item.where, '7.5B · Q4_K - Medium');
+  assert.deepEqual(item.facts, [['Size', '5.3 GB'], ['Context', '8,192 tokens'], ['Answering', '1 of 4 at once'], ['File', 'gemma-4-E4B-it-Q4_K_M.gguf']]);
+  assert.deepEqual(item.actions, [], 'a server started with one model keeps it');
+  const [unnamed] = llamacpp.itemsFrom({
+    build: null,
+    router: false,
+    models: [{ id: 'gemma-4-E4B-it-Q4_K_M.gguf', file: 'C:\\models\\gemma-4-E4B-it-Q4_K_M.gguf', meta: {}, slots: [] }],
+  });
+  assert.equal(unnamed.host, 'llama.cpp');
+  assert.deepEqual(unnamed.facts, [], 'named for its file, so the file goes unsaid');
+});
+
+test("llama.cpp's router shows each model loaded or loading, and loaded ones unload", () => {
+  const items = llamacpp.itemsFrom({
+    build: 'b12669-30ec35ae2',
+    router: true,
+    models: [
+      { id: 'gemma-4-E4B-it-GGUF', status: { value: 'loaded' }, meta: { n_params: 7.5e9, size: 5.3e9, n_ctx: 8192, ftype: 'Q4_K - Medium' }, slots: [{ is_processing: false }] },
+      { id: 'qwen3-8b', status: { value: 'loading' }, slots: null },
+    ],
+  });
+  assert.deepEqual(items.map((i) => i.actions), [['unload'], []]);
+  assert.deepEqual(items[1].facts, [['State', 'Loading']]);
+  assert.ok(!items[0].facts.some(([k]) => k === 'Answering'), 'nothing is said about requests while none run');
+  assert.ok(!items[0].facts.some(([k]) => k === 'File'), "the router's models are named for their files already");
+});
+
+test('LLAMA_ARG_HOST and LLAMA_ARG_PORT are read as llama-server reads them', () => {
+  assert.equal(llamacpp.fromEnv({}), null);
+  assert.equal(llamacpp.fromEnv({ LLAMA_ARG_PORT: '8091' }), 'http://127.0.0.1:8091');
+  assert.equal(llamacpp.fromEnv({ LLAMA_ARG_HOST: '0.0.0.0' }), 'http://127.0.0.1:8080');
+  assert.equal(llamacpp.fromEnv({ LLAMA_ARG_HOST: 'gpu-box.example.test', LLAMA_ARG_PORT: '9000' }), 'http://gpu-box.example.test:9000');
+});
+
+test("Unload is refused for a llama.cpp server that isn't a router", async () => {
+  const r = await llamacpp.act({ model: 'gemma' }, 'unload');
+  assert.equal(r.ok, false);
 });

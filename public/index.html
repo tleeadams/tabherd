@@ -172,6 +172,10 @@
                 <input type="checkbox" id="memory-card">
                 <span class="choice-text"><b>Memory and models</b><span>Memory in use and the loaded models, across the top. Turned off, each loaded model gets a card of its own instead.</span></span>
               </label>
+              <label class="choice">
+                <input type="checkbox" id="memory-float">
+                <span class="choice-text"><b>Keep it in view</b><span>The card stays at the top of the window while the cards below it scroll.</span></span>
+              </label>
             </fieldset>
             <fieldset id="window-setting" hidden>
               <legend>Window</legend>
@@ -251,7 +255,7 @@
           <section class="settings-section" id="settings-other-apps" data-title="Other apps">
             <fieldset>
               <legend>Other apps</legend>
-              <p class="settings-help">ComfyUI's jobs, LocalAI's models, downloads and agent chats, and Ollama's and LM Studio's loaded models show as cards while they run.</p>
+              <p class="settings-help">ComfyUI's jobs and models, LocalAI's models, downloads and agent chats, and the models loaded in Ollama, LM Studio and llama.cpp show while they run.</p>
               <label class="field">
                 <span>ComfyUI address</span>
                 <input id="comfy-url" type="text" placeholder="http://127.0.0.1:8188" autocomplete="off" spellcheck="false">
@@ -278,7 +282,11 @@
                 <span>LM Studio API token</span>
                 <input id="lmstudio-key" type="password" autocomplete="off" spellcheck="false">
               </label>
-              <p class="settings-help">Ollama's address defaults to OLLAMA_HOST; LM Studio's to the port its server last used. A token is only needed if LM Studio requires one.</p>
+              <label class="field">
+                <span>llama.cpp address</span>
+                <input id="llamacpp-url" type="text" placeholder="http://127.0.0.1:8080" autocomplete="off" spellcheck="false">
+              </label>
+              <p class="settings-help">Ollama's address defaults to OLLAMA_HOST; LM Studio's to the port its server last used; llama.cpp's to LLAMA_ARG_HOST and LLAMA_ARG_PORT. A token is only needed if LM Studio requires one.</p>
             </fieldset>
           </section>
           <section class="settings-section" id="settings-to-dos" data-title="To-dos">
