@@ -20,6 +20,7 @@ test('branch names', () => {
     ['release/0.2.0', 'release'],
     ['release/1.0.0-beta.1', 'release'],
     ['hotfix/0.2.1', 'hotfix'],
+    ['dependabot/cargo/app/src-tauri/tauri-2.13.0', 'dependabot'],
   ]) {
     assert.equal(kind(name), expected, name);
   }
@@ -32,11 +33,11 @@ test('branch names', () => {
 test('which branches may merge into develop and main', () => {
   const ok = (base, head, project = release('0.2.0')) => assert.deepEqual(checkPullRequest(base, head, project), [], `${head} -> ${base}`);
   const refused = (base, head) => assert.equal(checkPullRequest(base, head, release('0.2.0')).length, 1, `${head} -> ${base}`);
-  for (const head of ['feature/x', 'bugfix/y', 'release/0.2.0', 'hotfix/0.2.1', 'main']) ok('develop', head);
+  for (const head of ['feature/x', 'bugfix/y', 'release/0.2.0', 'hotfix/0.2.1', 'main', 'dependabot/github_actions/actions/checkout-8']) ok('develop', head);
   for (const head of ['wip', 'develop']) refused('develop', head);
   ok('main', 'release/0.2.0');
   ok('main', 'hotfix/0.2.0');
-  for (const head of ['feature/x', 'bugfix/y', 'develop', 'wip']) refused('main', head);
+  for (const head of ['feature/x', 'bugfix/y', 'develop', 'wip', 'dependabot/cargo/serde-1.0.300']) refused('main', head);
   ok('feature/x', 'anything', {});
 });
 

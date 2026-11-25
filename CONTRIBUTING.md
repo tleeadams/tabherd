@@ -12,6 +12,7 @@ The repository follows gitflow:
 | `bugfix/<name>` | `develop` | `develop` | Fixes to unreleased work. |
 | `release/<version>` | `develop` | `main`, then `develop` | Getting a release ready: `release/0.2.0`. |
 | `hotfix/<version>` | `main` | `main`, then `develop` | Urgent fixes to a release: `hotfix/0.2.1`. |
+| `dependabot/…` | `develop` | `develop` | Dependabot's dependency updates. See [Dependency updates](#dependency-updates). |
 
 `main` and `develop` only change through pull requests, which merge with a merge commit. That keeps each branch's history and makes merging a release back into `develop` clean.
 
@@ -25,6 +26,15 @@ The repository follows gitflow:
   ```
 
   They stop commits made directly on `main` or `develop`, commits on branches named outside the model, and pushes to `main` or `develop` once those exist. Merging into `develop` or `main` locally is allowed, but the result reaches GitHub through a pull request. The rules live in `scripts/gitflow.js`; `node scripts/gitflow.js check-branch <name>` checks a name.
+
+## Dependency updates
+
+The dashboard has no dependencies, but the workflows use GitHub Actions and the desktop app is built from Rust crates. Dependabot keeps both up to date (`.github/dependabot.yml`):
+- **Weekly pull requests** into `develop`, grouped: one for the Actions, and one for the crates' minor and patch updates. A new major version of a crate gets its own.
+- **A week's wait:** a release is only proposed once it's been out a week, so a bad or compromised one has time to be pulled.
+- **Security updates** come as soon as Dependabot finds a vulnerability, and Dependabot alerts list them in the Security tab.
+
+Their branches are named `dependabot/…`, which the Gitflow check lets into `develop` only. They're reviewed and merged like any other pull request once CI passes. An Action pinned to a commit keeps its pin: Dependabot moves it to the new release's commit and updates the version in its comment.
 
 ## Reviews
 
