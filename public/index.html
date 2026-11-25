@@ -348,6 +348,11 @@
                 <input type="checkbox" id="update-check">
                 <span class="choice-text"><b>Tell me when a new version is out</b><span>Once a day, the server asks GitHub for Tabherd's latest release. Nothing about you or your sessions is sent.</span></span>
               </label>
+              <label class="choice">
+                <input type="checkbox" id="update-prereleases">
+                <span class="choice-text"><b>Tell me about betas and other prereleases too</b><span>Prereleases have new features before a release does, and may have more bugs.</span></span>
+              </label>
+              <p id="update-prereleases-note" class="settings-help" hidden>This copy is a prerelease, so newer prereleases are always included.</p>
               <p id="update-status" class="settings-help"></p>
               <button type="button" id="update-now" class="btn">Check now</button>
             </fieldset>

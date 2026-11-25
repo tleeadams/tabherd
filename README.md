@@ -248,7 +248,7 @@ The gear button in the header opens Settings, one section at a time, picked from
 
 **Repo menu**: every folder and repo under the repos folder, nested as in the ☰ menu, each with a tick box. Untick one to hide it, and everything inside it, from the menu. What's inside a hidden folder is greyed out but keeps its own setting, so ticking the folder again brings back exactly what was shown before. A folder with some repos hidden says how many, in amber. The filter box works like the menu's. A hidden path that's no longer in the repos folder is listed underneath, with ✕ to remove it.
 
-**Help**: *Show the tour* shows the first-run tour again. See [What it shows](#what-it-shows). *Tell me when a new version is out* turns update alerts on or off, and **Check now** checks at once. See [Update alerts](#update-alerts).
+**Help**: *Show the tour* shows the first-run tour again. See [What it shows](#what-it-shows). *Tell me when a new version is out* turns update alerts on or off, *Tell me about betas and other prereleases too* includes prereleases, and **Check now** checks at once. See [Update alerts](#update-alerts).
 
 Appearance, Notifications and Sections by group are saved in the browser, so each browser profile remembers its own choice. The rest are saved by the server, in `~/.tabherd/settings.json`, `~/.tabherd/filters.json` and `~/.tabherd/groups.json`, so every browser shares them.
 
@@ -289,7 +289,7 @@ When there's a newer version:
 - **The header** gets an **Update to <version>** button, and the notification list says so once.
 - **The button** shows what's new, from the release's notes on GitHub, which are in English. It also says how to update this copy: the command for Homebrew, winget or a clone of the repository, or which download to get. **See the release** opens its page.
 - **Not now** hides the button, in that browser, until the next version.
-- **Prereleases** are only mentioned to someone already running one.
+- **Prereleases**, such as betas, are only mentioned if *Tell me about betas and other prereleases too* is on in Settings → Help. Someone already running a prerelease always hears of newer ones.
 
 ## Save and close
 

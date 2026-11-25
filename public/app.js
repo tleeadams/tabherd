@@ -2008,6 +2008,10 @@ function showUpdates() {
 function renderUpdateSetting() {
   const u = snap?.updates;
   $('update-check').checked = u?.check === true;
+  // A prerelease always hears of the next one, so the choice is made.
+  $('update-prereleases').checked = Boolean(u?.prereleases);
+  $('update-prereleases').disabled = Boolean(u?.onPrerelease);
+  $('update-prereleases-note').hidden = !u?.onPrerelease;
   if (!u) return;
   const said = [tr('This is Tabherd {version}.', { version: u.version })];
   if (u.latest) said.push(tr('{version} is out.', { version: u.latest.version }));
@@ -2095,6 +2099,7 @@ $('update-dialog').addEventListener('close', (e) => {
   $('update-button').hidden = true;
 });
 $('update-check').addEventListener('change', (e) => saveServerSetting({ updateCheck: e.currentTarget.checked }).then(() => refresh()));
+$('update-prereleases').addEventListener('change', (e) => saveServerSetting({ updatePrereleases: e.currentTarget.checked }).then(() => refresh()));
 // Check now asks whatever the setting is, as it's asked for.
 $('update-now').addEventListener('click', async (e) => {
   const button = e.currentTarget;

@@ -115,7 +115,7 @@ function currentSnapshot() {
         const last = saved.get();
         snap.saved = last ? { savedAt: last.savedAt, count: last.sessions.length } : null;
         // This version, whether to check for a newer one, and any found.
-        snap.updates = updates.summary(settings.get().updateCheck);
+        snap.updates = updateSummary();
         cached = snap;
         cachedAt = Date.now();
         return snap;
@@ -186,6 +186,8 @@ function configureApps() {
   llamacpp.configure({ url: s.llamacppUrl });
 }
 configureApps();
+
+const updateSummary = () => updates.summary(settings.get().updateCheck, settings.get().updatePrereleases);
 
 // Checks GitHub for a newer Tabherd, if Settings says to and it's been a day,
 // or at once for Check now, and tells open dashboards what it found.
@@ -484,8 +486,8 @@ const server = http.createServer(async (req, res) => {
       const result = settings.update(body);
       if (result.ok) configureApps();
       // Every dashboard hears the answer to checking for updates, and a yes
-      // checks now.
-      if (result.ok && 'updateCheck' in body) {
+      // checks now. Prereleases on or off needs no new check.
+      if (result.ok && ('updateCheck' in body || 'updatePrereleases' in body)) {
         cached = null;
         pushSnapshot();
         if (body.updateCheck) checkForUpdates().catch(() => {});
@@ -495,7 +497,7 @@ const server = http.createServer(async (req, res) => {
 
     // A newer Tabherd's notes, and how to update this copy, for the update dialog.
     if (req.method === 'GET' && url.pathname === '/api/updates') {
-      return send(res, 200, { ok: true, ...updates.details() });
+      return send(res, 200, { ok: true, ...updates.details(settings.get().updatePrereleases) });
     }
 
     // Check now: asks GitHub at once, whatever Settings says, as someone asked.
@@ -504,7 +506,7 @@ const server = http.createServer(async (req, res) => {
       if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
       const result = await checkForUpdates({ force: true });
       if (result.failedAt > result.checkedAt) return send(res, 502, { ok: false, error: `Couldn't reach GitHub: ${result.error}` });
-      return send(res, 200, { ok: true, ...updates.summary(settings.get().updateCheck) });
+      return send(res, 200, { ok: true, ...updateSummary() });
     }
 
     if (url.pathname === '/api/repos/open') {

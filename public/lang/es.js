@@ -465,6 +465,11 @@
   'Tell me when a new version is out': 'Avisarme cuando haya una versión nueva',
   "Once a day, the server asks GitHub for Tabherd's latest release. Nothing about you or your sessions is sent.":
     'Una vez al día, el servidor pregunta a GitHub por la última versión publicada de Tabherd. No se envía nada sobre ti ni sobre tus sesiones.',
+  'Tell me about betas and other prereleases too': 'Avisarme también de las betas y otras versiones preliminares',
+  'Prereleases have new features before a release does, and may have more bugs.':
+    'Las versiones preliminares traen funciones nuevas antes que una versión estable, y pueden tener más errores.',
+  'This copy is a prerelease, so newer prereleases are always included.':
+    'Esta copia es una versión preliminar, así que las versiones preliminares más nuevas siempre se incluyen.',
   'Check now': 'Comprobar ahora',
   'This is Tabherd {version}.': 'Esta es la versión {version} de Tabherd.',
   '{version} is out.': 'Ya está disponible la {version}.',

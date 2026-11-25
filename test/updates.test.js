@@ -22,7 +22,7 @@ test('versions are in Semantic Versioning order', () => {
   assert.equal(updates.compare('v0.5.0', '0.5.0'), 0);
 });
 
-test('a full release hears only of full releases; a prerelease of newer prereleases too', () => {
+test('a full release hears only of full releases, unless prereleases are asked for; a prerelease always hears of newer ones', () => {
   const releases = [
     release('v0.6.0-beta.2'),
     release('v0.5.1'),
@@ -32,6 +32,7 @@ test('a full release hears only of full releases; a prerelease of newer prerelea
     null,
   ];
   assert.equal(updates.newest(releases, '0.5.0').version, '0.5.1');
+  assert.equal(updates.newest(releases, '0.5.0', { prereleases: true }).version, '0.6.0-beta.2', 'asked for');
   assert.equal(updates.newest(releases, '0.6.0-beta.1').version, '0.6.0-beta.2');
   assert.equal(updates.newest(releases, '0.5.1'), null, 'nothing newer');
   assert.equal(updates.newest('not a list', '0.5.0'), null);
@@ -46,7 +47,7 @@ test('GitHub is asked only when allowed, at most once a day, or at once when ask
   let asked = 0;
   const fetchReleases = () => {
     asked++;
-    return [release('v99.0.0'), release('v0.0.1')];
+    return [release('v100.0.0-beta.1'), release('v99.0.0'), release('v0.0.1')];
   };
   const t = Date.UTC(2026, 10, 25);
 
@@ -56,9 +57,22 @@ test('GitHub is asked only when allowed, at most once a day, or at once when ask
 
   await updates.check({ enabled: true, now: t, fetchReleases });
   assert.equal(asked, 1);
-  const s = updates.summary(true);
-  assert.deepEqual(s, { check: true, version, latest: { version: '99.0.0', url: page('v99.0.0'), prerelease: false }, checkedAt: t, error: null });
-  assert.equal(JSON.parse(fs.readFileSync(path.join(process.env.TABHERD_DATA_DIR, 'updates.json'), 'utf8')).latest.version, '99.0.0', 'kept for the next run');
+  assert.deepEqual(updates.summary(true, false, '1.0.0'), {
+    check: true,
+    prereleases: false,
+    onPrerelease: false,
+    version: '1.0.0',
+    latest: { version: '99.0.0', url: page('v99.0.0'), prerelease: false },
+    checkedAt: t,
+    error: null,
+  });
+  // Turning prereleases on needs no new check; a prerelease counts them anyway.
+  assert.equal(updates.summary(true, true, '1.0.0').latest.version, '100.0.0-beta.1');
+  const onBeta = updates.summary(true, false, '1.0.0-beta.1');
+  assert.deepEqual([onBeta.prereleases, onBeta.onPrerelease, onBeta.latest.version], [true, true, '100.0.0-beta.1']);
+  assert.equal(updates.summary(true).version, version);
+  const kept = JSON.parse(fs.readFileSync(path.join(process.env.TABHERD_DATA_DIR, 'updates.json'), 'utf8'));
+  assert.deepEqual([kept.latest.version, kept.latestAny.version], ['99.0.0', '100.0.0-beta.1'], 'kept for the next run');
 
   await updates.check({ enabled: true, now: t + updates.DAY_MS - 1, fetchReleases });
   assert.equal(asked, 1, 'not again within the day');
@@ -70,7 +84,7 @@ test('GitHub is asked only when allowed, at most once a day, or at once when ask
   // A failed check keeps what the last one found, and tries again sooner.
   const failedAt = t + 1000 + 2 * updates.DAY_MS;
   await updates.check({ enabled: true, now: failedAt, fetchReleases: () => Promise.reject(new Error('offline')) });
-  assert.equal(updates.summary(true).latest.version, '99.0.0');
+  assert.equal(updates.summary(true, false, '1.0.0').latest.version, '99.0.0');
   assert.equal(updates.summary(true).error, 'offline');
   await updates.check({ enabled: true, now: failedAt + updates.RETRY_MS - 1, fetchReleases });
   assert.equal(asked, 3, 'not straight after a failure');
@@ -79,8 +93,8 @@ test('GitHub is asked only when allowed, at most once a day, or at once when ask
   assert.equal(updates.summary(true).error, null);
 
   // The dialog's details have the notes, which every snapshot leaves out.
-  assert.equal(updates.details().latest.notes, 'Notes for v99.0.0');
-  assert.equal(updates.summary(true).latest.notes, undefined);
+  assert.equal(updates.details(true).latest.notes, 'Notes for v100.0.0-beta.1');
+  assert.equal(updates.summary(true, true).latest.notes, undefined);
 });
 
 test('how this copy was installed is told from where it runs', () => {
