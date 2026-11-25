@@ -1055,8 +1055,10 @@ button:focus-visible, a:focus-visible, summary:focus-visible, .msg .text:focus-v
 .section-head b { font-weight: 600; color: var(--faint); }
 .section-head .badge { font-size: 12px; }
 
-/* The memory and models card, across the top of the grid. */
+/* The memory and models card, across the top of the grid. Whatever the card
+   size, it's as tall as what it shows, so it shrinks when its models close. */
 .memory-card { grid-column: 1 / -1; border-left-color: var(--accent); }
+.list.uniform .memory-card { height: auto; }
 /* Kept in view: it stops under the header, and the gap above it is filled
    so the cards scrolling past don't show through. A long list of models
    scrolls inside it, so it never takes most of the window. */
