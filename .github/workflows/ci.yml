@@ -91,6 +91,10 @@ jobs:
       - name: Build the app to try
         if: runner.os != 'Windows'
         run: node ../../scripts/build-release.js --target ${{ runner.os == 'Linux' && 'linux-x64' || 'macos-arm64' }} --app
+      # As the release checks it, so a change that breaks it shows up here.
+      - name: Check the ad hoc signature
+        if: runner.os == 'macOS'
+        run: codesign --verify --deep --strict --verbose=2 target/aarch64-apple-darwin/release/bundle/macos/Tabherd.app
       - uses: actions/upload-artifact@v7
         if: runner.os != 'Windows'
         with:
