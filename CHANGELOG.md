@@ -2,7 +2,14 @@
 
 Notable changes in each release. Version numbers follow [Semantic Versioning](https://semver.org). The release build takes each release's notes from its section here.
 
-## Unreleased
+## 0.6.0-beta.1 - 2026-11-24
+
+A prerelease, to try the desktop app on macOS and Linux before a release has it. On Windows it's the same as 0.5.0.
+
+- **macOS:** open the disk image for your Mac (arm64 for Apple silicon, x64 for Intel) and drag Tabherd to Applications. The app isn't signed by Apple yet, so the first time you open it macOS says it can't check it: choose Done, then System Settings → Privacy & Security → *Open Anyway*.
+- **Linux:** install the .deb with `sudo apt install ./tabherd-v0.6.0-beta.1-linux-x64.deb`, or the .rpm with `sudo dnf install ./tabherd-v0.6.0-beta.1-linux-x64.rpm`, or make the AppImage executable (`chmod +x`) and run it. Use arm64 in place of x64 on an ARM computer.
+
+What's new:
 
 - The desktop app comes to Linux: a .deb, an .rpm and an AppImage, for x64 and arm64, built on Ubuntu 22.04. They need WebKitGTK 4.1. Prereleases have the macOS app too, for Apple silicon and Intel Macs, signed ad hoc until it can be signed and notarized: macOS asks before opening it the first time. See [docs/desktop-app.md](docs/desktop-app.md).
 
