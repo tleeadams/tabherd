@@ -3263,11 +3263,163 @@ $('settings-nav').addEventListener('keydown', (e) => {
 });
 
 // Opens Settings, at the section holding `elementId` if given.
+// ---- Settings → Tickets ------------------------------------------------------
+
+// The ticket trackers, without their tokens, and how secrets are kept on this
+// computer. Loaded each time Settings opens.
+let trackerData = null;
+// What each tracker's last Test said, by its ID.
+const trackerTests = new Map();
+let editingTracker = null;
+
+const TRACKER_TYPES = { jira: 'Jira', linear: 'Linear', github: 'GitHub Issues', zendesk: 'Zendesk' };
+// What each type needs, and where its token comes from.
+const TRACKER_HELP = {
+  jira: tr(
+    "Address: your Jira site. Token: an API token from id.atlassian.com → Security → API tokens, for the email you sign in with. Leave the email empty for a Jira Data Center personal access token. Key prefixes are your projects' keys, to look up only those here; leave them empty to try any key.",
+  ),
+  linear: tr("Token: a personal API key, from Linear → Settings → Security & access. Key prefixes are your teams' keys; leave them empty to try any key."),
+  github: tr("Uses gh's own sign-in, so no token is kept here. If Test says so, run gh auth login."),
+  zendesk: tr(
+    'Address: your Zendesk, such as https://example.zendesk.com. An API token is made in Admin Center → Apps and integrations → Zendesk API. Zendesk is replacing API tokens with OAuth access tokens, which work here too. A key prefix, such as ZD, finds ZD-1234 in branch names.',
+  ),
+};
+const TRACKER_ADDRESSES = { jira: 'https://example.atlassian.net', zendesk: 'https://example.zendesk.com' };
+const SECRETS_KEPT = {
+  dpapi: tr('Tokens and trackers are saved encrypted, with a key Windows keeps for your user.'),
+  keychain: tr('Tokens and trackers are saved encrypted, with a key kept in your login Keychain.'),
+  'secret-service': tr('Tokens and trackers are saved encrypted, with a key kept in your keyring.'),
+  file: tr('Tokens and trackers are saved encrypted, with a key in ~/.tabherd/secret.key that only you can read. A keyring, such as GNOME Keyring or KWallet, would keep it safer.'),
+};
+
+async function loadTrackers() {
+  try {
+    trackerData = await api('/api/tickets/trackers/list');
+    renderTrackers();
+  } catch (err) {
+    $('tracker-protection').textContent = err.message;
+  }
+}
+
+function renderTrackers() {
+  if (!trackerData) return;
+  $('tracker-list').replaceChildren(
+    ...trackerData.trackers.map((t) => {
+      const tested = trackerTests.get(t.id);
+      const about = [TRACKER_TYPES[t.type], t.url.replace(/^https?:\/\//, ''), t.prefixes.join(', ')].filter(Boolean).join(' · ');
+      let note = null;
+      if (tested?.pending) note = el('span', { text: tr('Testing…') });
+      else if (tested) note = el('span', { class: tested.ok ? 'tracker-ok' : 'tracker-error', text: tested.ok ? tr('Connected as {name}', { name: tested.as }) : tested.error });
+      else if (t.type !== 'github' && !t.tokenSet) note = el('span', { class: 'tracker-error', text: tr('No token yet') });
+      return el(
+        'li',
+        { class: 'filter-row tracker-row' },
+        el('div', { class: 'filter-row-text' }, el('b', { text: t.name }), el('span', { text: about, title: about }), note),
+        el('button', { type: 'button', class: 'btn', disabled: Boolean(tested?.pending), onclick: () => testTracker(t.id) }, tr('Test')),
+        el('button', { type: 'button', class: 'btn', onclick: () => openTrackerDialog(t) }, tr('Edit')),
+        el('button', { type: 'button', class: `btn btn-stop ${armedClass(`tracker:${t.id}`)}`, 'data-armed': `tracker:${t.id}`, onclick: (e) => removeTracker(t, e.currentTarget) }, armedLabel(`tracker:${t.id}`, tr('Remove'))),
+      );
+    }),
+  );
+  const s = trackerData.secrets;
+  const notes = [s.state === 'failed' ? tr("Secrets can't be saved on this computer: {problem}", { problem: tr(s.problem) }) : SECRETS_KEPT[s.protection] || tr('Tokens and trackers are saved encrypted.')];
+  if (s.unreadable?.length) notes.push(tr('Some were encrypted by another user or on another computer, so they count as unset here. Enter them again.'));
+  $('tracker-protection').textContent = notes.join(' ');
+}
+
+async function testTracker(id) {
+  trackerTests.set(id, { pending: true });
+  renderTrackers();
+  try {
+    const r = await api('/api/tickets/trackers/test', { id });
+    trackerTests.set(id, { ok: true, as: r.as });
+  } catch (err) {
+    trackerTests.set(id, { ok: false, error: err.message });
+  }
+  renderTrackers();
+}
+
+async function removeTracker(t, button) {
+  if (!secondClick(`tracker:${t.id}`, button, tr('Remove'))) return;
+  try {
+    trackerData = await api('/api/tickets/trackers/remove', { id: t.id });
+    trackerTests.delete(t.id);
+    renderTrackers();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+function openTrackerDialog(t = null) {
+  editingTracker = t;
+  $('tracker-dialog-title').textContent = t ? tr('Edit tracker') : tr('New tracker');
+  $('tracker-save').textContent = t ? tr('Save') : tr('Add tracker');
+  // A tracker's type is fixed once it's made.
+  $('tracker-type').value = t?.type || 'jira';
+  $('tracker-type').disabled = Boolean(t);
+  $('tracker-name').value = t?.name || '';
+  $('tracker-url').value = t?.url || '';
+  $('tracker-email').value = t?.email || '';
+  $('tracker-auth').value = t?.auth || 'token';
+  $('tracker-token').value = '';
+  $('tracker-prefixes').value = (t?.prefixes || []).join(', ');
+  showTrackerFields();
+  $('tracker-dialog').showModal();
+  $('tracker-name').focus();
+}
+
+// Only the fields the chosen type uses.
+function showTrackerFields() {
+  const type = $('tracker-type').value;
+  const signsIn = type === 'jira' || type === 'zendesk';
+  $('tracker-url-field').hidden = !signsIn;
+  $('tracker-url').placeholder = TRACKER_ADDRESSES[type] || '';
+  $('tracker-auth-field').hidden = type !== 'zendesk';
+  $('tracker-email-field').hidden = !(type === 'jira' || (type === 'zendesk' && $('tracker-auth').value === 'token'));
+  $('tracker-token-field').hidden = type === 'github';
+  $('tracker-token').placeholder = editingTracker?.tokenSet ? tr('Set. Type a new one to change it') : '';
+  $('tracker-prefixes-field').hidden = type === 'github';
+  $('tracker-help').textContent = TRACKER_HELP[type];
+}
+$('tracker-type').addEventListener('change', showTrackerFields);
+$('tracker-auth').addEventListener('change', showTrackerFields);
+$('tracker-add').addEventListener('click', () => openTrackerDialog());
+for (const id of ['tracker-cancel', 'tracker-close']) $(id).addEventListener('click', () => $('tracker-dialog').close());
+
+$('tracker-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const token = $('tracker-token').value.trim();
+  const tracker = {
+    id: editingTracker?.id,
+    type: $('tracker-type').value,
+    name: $('tracker-name').value,
+    url: $('tracker-url').value,
+    email: $('tracker-email').value,
+    auth: $('tracker-auth').value,
+    prefixes: $('tracker-prefixes').value.split(/[\s,]+/).filter(Boolean),
+    // Left empty while editing, the saved token is kept.
+    ...(token || !editingTracker ? { token } : {}),
+  };
+  const button = $('tracker-save');
+  button.disabled = true;
+  try {
+    trackerData = await api('/api/tickets/trackers/save', { tracker });
+    $('tracker-dialog').close();
+    // A new or changed sign-in is tried straight away.
+    testTracker(trackerData.id);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    button.disabled = false;
+  }
+});
+
 function openSettings(elementId) {
   $('settings').showModal();
   groupsDraft = null;
   renderGroupEditor();
   renderFilterSettings();
+  loadTrackers();
   let section = elementId ? $(elementId)?.closest('.settings-section')?.id : null;
   if (!section) {
     try {

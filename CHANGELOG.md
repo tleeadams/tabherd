@@ -4,6 +4,8 @@ Notable changes in each release. Version numbers follow [Semantic Versioning](ht
 
 ## Unreleased
 
+- **Settings → Tickets**, the first step towards linking tickets to cards. Add your Jira sites, Linear, GitHub Issues and Zendesk, as many as you use, and **Test** each one's sign-in. See [the plan](docs/ticket-links.md).
+- **Secrets are encrypted** in `settings.json`: the trackers, with their addresses, emails and tokens, and LocalAI's key and LM Studio's token. The key is held by Windows (DPAPI), the macOS Keychain or your Linux keyring, so the file can't be read on another computer or by another user. Keys saved by older versions are encrypted on the first start. See [Secrets](README.md#secrets).
 - **Complete** on a session's card, beside Stop…, for work that's done: after a second click it closes the session, once its turn ends if it's working, and History marks it *Completed*, with a switch to hide completed sessions. Save and close doesn't save a completed session, and one resumed and asked something new is no longer complete. See [Complete](README.md#complete).
 - Stop, Cancel and Unload on a job's, model's or download's card, and Unload on the Memory and models card, kept their first click only until the card next changed, which for a busy model could be within two seconds. The first click now lasts its three seconds whatever the card does.
 - A LocalAI model that's working on a request, from LocalAI's chat or another app, gets a *Working* card. LocalAI doesn't list its requests, so the card goes by the processor the model's backend is using, and leaves a few seconds after it's quiet. One that worked half a minute or more dings when it stops.

@@ -877,6 +877,17 @@ button:focus-visible, a:focus-visible, summary:focus-visible, .msg .text:focus-v
 .filter-list-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 #filter-dialog { width: min(520px, calc(100vw - 32px)); }
 #filter-dialog form { padding: 16px 20px 18px; }
+
+/* Settings → Tickets: the trackers, and the editor. */
+.tracker-row .btn { padding: 4px 9px; font-size: 12.5px; }
+.filter-row-text .tracker-ok { color: var(--busy); }
+.filter-row-text .tracker-error { color: var(--danger); white-space: normal; }
+.tracker-protection { margin-top: 10px; }
+#tracker-dialog { width: min(520px, calc(100vw - 32px)); }
+#tracker-dialog form { padding: 16px 20px 18px; }
+/* A field the chosen type doesn't use. Without this, .field's grid shows it. */
+#tracker-dialog .field[hidden] { display: none; }
+.tracker-help { margin-top: 10px; }
 .filter-pick { margin-top: 14px !important; }
 .filter-pick legend { margin-bottom: 6px; }
 .checks { display: flex; flex-wrap: wrap; gap: 6px; }

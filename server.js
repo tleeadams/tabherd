@@ -25,6 +25,8 @@ const llamacpp = require('./lib/llamacpp');
 const saved = require('./lib/saved');
 const dismissed = require('./lib/dismissed');
 const completed = require('./lib/completed');
+const secrets = require('./lib/secrets');
+const trackers = require('./lib/trackers');
 const updates = require('./lib/updates');
 
 const PORT = Number(process.env.PORT) || 4317;
@@ -182,8 +184,35 @@ function send(res, status, body, type = 'application/json; charset=utf-8') {
   res.end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
 }
 
-// The settings as the page sees them: LocalAI's key only says whether one is set.
-const forPage = (s) => ({ ...s, localaiKey: '', localaiKeySet: Boolean(s.localaiKey), lmstudioKey: '', lmstudioKeySet: Boolean(s.lmstudioKey) });
+// The settings as the page sees them: a key only says whether one is set, and
+// the trackers come from their own routes.
+const forPage = (s) => ({
+  ...s,
+  localaiKey: '',
+  localaiKeySet: Boolean(s.localaiKey),
+  lmstudioKey: '',
+  lmstudioKeySet: Boolean(s.lmstudioKey),
+  trackers: undefined,
+});
+
+// Settings → Tickets: the trackers without their tokens, and how secrets are
+// kept on this computer.
+const trackersForPage = () => ({ ok: true, trackers: trackers.forPage(settings.get().trackers), secrets: { ...secrets.status(), unreadable: settings.unreadableKeys() } });
+
+async function trackerAction(res, name, body) {
+  const list = settings.get().trackers;
+  if (name === 'list') return send(res, 200, trackersForPage());
+  if (name === 'test') {
+    const t = list.find((x) => x.id === body.id);
+    if (!t) return send(res, 404, { ok: false, error: 'That tracker is gone.' });
+    return send(res, 200, await trackers.test(t));
+  }
+  const result = name === 'save' ? trackers.save(list, body.tracker) : { ok: true, list: trackers.remove(list, body.id) };
+  if (!result.ok) return send(res, 400, result);
+  const saved = settings.update({ trackers: result.list }, { internal: true });
+  if (!saved.ok) return send(res, 500, saved);
+  return send(res, 200, { ...trackersForPage(), id: result.tracker?.id });
+}
 
 // Other apps' addresses and keys, from Settings.
 function configureApps() {
@@ -517,6 +546,15 @@ const server = http.createServer(async (req, res) => {
         if (body.updateCheck) checkForUpdates().catch(() => {});
       }
       return send(res, result.ok ? 200 : 400, result.ok ? { ...result, settings: forPage(result.settings) } : result);
+    }
+
+    // Settings → Tickets: list, save, remove or test a tracker. Even listing
+    // needs the token, as it has the trackers' addresses and emails.
+    const trackerRoute = url.pathname.match(/^\/api\/tickets\/trackers\/(list|save|remove|test)$/);
+    if (trackerRoute) {
+      if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
+      if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
+      return await trackerAction(res, trackerRoute[1], await readJson(req));
     }
 
     // A newer Tabherd's notes, and how to update this copy, for the update dialog.
