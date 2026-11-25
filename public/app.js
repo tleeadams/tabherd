@@ -13,30 +13,114 @@ try {
   }
 } catch {}
 
+// Whether this browser has used the dashboard before, from the settings it
+// keeps, read before this visit keeps any. A first visit gets the tour.
+let firstVisit = false;
+try {
+  firstVisit = !Object.keys(localStorage).some((key) => key.startsWith('tabherd:'));
+} catch {}
+
+// ---- language ----------------------------------------------------------------
+
+// The page's words are written in English, and tr() gives each in the language
+// chosen in Settings → Appearance, from that language's table in public/lang,
+// or the English where the table has none. {name} in a text is filled from
+// vars. trn() picks the form for a count: a table gives one text for each of
+// the English forms, or, for a language with more forms than English, its
+// own forms (Intl.PluralRules' one, few, many, other) under the English plural.
+const LANGUAGES = { en: 'English', es: 'Español' };
+const LANGUAGE_KEY = 'tabherd:language';
+// Automatic follows the browser's languages, the first one there's a table for.
+const browserLanguage =
+  (navigator.languages || [navigator.language]).map((l) => String(l).toLowerCase().split('-')[0]).find((l) => l in LANGUAGES) || 'en';
+let languageChoice = 'auto';
+try {
+  languageChoice = localStorage.getItem(LANGUAGE_KEY) || 'auto';
+} catch {}
+const lang = languageChoice in LANGUAGES ? languageChoice : browserLanguage;
+// Each table is a script in public/lang, loaded before this one.
+const phrases = (lang !== 'en' && window.TABHERD_LANGUAGES?.[lang]) || {};
+const plurals = new Intl.PluralRules(lang);
+const fillIn = (text, vars) => (vars ? text.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m)) : text);
+const tr = (text, vars) => fillIn(typeof phrases[text] === 'string' ? phrases[text] : text, vars);
+function trn(n, one, other, vars) {
+  const forms = phrases[other];
+  if (forms && typeof forms === 'object') return fillIn(forms[plurals.select(n)] ?? forms.other, { n, ...vars });
+  return tr(n === 1 ? one : other, { n, ...vars });
+}
+
+// The page's own text, translated once as it loads. An element marked
+// data-i18n is translated whole, markup and all, where the words on either
+// side of a <b> or <code> need to move together; elsewhere each piece of text
+// is, leaving out code. So are titles, labels and placeholders.
+function translatePage() {
+  if (lang === 'en') return;
+  document.documentElement.lang = lang;
+  for (const node of document.querySelectorAll('[data-i18n]')) node.innerHTML = tr(node.innerHTML.replace(/\s+/g, ' ').trim());
+  const skip = (n) => n.parentElement.closest('[data-i18n], code, pre, script, style') || !n.nodeValue.trim();
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, { acceptNode: (n) => (skip(n) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT) });
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const text = n.nodeValue.trim();
+    n.nodeValue = n.nodeValue.replace(text, () => tr(text.replace(/\s+/g, ' ')));
+  }
+  for (const attr of ['title', 'aria-label', 'placeholder', 'data-title', 'alt']) {
+    for (const node of document.querySelectorAll(`[${attr}]`)) node.setAttribute(attr, tr(node.getAttribute(attr)));
+  }
+}
+translatePage();
+
 const STATUS = {
-  waiting: { label: 'Needs you', group: 'needs', rank: 0 },
-  busy: { label: 'Working', group: 'working', rank: 1 },
-  shell: { label: 'Shell running', group: 'working', rank: 2, hint: 'At the prompt while a background shell task runs' },
-  idle: { label: 'Idle', group: 'idle', rank: 3 },
-  unknown: { label: 'Starting', group: 'idle', rank: 4 },
+  waiting: { label: tr('Needs you'), group: 'needs', rank: 0 },
+  busy: { label: tr('Working'), group: 'working', rank: 1 },
+  shell: { label: tr('Shell running'), group: 'working', rank: 2, hint: tr('At the prompt while a background shell task runs') },
+  // A ComfyUI job or a download waiting its turn.
+  queued: { label: tr('Queued'), group: 'working', rank: 3, hint: tr('Waiting for the ones before it') },
+  idle: { label: tr('Idle'), group: 'idle', rank: 4 },
+  unknown: { label: tr('Starting'), group: 'idle', rank: 5 },
+  // A model loaded in LocalAI: not anyone's turn, so in no filter but All.
+  loaded: { label: tr('Loaded'), group: 'resource', rank: 6 },
 };
-// Filters that cover more than one status group. Todo is every agent whose
-// turn it is, and the to-do cards too.
-const FILTER_GROUPS = { todo: ['needs', 'idle'] };
+// The statuses a filter can pick: status groups, with Shell running apart
+// from the rest of Working.
+const FILTER_STATUSES = { needs: tr('Needs you'), working: tr('Working'), shell: tr('Shell running'), idle: tr('Idle') };
+const filterStatus = (x) => (x.status === 'shell' ? 'shell' : status(x).group);
+const MAX_FILTERS = 12;
 const PERMISSION_MODES = {
-  bypassPermissions: 'bypass',
-  acceptEdits: 'accept edits',
-  plan: 'plan mode',
-  auto: 'auto',
-  dontAsk: "don't ask",
-  'never-ask': 'never asks',
+  bypassPermissions: tr('bypass'),
+  acceptEdits: tr('accept edits'),
+  plan: tr('plan mode'),
+  auto: tr('auto'),
+  dontAsk: tr("don't ask"),
+  'never-ask': tr('never asks'),
 };
 // Which app each session is, on its card and in the history.
-const APPS = { claude: 'Claude', codex: 'Codex' };
-const appTag = (x) => el('span', { class: `app app-${x.app || 'claude'}`, title: x.app === 'codex' ? 'A Codex session' : 'A Claude Code session' }, APPS[x.app] || APPS.claude);
+const APPS = { claude: 'Claude', codex: 'Codex', copilot: 'Copilot', comfy: 'Comfy', localai: 'LocalAI', ollama: 'Ollama', lmstudio: 'LM Studio', llamacpp: 'llama.cpp' };
+// Cards for things other than sessions: ComfyUI's jobs, LocalAI's models,
+// downloads and chats, and the other model servers' loaded models.
+const isItem = (a) => ['comfy', 'localai', 'ollama', 'lmstudio', 'llamacpp'].includes(a.app);
+const APP_HINTS = {
+  claude: tr('A Claude Code session'),
+  codex: tr('A Codex session'),
+  copilot: tr('A GitHub Copilot session'),
+  comfy: tr('A ComfyUI job'),
+  localai: tr('From LocalAI'),
+  ollama: tr('From Ollama'),
+  lmstudio: tr('From LM Studio'),
+  llamacpp: tr("From llama.cpp's server"),
+};
+const appTag = (x) => el('span', { class: `app app-${x.app || 'claude'}`, title: APP_HINTS[x.app] || APP_HINTS.claude }, APPS[x.app] || APPS.claude);
 // The colours a group can have, as the server knows them. Each is set for
 // light and dark in the stylesheet, as .g-<name>.
-const GROUP_COLORS = { rose: 'Rose', orange: 'Orange', olive: 'Olive', teal: 'Teal', indigo: 'Indigo', plum: 'Plum', brown: 'Brown', slate: 'Slate' };
+const GROUP_COLORS = {
+  rose: tr('Rose'),
+  orange: tr('Orange'),
+  olive: tr('Olive'),
+  teal: tr('Teal'),
+  indigo: tr('Indigo'),
+  plum: tr('Plum'),
+  brown: tr('Brown'),
+  slate: tr('Slate'),
+};
 
 const $ = (id) => document.getElementById(id);
 const list = $('list');
@@ -62,28 +146,42 @@ function el(tag, props, ...children) {
   return node;
 }
 
+// Enter in a text box would otherwise submit the Settings form, which closes it.
+const noSubmit = (then) => (e) => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  then?.(e.currentTarget);
+};
+
 const now = () => Date.now() + clockSkew;
 const ms = (t) => (typeof t === 'number' ? t : t ? Date.parse(t) : NaN);
 
+// Seconds, minutes, hours and days, short.
+const UNITS = { s: tr('{n}s'), m: tr('{n}m'), h: tr('{n}h'), d: tr('{n}d') };
+const unit = (u, n) => fillIn(UNITS[u], { n });
+
 function dur(delta) {
   const s = Math.max(0, Math.floor(delta / 1000));
-  if (s < 60) return `${s}s`;
+  if (s < 60) return unit('s', s);
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m`;
+  if (m < 60) return unit('m', m);
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ${m % 60}m`;
-  return `${Math.floor(h / 24)}d ${h % 24}h`;
+  if (h < 24) return `${unit('h', h)} ${unit('m', m % 60)}`;
+  return `${unit('d', Math.floor(h / 24))} ${unit('h', h % 24)}`;
 }
 
-function since(t, suffix = '') {
+// How long since then, kept up to date by tick(), as "5m ago" with ago.
+const sinceText = (at, ago) => (ago ? tr('{time} ago', { time: dur(now() - at) }) : dur(now() - at));
+
+function since(t, ago = false) {
   const at = ms(t);
   if (!Number.isFinite(at)) return null;
-  return el('span', { class: 'since', 'data-since': at, 'data-suffix': suffix, title: new Date(at).toLocaleString() }, dur(now() - at) + suffix);
+  return el('span', { class: 'since', 'data-since': at, 'data-ago': ago, title: new Date(at).toLocaleString(lang) }, sinceText(at, ago));
 }
 
 function tick() {
   for (const node of document.querySelectorAll('[data-since]')) {
-    node.textContent = dur(now() - Number(node.dataset.since)) + node.dataset.suffix;
+    node.textContent = sinceText(Number(node.dataset.since), 'ago' in node.dataset);
   }
 }
 
@@ -109,7 +207,10 @@ function shortPath(p) {
 const status = (a) => STATUS[a.status] || STATUS.unknown;
 // What the terminal tab shows, falling back to Claude's own names.
 const displayName = (a) => a.terminalTitle || a.title || a.name;
-const resumeCommand = (a) => `cd "${a.cwd}"; ${a.app === 'codex' ? 'codex resume' : 'claude --resume'} ${a.id}`;
+const RESUME = { codex: (id) => `codex resume ${id}`, copilot: (id) => `copilot --resume=${id}`, claude: (id) => `claude --resume ${id}` };
+const resumeCommand = (a) => `cd "${a.cwd}"; ${(RESUME[a.app] || RESUME.claude)(a.id)}`;
+// A Copilot session inside VS Code can only be gone to: VS Code runs it.
+const inVsCode = (a) => a.app === 'copilot' && a.entrypoint === 'vscode';
 
 function toast(message, isError) {
   const t = $('toast');
@@ -151,7 +252,8 @@ async function api(url, body) {
   let res = await request();
   if (res.status === 403 && (await renewToken())) res = await request();
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  // The server's messages are English; the fixed ones are in the tables too.
+  if (!res.ok || !data.ok) throw new Error(data.error ? tr(data.error) : tr('Request failed ({status})', { status: res.status }));
   return data;
 }
 
@@ -168,15 +270,17 @@ async function renewToken() {
   }
 }
 
-const post = (agent, action) => api(`/api/agents/${agent.id}/${action}`);
+const post = (agent, action) => api(`/api/agents/${encodeURIComponent(agent.id)}/${action}`);
 
 // The server says whether this computer has a terminal it can drive. A Codex
 // session's window is known once its tab's title names it.
 // A background run, with `claude -p`, has no window.
-const canFocus = (a) => Boolean(snap?.terminals) && (!a.kind || a.kind === 'interactive') && !a.background && Boolean(a.pid);
+// Other apps' cards say which buttons they have.
+const canFocus = (a) =>
+  Boolean(snap?.terminals) && !a.background && Boolean(a.pid) && (a.actions ? a.actions.includes('focus') : !a.kind || a.kind === 'interactive');
 // Codex takes Catch up's prompt through its own service, so it doesn't need
 // the window; Claude's is typed into the window.
-const canCatchUp = (a) => (a.app === 'codex' ? !a.kind || a.kind === 'interactive' : canFocus(a));
+const canCatchUp = (a) => !inVsCode(a) && (a.app === 'codex' ? !a.kind || a.kind === 'interactive' : canFocus(a));
 // The app a to-do starts: its own choice, or the one Settings names.
 const todoApp = (t) => t.app || snap?.newSessionApp || 'claude';
 
@@ -184,9 +288,15 @@ async function goToWindow(a, button) {
   if (button) button.disabled = true;
   try {
     const r = await post(a, 'focus');
-    if (r.terminal && !r.tab) toast(`Opened ${r.window}, but couldn't tell which tab is ${displayName(a)}`, true);
-    else if (!r.raised) toast(`Found ${r.terminal ? 'the tab' : r.window}, but Windows kept it in the background. Check the taskbar.`, true);
-    else toast(r.terminal ? `Switched to ${displayName(a)}` : `Opened ${r.window}`);
+    if (r.terminal && !r.tab) toast(tr("Opened {window}, but couldn't tell which tab is {name}", { window: r.window, name: displayName(a) }), true);
+    else if (!r.raised)
+      toast(
+        r.terminal
+          ? tr('Found the tab, but Windows kept it in the background. Check the taskbar.')
+          : tr('Found {window}, but Windows kept it in the background. Check the taskbar.', { window: r.window }),
+        true,
+      );
+    else toast(r.terminal ? tr('Switched to {name}', { name: displayName(a) }) : tr('Opened {window}', { window: r.window }));
   } catch (err) {
     toast(err.message, true);
   } finally {
@@ -199,13 +309,15 @@ async function catchUp(a, button) {
   try {
     const r = await post(a, 'catch-up');
     // A Codex session's window may not be known, which isn't worth a mention.
-    const where = r.raised || (a.app === 'codex' && !a.pid) ? '' : ' Its window stayed in the background.';
-    const after = a.app === 'codex' ? 'turn' : 'step';
-    toast(
-      a.status === 'busy'
-        ? `Queued for ${displayName(a)}. It will answer after its current ${after}.${where}`
-        : `Asked ${displayName(a)} to catch you up.${where}`,
-    );
+    const where = r.raised || (a.app === 'codex' && !a.pid) ? '' : ` ${tr('Its window stayed in the background.')}`;
+    const name = displayName(a);
+    const asked =
+      a.status !== 'busy'
+        ? tr('Asked {name} to catch you up.', { name })
+        : a.app === 'codex'
+          ? tr('Queued for {name}. It will answer after its current turn.', { name })
+          : tr('Queued for {name}. It will answer after its current step.', { name });
+    toast(asked + where);
     refresh();
   } catch (err) {
     toast(err.message, true);
@@ -224,32 +336,38 @@ const groupDef = (id) => (id && (snap?.groups || []).find((g) => g.id === id)) |
 // shows while the card is pointed at or focused.
 function groupChip(x, cwd) {
   const g = groupDef(x.group);
-  const how = x.placed ? 'put there by hand' : 'by its folder';
+  const title = g
+    ? x.placed
+      ? tr('In {group}, put there by hand. Click to change.', { group: g.name })
+      : tr('In {group}, by its folder. Click to change.', { group: g.name })
+    : x.placed
+      ? tr('In no group, put there by hand. Click to choose one.')
+      : tr('In no group. Click to choose one.');
   return el(
     'button',
     {
       type: 'button',
       class: g ? `group-chip g-${g.color}` : 'group-chip none',
-      title: g ? `In ${g.name}, ${how}. Click to change.` : `In no group${x.placed ? ', put there by hand' : ''}. Click to choose one.`,
+      title,
       'aria-haspopup': 'menu',
       onclick: (e) => openGroupMenu(x, cwd, e.currentTarget),
     },
     el('span', { class: 'dot' }),
-    g ? g.name : 'No group',
+    g ? g.name : tr('No group'),
   );
 }
 
 // The group's name in its colour, where it can't be changed, as in History.
 function groupTag(x) {
   const g = groupDef(x.group);
-  return g ? el('span', { class: `group-chip static g-${g.color}`, title: `In ${g.name}` }, el('span', { class: 'dot' }), g.name) : null;
+  return g ? el('span', { class: `group-chip static g-${g.color}`, title: tr('In {group}', { group: g.name }) }, el('span', { class: 'dot' }), g.name) : null;
 }
 
 async function placeIn(x, group) {
   try {
     await api('/api/groups/place', { id: x.id, group });
     const g = groupDef(group);
-    toast(group === 'auto' ? 'Following its folder again' : g ? `Moved to ${g.name}` : 'Moved out of its group');
+    toast(group === 'auto' ? tr('Following its folder again') : g ? tr('Moved to {group}', { group: g.name }) : tr('Moved out of its group'));
   } catch (err) {
     toast(err.message, true);
   }
@@ -277,7 +395,7 @@ function openGroupMenu(x, cwd, button) {
     close();
     placeIn(x, group);
   };
-  const name = el('input', { type: 'text', value: baseName(cwd), maxlength: '40', 'aria-label': 'New group name', autocomplete: 'off', spellcheck: 'false' });
+  const name = el('input', { type: 'text', value: baseName(cwd), maxlength: '40', 'aria-label': tr('New group name'), autocomplete: 'off', spellcheck: 'false' });
   const create = async (e) => {
     e.preventDefault();
     const g = { id: crypto.randomUUID(), name: name.value.trim(), color: freeColor(groups), folders: [cwd] };
@@ -287,7 +405,7 @@ function openGroupMenu(x, cwd, button) {
       // Moved by hand before, it now follows its folder into the new group.
       if (x.placed) await api('/api/groups/place', { id: x.id, group: 'auto' });
       close();
-      toast(`Made ${g.name} for ${shortPath(cwd)}`);
+      toast(tr('Made {group} for {folder}', { group: g.name, folder: shortPath(cwd) }));
     } catch (err) {
       toast(err.message, true);
     }
@@ -295,32 +413,140 @@ function openGroupMenu(x, cwd, button) {
   };
   const items = [
     ...groups.map((g) => item([el('span', { class: `dot g-${g.color}` }), g.name], x.group === g.id, choose(g.id))),
-    item([el('span', { class: 'dot none' }), 'No group'], !x.group, choose(null)),
-    x.placed ? item('Follow its folder again', null, choose('auto'), { title: 'Go back to the group its folder is in' }) : null,
+    item([el('span', { class: 'dot none' }), tr('No group')], !x.group, choose(null)),
+    x.placed ? item(tr('Follow its folder again'), null, choose('auto'), { title: tr('Go back to the group its folder is in') }) : null,
     el('hr'),
     cwd
       ? el(
           'form',
           { class: 'menu-new', onsubmit: create },
-          el('label', { text: `New group for ${shortPath(cwd)}` }),
-          el('div', { class: 'menu-new-row' }, name, el('button', { type: 'submit', class: 'btn btn-primary' }, 'Make')),
+          el('label', { text: tr('New group for {folder}', { folder: shortPath(cwd) }) }),
+          el('div', { class: 'menu-new-row' }, name, el('button', { type: 'submit', class: 'btn btn-primary' }, tr('Make'))),
         )
       : null,
-    item('Edit groups…', null, () => {
+    item(tr('Edit groups…'), null, () => {
       close();
       openSettings('groups-setting');
     }),
   ];
   menu.replaceChildren(...items.filter(Boolean));
+  showMenu(menu, button);
+  menu.querySelector('[aria-checked="true"]')?.focus();
+}
+
+// Opens a menu under the button that opened it, kept on screen.
+function showMenu(menu, button) {
   menu.showPopover();
-  // Under the button, kept on screen.
   const r = button.getBoundingClientRect();
   const w = menu.offsetWidth;
   const h = menu.offsetHeight;
   menu.style.left = `${Math.max(8, Math.min(r.left, innerWidth - w - 8))}px`;
   menu.style.top = `${r.bottom + 4 + h > innerHeight - 8 ? Math.max(8, r.top - h - 4) : r.bottom + 4}px`;
-  menu.querySelector('[aria-checked="true"]')?.focus();
 }
+
+// The address boxes under Settings → Other apps, and the settings they set.
+const APP_ADDRESSES = [
+  ['comfy-url', 'comfyUrl'],
+  ['localai-url', 'localaiUrl'],
+  ['ollama-url', 'ollamaUrl'],
+  ['lmstudio-url', 'lmstudioUrl'],
+  ['llamacpp-url', 'llamacppUrl'],
+];
+
+// Codex or the Copilot CLI is installed, so there's an app to choose.
+const otherAppsInstalled = () => Boolean(snap?.codexInstalled || snap?.copilotInstalled);
+
+// Only the apps that are installed are offered in a Claude, Codex or Copilot choice.
+function showInstalledChoices(name) {
+  for (const r of document.querySelectorAll(`input[name="${name}"]`)) {
+    r.closest('label').hidden = (r.value === 'codex' && !snap?.codexInstalled) || (r.value === 'copilot' && !snap?.copilotInstalled);
+  }
+}
+
+// ---- save and close, resume ----------------------------------------------------
+
+// The sessions Save and close takes: Claude and Codex sessions in a terminal.
+const closable = (a) =>
+  (a.app === 'claude' && !a.background && (!a.kind || a.kind === 'interactive') && (!a.entrypoint || a.entrypoint === 'cli')) ||
+  a.app === 'codex' ||
+  (a.app === 'copilot' && a.entrypoint === 'cli');
+const isWorking = (a) => a.status === 'busy' || a.status === 'shell';
+
+function openSessionsMenu(button) {
+  const menu = $('sessions-menu');
+  const open = (snap?.agents || []).filter(closable);
+  const last = snap?.saved;
+  const item = (label, onclick, disabled) => el('button', { type: 'button', class: 'menu-item', role: 'menuitem', disabled: disabled || null, onclick }, label);
+  menu.replaceChildren(
+    item(open.length ? tr('Save and close all ({n})', { n: open.length }) : tr('No sessions to close'), () => (menu.hidePopover(), confirmSaveClose()), !open.length),
+    last?.count
+      ? item(
+          [
+            el('span', { text: tr('Resume last session') }),
+            el('span', { class: 'menu-meta', text: tr('{n} · saved {time} ago', { n: last.count, time: dur(now() - last.savedAt) }) }),
+          ],
+          () => (menu.hidePopover(), resumeLast()),
+        )
+      : item(tr('No saved session to resume'), null, true),
+    snap?.closing?.length
+      ? el('p', { class: 'menu-note', text: trn(snap.closing.length, '{n} will close when its turn ends', '{n} will close when their turns end') })
+      : null,
+  );
+  showMenu(menu, button);
+}
+
+function confirmSaveClose() {
+  const open = (snap?.agents || []).filter(closable);
+  const busy = open.filter(isWorking);
+  const left = (snap?.agents || []).filter((a) => !closable(a) && !isItem(a) && !a.background);
+  $('save-close-title').textContent = trn(open.length, 'Save and close {n} session?', 'Save and close {n} sessions?');
+  $('save-close-list').replaceChildren(
+    ...open.map((a) => el('li', {}, el('span', { class: 'save-close-name', text: displayName(a) }), el('span', { class: `badge s-${a.status}` }, el('span', { class: 'dot' }), status(a).label))),
+  );
+  $('save-close-busy').hidden = !busy.length;
+  $('save-close-busy-text').textContent = trn(busy.length, '{n} is still working:', '{n} are still working:');
+  $('save-close-left').hidden = !left.length;
+  $('save-close-left').textContent = left.length ? trn(left.length, '{n} in VS Code or another app stays open.', '{n} in VS Code or another app stay open.') : '';
+  const dialog = $('save-close');
+  dialog.returnValue = '';
+  dialog.onclose = async () => {
+    if (dialog.returnValue !== 'save') return;
+    const wait = busy.length > 0 && document.querySelector('input[name="save-close-busy"]:checked')?.value === 'wait';
+    try {
+      const r = await api('/api/sessions/save-close', { wait });
+      const parts = [tr('Saved {saved}, closed {closed}', { saved: r.saved, closed: r.closed })];
+      if (r.waiting) parts.push(tr('{n} closing when done', { n: r.waiting }));
+      if (r.failed.length) parts.push(tr("couldn't close {list}", { list: r.failed.map((f) => `${f.name} (${tr(f.error)})`).join(', ') }));
+      toast(parts.join('. '), r.failed.length > 0);
+    } catch (err) {
+      toast(err.message, true);
+    }
+    refresh();
+  };
+  dialog.showModal();
+}
+
+async function resumeLast() {
+  try {
+    const r = await api('/api/sessions/resume-last');
+    const skipped = r.skipped.length ? `. ${tr('Skipped {list}', { list: r.skipped.map((s) => `${s.name || tr('one')} (${tr(s.why)})`).join(', ') })}` : '';
+    toast(trn(r.opened, 'Opening {n} session', 'Opening {n} sessions') + skipped, r.skipped.length > 0 && !r.opened);
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+async function keepOpen(a) {
+  try {
+    await api('/api/sessions/keep-open', { id: a.id });
+    toast(tr('{name} stays open', { name: displayName(a) }));
+  } catch (err) {
+    toast(err.message, true);
+  }
+  refresh();
+}
+
+$('sessions-button').addEventListener('click', (e) => openSessionsMenu(e.currentTarget));
 
 // ---- card ------------------------------------------------------------------
 
@@ -330,7 +556,7 @@ function expandable(id, text) {
     class: 'text',
     text,
     tabindex: '0',
-    title: 'Click to expand',
+    title: tr('Click to expand'),
     onclick: (e) => {
       const box = e.currentTarget.parentElement;
       box.classList.toggle('expanded');
@@ -346,7 +572,7 @@ function message(a, key, label, m, cls) {
   return el(
     'div',
     { class: `msg ${cls || ''}${expanded.has(id) ? ' expanded' : ''}` },
-    el('span', { class: 'label' }, m.at ? [`${label} · `, since(m.at, ' ago')] : label),
+    el('span', { class: 'label' }, m.at ? [`${label} · `, since(m.at, true)] : label),
     expandable(id, m.text),
   );
 }
@@ -362,9 +588,9 @@ function todoNote(a) {
     el(
       'div',
       { class: 'todo-msg-head' },
-      el('span', { class: 'label', text: 'To-do' }),
+      el('span', { class: 'label', text: tr('To-do') }),
       el('b', { class: 'todo-msg-title', text: t.title, title: t.title }),
-      el('button', { type: 'button', class: 'link-btn', title: 'Copy the title and notes, to paste into Claude', onclick: () => copyTodo(t) }, 'Copy'),
+      el('button', { type: 'button', class: 'link-btn', title: tr('Copy the title and notes, to paste into Claude'), onclick: () => copyTodo(t) }, tr('Copy')),
     ),
     t.notes ? expandable(id, t.notes) : null,
   );
@@ -373,19 +599,21 @@ function todoNote(a) {
 function nowBlock(a) {
   const rows = [];
   if (a.status === 'waiting') {
-    rows.push(el('div', { class: 'now-row' }, el('span', { class: 'what', text: 'Waiting on you' }), el('span', { class: 'detail', text: a.waitingFor || '' })));
+    rows.push(el('div', { class: 'now-row' }, el('span', { class: 'what', text: tr('Waiting on you') }), el('span', { class: 'detail', text: tr(a.waitingFor || '') })));
   }
   for (const t of a.tools || []) {
     rows.push(el('div', { class: 'now-row' }, el('span', { class: 'what', text: t.name }), el('span', { class: 'detail', text: t.detail, title: t.detail }), since(t.at)));
   }
   const runningSubs = a.subagents?.running.length || 0;
   if (a.status === 'busy' && !a.tools?.length) {
-    const what = runningSubs ? 'Waiting on subagents' : 'Thinking';
-    const detail = runningSubs ? `${runningSubs} running` : '';
+    const what = runningSubs ? tr('Waiting on subagents') : tr('Thinking');
+    const detail = runningSubs ? tr('{n} running', { n: runningSubs }) : '';
     rows.push(el('div', { class: 'now-row' }, el('span', { class: 'what', text: what }), el('span', { class: 'detail', text: detail }), since(a.lastEventAt)));
   }
   if (a.status === 'shell' && !a.tools?.length) {
-    rows.push(el('div', { class: 'now-row' }, el('span', { class: 'what', text: 'Background shell' }), el('span', { class: 'detail', text: 'running while the session waits at the prompt' })));
+    rows.push(
+      el('div', { class: 'now-row' }, el('span', { class: 'what', text: tr('Background shell') }), el('span', { class: 'detail', text: tr('running while the session waits at the prompt') })),
+    );
   }
   if (a.detail) rows.push(el('div', { class: 'now-row' }, el('span', { class: 'detail', text: a.detail })));
   return rows.length ? el('div', { class: `now${a.status === 'waiting' ? ' waiting' : ''}` }, rows) : null;
@@ -396,9 +624,9 @@ function activity(a) {
   const parts = [todoNote(a), nowBlock(a)];
   const replyFresh = a.lastReply && ms(a.lastReply.at) >= promptAt;
   const recapFresh = a.recap && ms(a.recap.at) >= Math.max(promptAt, replyFresh ? ms(a.lastReply.at) : 0);
-  if (recapFresh && a.status !== 'busy') parts.push(message(a, 'recap', 'Recap', a.recap));
-  else if (replyFresh) parts.push(message(a, 'reply', a.status === 'busy' ? 'Latest update' : 'Last reply', a.lastReply));
-  if (a.lastPrompt) parts.push(message(a, 'prompt', 'Last prompt', a.lastPrompt, 'prompt'));
+  if (recapFresh && a.status !== 'busy') parts.push(message(a, 'recap', tr('Recap'), a.recap));
+  else if (replyFresh) parts.push(message(a, 'reply', a.status === 'busy' ? tr('Latest update') : tr('Last reply'), a.lastReply));
+  if (a.lastPrompt) parts.push(message(a, 'prompt', tr('Last prompt'), a.lastPrompt, 'prompt'));
   return el('div', { class: 'activity' }, parts);
 }
 
@@ -412,15 +640,15 @@ function stats(a) {
     items.push(
       el(
         'span',
-        { class: 'ctx', title: `Context: ${a.contextTokens.toLocaleString()} of ${a.contextLimit.toLocaleString()} tokens` },
+        { class: 'ctx', title: tr('Context: {used} of {limit} tokens', { used: a.contextTokens.toLocaleString(lang), limit: a.contextLimit.toLocaleString(lang) }) },
         el('span', { class: `bar${pct > 85 ? ' high' : pct > 60 ? ' mid' : ''}` }, fill),
-        `${tokens(a.contextTokens)} / ${tokens(a.contextLimit)} context`,
+        tr('{used} / {limit} context', { used: tokens(a.contextTokens), limit: tokens(a.contextLimit) }),
       ),
     );
   }
-  if (a.outputTokens) items.push(el('span', { title: 'Output tokens generated this session', text: `${tokens(a.outputTokens)} out` }));
-  if (a.prompts) items.push(el('span', { text: `${a.prompts} prompt${a.prompts === 1 ? '' : 's'}` }));
-  if (a.compactions) items.push(el('span', { text: `${a.compactions} compaction${a.compactions === 1 ? '' : 's'}` }));
+  if (a.outputTokens) items.push(el('span', { title: tr('Output tokens generated this session'), text: tr('{n} out', { n: tokens(a.outputTokens) }) }));
+  if (a.prompts) items.push(el('span', { text: trn(a.prompts, '{n} prompt', '{n} prompts') }));
+  if (a.compactions) items.push(el('span', { text: trn(a.compactions, '{n} compaction', '{n} compactions') }));
   return items.length ? el('div', { class: 'stats' }, items) : null;
 }
 
@@ -428,8 +656,8 @@ function subagents(a) {
   const s = a.subagents;
   if (!s || (!s.running.length && !s.finishedTotal)) return null;
   const open = subsOpen.has(a.id) ? subsOpen.get(a.id) : s.running.length > 0;
-  const summary = [`Subagents · ${s.running.length} running`];
-  if (s.finishedTotal) summary.push(` · ${s.finishedTotal} finished`);
+  const summary = [tr('Subagents · {n} running', { n: s.running.length })];
+  if (s.finishedTotal) summary.push(` · ${tr('{n} finished', { n: s.finishedTotal })}`);
   const rows = [
     ...s.running.map((sub) => {
       const tool = sub.tools[sub.tools.length - 1];
@@ -440,17 +668,17 @@ function subagents(a) {
         el('span', { class: 'type', text: sub.type }),
         el('span', { class: 'desc', text: sub.description, title: sub.description }),
         since(sub.startedAt),
-        el('span', { class: 'tool', text: tool ? `${tool.name} · ${tool.detail}` : sub.lastReply?.text || 'Thinking…' }),
+        el('span', { class: 'tool', text: tool ? `${tool.name} · ${tool.detail}` : sub.lastReply?.text || tr('Thinking…') }),
       );
     }),
     ...s.finished.map((sub) =>
       el(
         'li',
-        { class: `sub ${sub.status}`, title: sub.status === 'done' ? 'Finished' : 'Ended without finishing' },
+        { class: `sub ${sub.status}`, title: sub.status === 'done' ? tr('Finished') : tr('Ended without finishing') },
         el('span', { class: 'dot' }),
         el('span', { class: 'type', text: sub.type }),
         el('span', { class: 'desc', text: sub.description, title: sub.description }),
-        since(sub.updatedAt, ' ago'),
+        since(sub.updatedAt, true),
       ),
     ),
   ];
@@ -464,7 +692,7 @@ function subagents(a) {
     },
     el('summary', {}, summary.join('')),
     el('ul', {}, rows),
-    more > 0 ? el('p', { class: 'more', text: `and ${more} more finished` }) : null,
+    more > 0 ? el('p', { class: 'more', text: tr('and {n} more finished', { n: more }) }) : null,
   );
 }
 
@@ -474,49 +702,160 @@ function actions(a) {
   return el(
     'div',
     { class: 'actions' },
-    canFocus(a) ? btn('Go to window', (e) => goToWindow(a, e.currentTarget), 'btn-primary') : null,
+    canFocus(a) ? btn(tr('Go to window'), (e) => goToWindow(a, e.currentTarget), 'btn-primary') : null,
     canCatchUp(a)
-      ? btn('Catch up', (e) => catchUp(a, e.currentTarget), 'btn-accent', {
+      ? btn(tr('Catch up'), (e) => catchUp(a, e.currentTarget), 'btn-accent', {
           disabled: waiting,
           title: waiting
-            ? 'Waiting on a prompt or dialog. Answer it with Go to window first.'
-            : 'Go to the window and ask where things stand',
+            ? tr('Waiting on a prompt or dialog. Answer it with Go to window first.')
+            : tr('Go to the window and ask where things stand'),
         })
       : null,
-    btn('Open folder', async (e) => {
+    btn(tr('Open folder'), async (e) => {
       const b = e.currentTarget;
       b.disabled = true;
       try {
         await post(a, 'open-folder');
-        toast(`Opened ${shortPath(a.cwd)}`);
+        toast(tr('Opened {folder}', { folder: shortPath(a.cwd) }));
       } catch (err) {
         toast(err.message, true);
       } finally {
         b.disabled = false;
       }
     }),
-    btn('Copy resume command', async () => {
+    btn(tr('Copy resume command'), async () => {
       await copy(resumeCommand(a));
-      toast('Resume command copied');
+      toast(tr('Resume command copied'));
     }),
-    btn('Stop…', () => confirmStop(a), 'btn-stop'),
+    inVsCode(a) ? null : btn(tr('Stop…'), () => confirmStop(a), 'btn-stop'),
   );
 }
 
+// A card for a ComfyUI job, or a LocalAI model, download or chat. The server
+// gives what it shows, `facts` as label and value pairs, and which buttons it
+// has, as `actions`.
+function itemCard(a) {
+  const st = status(a);
+  const can = (action) => (a.actions || []).includes(action);
+  const btn = (label, onclick, cls = '', props = {}) => el('button', { type: 'button', class: `btn ${cls}`, onclick, ...props }, label);
+  const proc = [a.pid && !isItem(a) ? `PID ${a.pid}` : null, a.memBytes ? `${Math.round(a.memBytes / 1048576)} MB` : null].filter(Boolean);
+  const pct = a.progress ? Math.max(0, Math.min(100, (a.progress.value / (a.progress.max || 100)) * 100)) : null;
+  const fill = el('i');
+  if (pct !== null) fill.style.width = `${pct.toFixed(1)}%`;
+  return el(
+    'article',
+    { class: `card item s-${a.status}`, 'data-id': a.id },
+    el(
+      'div',
+      { class: 'card-head' },
+      el('span', { class: `badge s-${a.status}`, title: st.hint }, el('span', { class: 'dot' }), a.statusLabel ? tr(a.statusLabel) : st.label),
+      since(a.statusSince),
+      el('span', { class: 'spacer' }),
+      appTag(a),
+      proc.length ? el('span', { class: 'proc', text: proc.join(' · ') }) : null,
+    ),
+    el(
+      'h2',
+      { class: 'name' },
+      canFocus(a) ? el('button', { type: 'button', class: 'name-link', title: tr('Go to its window'), onclick: (e) => goToWindow(a, e.currentTarget) }, tr(a.name)) : tr(a.name),
+    ),
+    a.host || a.where ? el('div', { class: 'where' }, el('span', { class: 'path', text: [a.host, a.where].filter(Boolean).join(' · ') })) : null,
+    el(
+      'div',
+      { class: 'card-body' },
+      a.status === 'waiting' && a.waitingFor
+        ? el('div', { class: 'now waiting' }, el('div', { class: 'now-row' }, el('span', { class: 'detail', text: tr(a.waitingFor), title: tr(a.waitingFor) })))
+        : null,
+      pct !== null
+        ? el('div', { class: 'progress', title: `${Math.round(pct)}%` }, el('span', { class: 'bar' }, fill), el('span', { text: `${Math.round(pct)}%` }))
+        : null,
+      a.preview ? el('img', { class: 'preview', src: a.preview, alt: tr('Output of {name}', { name: tr(a.name) }), loading: 'lazy' }) : null,
+      a.facts?.length ? el('dl', { class: 'facts' }, a.facts.flatMap(([k, v]) => [el('dt', { text: tr(k) }), el('dd', { text: tr(v), title: tr(v) })])) : null,
+      a.lastReply ? message(a, 'reply', tr('Last reply'), a.lastReply) : null,
+    ),
+    el(
+      'div',
+      { class: 'actions' },
+      canFocus(a) ? btn(tr('Go to window'), (e) => goToWindow(a, e.currentTarget), 'btn-primary') : null,
+      can('open') && a.url
+        ? el('a', { class: 'btn btn-primary', href: a.url, target: '_blank', rel: 'noopener noreferrer' }, a.openLabel ? tr(a.openLabel) : tr('Open in {app}', { app: APPS[a.app] }))
+        : null,
+      can('stop') ? btn(tr('Stop'), (e) => itemAction(a, 'stop', e.currentTarget), 'btn-stop') : null,
+      can('cancel') ? btn(tr('Cancel'), (e) => itemAction(a, 'cancel', e.currentTarget), 'btn-stop') : null,
+      can('unload') ? btn(tr('Unload'), (e) => itemAction(a, 'unload', e.currentTarget), 'btn-stop') : null,
+      can('dismiss') ? btn(tr('Clear'), (e) => clearItem(a, e.currentTarget), '', { title: tr('Take this off the dashboard') }) : null,
+    ),
+  );
+}
+
+const ITEM_DONE = { stop: tr('Stopped {name}'), cancel: tr('Cancelled {name}'), unload: tr('Unloaded {name}') };
+
+// A failed job, chat or download, off the dashboard. No second click: it has
+// already ended.
+async function clearItem(a, button) {
+  button.disabled = true;
+  try {
+    await post(a, 'dismiss');
+  } catch (err) {
+    toast(err.message, true);
+    button.disabled = false;
+  }
+  refresh();
+}
+
+// Stop, Cancel and Unload ask for a second click, like a to-do's Delete.
+async function itemAction(a, action, button) {
+  if (!button.classList.contains('btn-danger')) {
+    const label = button.textContent;
+    button.classList.add('btn-danger');
+    button.textContent = tr('{label}?', { label });
+    setTimeout(() => {
+      button.classList.remove('btn-danger');
+      button.textContent = label;
+    }, 3000);
+    return;
+  }
+  button.disabled = true;
+  try {
+    if (a.leavesWhenDone) stoppedHere.add(a.id);
+    const result = await post(a, action);
+    // ComfyUI's Unload frees all its models, and says so.
+    toast(result?.done ? tr(result.done) : fillIn(ITEM_DONE[action], { name: tr(a.name) }));
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    button.disabled = false;
+  }
+  refresh();
+}
+
 function card(a) {
+  if (isItem(a)) return itemCard(a);
   const st = status(a);
   const tags = [];
-  if (a.gitBranch) tags.push(el('span', { class: 'tag branch', title: 'Git branch', text: `⎇ ${a.gitBranch}` }));
+  if (a.gitBranch) tags.push(el('span', { class: 'tag branch', title: tr('Git branch'), text: `⎇ ${a.gitBranch}` }));
   if (a.kind && a.kind !== 'interactive') tags.push(el('span', { class: 'tag', text: a.kind }));
-  if (a.background) tags.push(el('span', { class: 'tag background', title: `Running in the background (${a.entrypoint}), with no window`, text: 'Background' }));
+  if (snap?.closing?.includes(a.id)) {
+    tags.push(
+      el(
+        'button',
+        { type: 'button', class: 'tag closing', title: tr('Save and close will close it when this turn ends. Click to keep it open.'), onclick: () => keepOpen(a) },
+        `${tr('Closes when done')} ✕`,
+      ),
+    );
+  }
+  if (a.background) {
+    tags.push(el('span', { class: 'tag background', title: tr('Running in the background ({how}), with no window', { how: a.entrypoint }), text: tr('Background') }));
+  }
   else if (a.entrypoint && a.entrypoint !== 'cli') tags.push(el('span', { class: 'tag', text: a.entrypoint }));
   const perm = PERMISSION_MODES[a.permissionMode];
-  if (perm) tags.push(el('span', { class: 'tag', title: `Permission mode: ${a.permissionMode}`, text: perm }));
+  if (perm) tags.push(el('span', { class: 'tag', title: tr('Permission mode: {mode}', { mode: a.permissionMode }), text: perm }));
   if (a.version) tags.push(el('span', { text: `v${a.version}` }));
 
   const heading = displayName(a);
   const subtitle = a.title && a.title.toLowerCase() !== heading.toLowerCase() ? a.title : null;
-  const proc = a.app === 'codex' ? [] : [a.name];
+  // Claude's session name, when the heading is the tab's title; Codex and Copilot head their cards with their session's name.
+  const proc = a.app === 'claude' ? [a.name] : [];
   if (a.pid) proc.push(`PID ${a.pid}`);
   if (a.memBytes) proc.push(`${Math.round(a.memBytes / 1048576)} MB`);
 
@@ -532,13 +871,13 @@ function card(a) {
       el('span', { class: 'spacer' }),
       groupChip(a, a.cwd),
       appTag(a),
-      el('span', { class: 'proc', title: `Session ${a.id}\nStarted ${new Date(a.startedAt).toLocaleString()}`, text: proc.join(' · ') }),
+      el('span', { class: 'proc', title: tr('Session {id}\nStarted {time}', { id: a.id, time: new Date(a.startedAt).toLocaleString(lang) }), text: proc.join(' · ') }),
     ),
     el(
       'h2',
       { class: 'name' },
       canFocus(a)
-        ? el('button', { type: 'button', class: 'name-link', title: 'Go to this session’s window', onclick: (e) => goToWindow(a, e.currentTarget) }, heading)
+        ? el('button', { type: 'button', class: 'name-link', title: tr('Go to this session’s window'), onclick: (e) => goToWindow(a, e.currentTarget) }, heading)
         : heading,
     ),
     subtitle ? el('p', { class: 'title', text: subtitle }) : null,
@@ -573,18 +912,20 @@ const todoText = (t) => (t.notes ? `${t.title}\n\n${t.notes}` : t.title);
 
 async function copyTodo(t) {
   await copy(todoText(t));
-  toast('To-do copied');
+  toast(tr('To-do copied'));
 }
 
 function editTodo(t) {
   editingTodo = t;
-  $('todo-dialog-title').textContent = t ? 'Edit to-do' : 'New to-do';
-  $('todo-save').textContent = t ? 'Save' : 'Add to-do';
+  $('todo-dialog-title').textContent = t ? tr('Edit to-do') : tr('New to-do');
+  $('todo-save').textContent = t ? tr('Save') : tr('Add to-do');
   $('todo-title').value = t?.title || '';
   $('todo-notes').value = t?.notes || '';
   // Which app it starts in, once Codex is installed too.
-  $('todo-app-field').hidden = !snap?.codexInstalled;
-  $('todo-app-default').textContent = `As in Settings (${APPS[snap?.newSessionApp] || APPS.claude})`;
+  $('todo-app-field').hidden = !otherAppsInstalled();
+  $('todo-app').querySelector('option[value="codex"]').hidden = !snap?.codexInstalled;
+  $('todo-app').querySelector('option[value="copilot"]').hidden = !snap?.copilotInstalled;
+  $('todo-app-default').textContent = tr('As in Settings ({app})', { app: APPS[snap?.newSessionApp] || APPS.claude });
   $('todo-app').value = t?.app || '';
   $('todo-dialog').showModal();
   $('todo-title').focus();
@@ -596,7 +937,7 @@ async function startTodo(t, button) {
   if (button) button.disabled = true;
   try {
     await api(`/api/todos/${t.id}/start`);
-    toast(`Starting ${APPS[todoApp(t)]} in ${shortPath(t.cwd || snap?.todoStartsIn || '')}`);
+    toast(tr('Starting {app} in {folder}', { app: APPS[todoApp(t)], folder: shortPath(t.cwd || snap?.todoStartsIn || '') }));
   } catch (err) {
     toast(err.message, true);
   } finally {
@@ -614,7 +955,7 @@ async function chooseTodoFolder(t, start, button) {
   }
   const label = button.textContent;
   button.disabled = true;
-  button.textContent = 'Choosing…';
+  button.textContent = tr('Choosing…');
   try {
     const r = await api(`/api/todos/${t.id}/folder`, { pick: true });
     if (r.cancelled) return;
@@ -632,10 +973,10 @@ async function chooseTodoFolder(t, start, button) {
 async function deleteTodo(t, button) {
   if (!button.classList.contains('btn-danger')) {
     button.classList.add('btn-danger');
-    button.textContent = 'Delete?';
+    button.textContent = tr('{label}?', { label: tr('Delete') });
     setTimeout(() => {
       button.classList.remove('btn-danger');
-      button.textContent = 'Delete';
+      button.textContent = tr('Delete');
     }, 3000);
     return;
   }
@@ -662,12 +1003,12 @@ function todoCard(t) {
     el(
       'div',
       { class: 'card-head' },
-      el('span', { class: `badge s-todo${t.starting ? ' starting' : ''}` }, el('span', { class: 'dot' }), t.starting ? 'Starting' : 'To-do'),
+      el('span', { class: `badge s-todo${t.starting ? ' starting' : ''}` }, el('span', { class: 'dot' }), t.starting ? tr('Starting') : tr('To-do')),
       since(t.starting ? t.startedAt : t.createdAt),
       el('span', { class: 'spacer' }),
       groupChip(t, t.cwd || snap?.todoStartsIn),
       // The app it will start, once there's a choice.
-      snap?.codexInstalled ? appTag({ app: todoApp(t) }) : null,
+      otherAppsInstalled() ? appTag({ app: todoApp(t) }) : null,
     ),
     el('h2', { class: 'name', text: t.title }),
     el(
@@ -675,7 +1016,7 @@ function todoCard(t) {
       { class: 'where' },
       t.cwd
         ? el('span', { class: 'path', title: t.cwd, text: shortPath(t.cwd) })
-        : el('span', { class: 'no-folder', title: 'No folder chosen: it starts here, where Claude can make a new project', text: `Starts in ${startsIn}` }),
+        : el('span', { class: 'no-folder', title: tr('No folder chosen: it starts here, where Claude can make a new project'), text: tr('Starts in {folder}', { folder: startsIn }) }),
     ),
     el(
       'div',
@@ -684,31 +1025,35 @@ function todoCard(t) {
         'div',
         { class: 'activity' },
         t.starting
-          ? el('div', { class: 'now' }, el('div', { class: 'now-row' }, el('span', { class: 'what', text: `Opening ${APPS[todoApp(t)]}` }), el('span', { class: 'detail', text: 'in a new terminal tab' })))
+          ? el(
+              'div',
+              { class: 'now' },
+              el('div', { class: 'now-row' }, el('span', { class: 'what', text: tr('Opening {app}', { app: APPS[todoApp(t)] }) }), el('span', { class: 'detail', text: tr('in a new terminal tab') })),
+            )
           : null,
         stalled
           ? el(
               'div',
               { class: 'now waiting' },
-              el('div', { class: 'now-row' }, el('span', { class: 'what', text: 'No session yet' }), el('span', { class: 'detail', text: 'Check its terminal tab, or start it again' })),
+              el('div', { class: 'now-row' }, el('span', { class: 'what', text: tr('No session yet') }), el('span', { class: 'detail', text: tr('Check its terminal tab, or start it again') })),
             )
           : null,
-        t.notes ? message({ id: TODO_PREFIX + t.id }, 'notes', 'Notes', { text: t.notes }, 'todo-text') : null,
+        t.notes ? message({ id: TODO_PREFIX + t.id }, 'notes', tr('Notes'), { text: t.notes }, 'todo-text') : null,
       ),
     ),
     el(
       'div',
       { class: 'actions' },
       drivable
-        ? btn(stalled ? 'Start again' : 'Start', (e) => startTodo(t, e.currentTarget), 'btn-primary', {
+        ? btn(stalled ? tr('Start again') : tr('Start'), (e) => startTodo(t, e.currentTarget), 'btn-primary', {
             disabled: t.starting,
-            title: `Open a terminal tab in ${startsIn} running ${APPS[todoApp(t)]}`,
+            title: tr('Open a terminal tab in {folder} running {app}', { folder: startsIn, app: APPS[todoApp(t)] }),
           })
         : null,
-      drivable ? btn(t.cwd ? 'Change folder' : 'Choose folder', (e) => chooseTodoFolder(t, false, e.currentTarget), '', { disabled: t.starting }) : null,
-      btn('Copy', () => copyTodo(t), '', { title: 'Copy the title and notes, to paste into Claude' }),
-      btn('Edit', () => editTodo(t)),
-      btn('Delete', (e) => deleteTodo(t, e.currentTarget), 'btn-stop'),
+      drivable ? btn(t.cwd ? tr('Change folder') : tr('Choose folder'), (e) => chooseTodoFolder(t, false, e.currentTarget), '', { disabled: t.starting }) : null,
+      btn(tr('Copy'), () => copyTodo(t), '', { title: tr('Copy the title and notes, to paste into Claude') }),
+      btn(tr('Edit'), () => editTodo(t)),
+      btn(tr('Delete'), (e) => deleteTodo(t, e.currentTarget), 'btn-stop'),
     ),
   );
 }
@@ -740,38 +1085,232 @@ for (const id of ['todo-cancel', 'todo-close']) $(id).addEventListener('click', 
 
 // ---- page ------------------------------------------------------------------
 
-// A group's heading, when the cards are in sections by group.
-function sectionHead(s) {
-  return el('h2', { class: `section-head${s.color ? ` g-${s.color}` : ' none'}` }, el('span', { class: 'dot' }), s.name, el('b', { text: String(s.count) }));
+// ---- memory and models ----------------------------------------------------------
+
+// In binary gigabytes, as Task Manager and nvidia-smi count memory.
+// With the language's decimal point.
+const oneDecimal = new Intl.NumberFormat(lang, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const gb = (n) => (n >= 2 ** 30 ? `${oneDecimal.format(n / 2 ** 30)} GB` : `${Math.round(n / 2 ** 20)} MB`);
+
+// A bar for memory in use, of what there is: amber past three quarters, red
+// past nine tenths.
+function memoryBar(label, used, total, extra) {
+  const pct = total ? Math.min(100, (used / total) * 100) : 0;
+  const fill = el('i');
+  fill.style.width = `${pct.toFixed(1)}%`;
+  const figure = tr('{used} of {total}', { used: gb(used), total: gb(total) }) + (extra ? ` · ${extra}` : '');
+  return el(
+    'div',
+    { class: 'mem-row', title: tr('{label}: {figure}, {pct}% used', { label, figure, pct: Math.round(pct) }) },
+    el('span', { class: 'mem-label', text: label }),
+    el('span', { class: `bar${pct > 90 ? ' high' : pct > 75 ? ' mid' : ''}` }, fill),
+    el('span', { class: 'mem-figure', text: figure }),
+  );
 }
+
+// What a model takes in memory, for its line on the card. Where all an app
+// gives is the model's size, it's about what it takes. Where some or all of
+// it isn't in graphics memory, as Ollama says, how much of it is.
+function modelMemory(mem) {
+  if (!mem) return el('span', { class: 'mem-model-size' });
+  const size = gb(mem.used);
+  if (mem.about) return el('span', { class: 'mem-model-size', text: `≈ ${size}`, title: tr("{size}, the model's size: about what it takes in memory", { size }) });
+  const known = Number.isFinite(mem.graphics);
+  const split = known && mem.graphics < mem.used;
+  const share = !split ? null : mem.graphics > 0 ? tr('{pct}% GPU', { pct: Math.floor((mem.graphics / mem.used) * 100) }) : tr('CPU only');
+  return el('span', {
+    class: 'mem-model-size',
+    text: [size, share].filter(Boolean).join(' · '),
+    title: !known
+      ? tr('{size} in memory', { size })
+      : !split
+        ? tr('{size} in graphics memory', { size })
+        : mem.graphics > 0
+          ? tr('{size} in memory, {graphics} of it in graphics memory', { size, graphics: gb(mem.graphics) })
+          : tr('{size} in memory, none of it in graphics memory', { size }),
+  });
+}
+
+// What a model's line leaves out of its facts, as its memory says it.
+const MEMORY_FACTS = new Set(['Size', 'Graphics memory', 'Memory']);
+
+// The list of models can be closed to its count and what they take
+// together. Open unless closed, kept in this browser.
+const MODELS_OPEN_KEY = 'tabherd:memory-models';
+let modelsOpen = true;
+try {
+  modelsOpen = localStorage.getItem(MODELS_OPEN_KEY) !== 'closed';
+} catch {}
+
+// The card at the top: the computer's RAM and each graphics card's memory,
+// used against what there is, and the models loaded in ComfyUI, LocalAI,
+// Ollama, LM Studio and llama.cpp, each with what it takes and Unload.
+function memoryCard({ memory, models }) {
+  const rows = [memoryBar('RAM', memory.ram.used, memory.ram.total)];
+  for (const g of memory.gpus || []) rows.push(memoryBar(g.name, g.used, g.total, Number.isFinite(g.busy) ? tr('{pct}% busy', { pct: g.busy }) : null));
+  const modelRows = models.map((m) =>
+    el(
+      'li',
+      { class: 'mem-model' },
+      appTag(m),
+      el('span', { class: 'mem-model-name', text: m.name, title: [m.name, m.where].filter(Boolean).join(' · ') }),
+      el('span', {
+        class: 'mem-model-facts',
+        text: (m.facts || [])
+          .filter(([k]) => !(m.memory && MEMORY_FACTS.has(k)))
+          .map(([k, v]) => `${tr(k)} ${tr(v)}`)
+          .join(' · '),
+      }),
+      modelMemory(m.memory),
+      (m.actions || []).includes('unload')
+        ? el(
+            'button',
+            {
+              type: 'button',
+              class: 'btn btn-stop',
+              title: m.app === 'comfy' ? tr("Unloads all of {name}'s models: ComfyUI can't unload one alone", { name: m.host }) : null,
+              onclick: (e) => itemAction(m, 'unload', e.currentTarget),
+            },
+            tr('Unload'),
+          )
+        : null,
+    ),
+  );
+  // Together, about what they take if any one's figure is about, or missing.
+  const total = models.reduce((sum, m) => sum + (m.memory?.used || 0), 0);
+  const about = models.some((m) => !m.memory || m.memory.about);
+  const summary = [trn(models.length, '{n} model loaded', '{n} models loaded'), total ? `${about ? '≈ ' : ''}${gb(total)}` : null];
+  return el(
+    'article',
+    { class: 'card memory-card', 'data-id': 'memory' },
+    el('div', { class: 'card-head' }, el('h2', { class: 'mem-title', text: tr('Memory and models') })),
+    el('div', { class: 'mem-bars' }, rows),
+    modelRows.length
+      ? el(
+          'details',
+          {
+            class: 'mem-models-box',
+            open: modelsOpen,
+            ontoggle: (e) => {
+              modelsOpen = e.currentTarget.open;
+              try {
+                localStorage.setItem(MODELS_OPEN_KEY, modelsOpen ? 'open' : 'closed');
+              } catch {}
+            },
+          },
+          el('summary', {}, el('span', { class: 'chev' }), summary.filter(Boolean).join(' · ')),
+          el('ul', { class: 'mem-models' }, modelRows),
+        )
+      : el('p', { class: 'mem-none', text: tr('No models loaded in ComfyUI, LocalAI, Ollama, LM Studio or llama.cpp.') }),
+  );
+}
+
+// The card can be turned off in Settings → Appearance, kept in this browser.
+// Loaded models are on it, or in the grid, each with a card of its own, when
+// it's off.
+const MEMORY_CARD_KEY = 'tabherd:memory-card';
+let memoryCardOn = true;
+try {
+  memoryCardOn = localStorage.getItem(MEMORY_CARD_KEY) !== 'off';
+} catch {}
+const onMemoryCard = (a) => memoryCardOn && a.kind === 'model';
+$('memory-card').checked = memoryCardOn;
+$('memory-card').addEventListener('change', (e) => {
+  memoryCardOn = e.currentTarget.checked;
+  try {
+    localStorage.setItem(MEMORY_CARD_KEY, memoryCardOn ? 'on' : 'off');
+  } catch {}
+  $('memory-float').disabled = !memoryCardOn;
+  render();
+});
+
+// It can also stay in view, under the header, while the cards scroll. Off
+// unless chosen, kept in this browser.
+const MEMORY_FLOAT_KEY = 'tabherd:memory-float';
+let memoryFloat = false;
+try {
+  memoryFloat = localStorage.getItem(MEMORY_FLOAT_KEY) === 'on';
+} catch {}
+list.classList.toggle('memory-float', memoryFloat);
+$('memory-float').checked = memoryFloat;
+$('memory-float').disabled = !memoryCardOn;
+$('memory-float').addEventListener('change', (e) => {
+  memoryFloat = e.currentTarget.checked;
+  try {
+    localStorage.setItem(MEMORY_FLOAT_KEY, memoryFloat ? 'on' : 'off');
+  } catch {}
+  list.classList.toggle('memory-float', memoryFloat);
+});
+// The header wraps onto more lines in a narrow window, so the card stops
+// wherever its bottom is.
+new ResizeObserver(([entry]) => document.documentElement.style.setProperty('--top-height', `${entry.target.offsetHeight}px`)).observe(
+  document.querySelector('.top'),
+);
+
+// A group's heading, when the cards are in sections by group. It closes the
+// section, hiding its cards, and opens it again. A closed one says how many
+// of its sessions need you.
+function sectionHead(s) {
+  return el(
+    'h2',
+    { class: `section-head${s.color ? ` g-${s.color}` : ' none'}` },
+    el(
+      'button',
+      { type: 'button', class: 'section-toggle', 'data-section': s.key, 'aria-expanded': String(!s.closed), onclick: () => toggleSection(s.key) },
+      el('span', { class: 'chev' }),
+      el('span', { class: 'dot' }),
+      s.name,
+      el('b', { text: String(s.count) }),
+    ),
+    s.waiting ? el('span', { class: 'badge s-waiting' }, el('span', { class: 'dot' }), trn(s.waiting, '{n} needs you', '{n} need you')) : null,
+  );
+}
+
+// The sections closed, by group, or "none" for the one of cards in no group.
+// Kept in this browser, like Sections by group.
+const CLOSED_SECTIONS_KEY = 'tabherd:closed-sections';
+let closedSections = new Set();
+try {
+  closedSections = new Set(JSON.parse(localStorage.getItem(CLOSED_SECTIONS_KEY) || '[]'));
+} catch {}
+
+function toggleSection(key) {
+  if (!closedSections.delete(key)) closedSections.add(key);
+  try {
+    localStorage.setItem(CLOSED_SECTIONS_KEY, JSON.stringify([...closedSections]));
+  } catch {}
+  render();
+  // The heading is made again, so the keyboard stays on it.
+  list.querySelector(`.section-toggle[data-section="${CSS.escape(key)}"]`)?.focus();
+}
+
+// The app and group chosen in the header narrow everything, the filters'
+// counts included. To-dos start Claude, so they count as Claude's.
+const inView = (x) =>
+  (appFilter === 'all' || (x.app || 'claude') === appFilter) && (groupFilter === 'all' || (groupFilter === 'none' ? !x.group : x.group === groupFilter));
 
 function render() {
   if (!snap) return;
   renderViewFilters();
-  // The app and group chosen in the header narrow everything, the status
-  // counts included. To-dos start Claude, so they count as Claude's.
-  const inView = (x) =>
-    (appFilter === 'all' || (x.app || 'claude') === appFilter) && (groupFilter === 'all' || (groupFilter === 'none' ? !x.group : x.group === groupFilter));
-  const agents = snap.agents.filter(inView).sort((x, y) => status(x).rank - status(y).rank || x.startedAt - y.startedAt);
+  const models = snap.agents.filter((a) => onMemoryCard(a) && inView(a));
+  const agents = snap.agents
+    .filter((a) => !onMemoryCard(a) && inView(a))
+    .sort((x, y) => status(x).rank - status(y).rank || x.startedAt - y.startedAt);
   const todos = (snap.todos || []).filter(inView).sort((x, y) => x.createdAt - y.createdAt);
-  const counts = { all: agents.length + todos.length, todo: 0, needs: 0, working: 0, idle: 0 };
-  for (const a of agents) counts[status(a).group]++;
-  counts.todo = counts.needs + counts.idle + todos.length;
-  for (const [k, v] of Object.entries(counts)) $(`n-${k}`).textContent = v;
-  for (const k of ['todo', 'needs']) document.querySelector(`[data-filter="${k}"]`).classList.toggle('has', counts.needs > 0);
+  renderFilterTabs(agents, todos);
   // The tab's title counts every session that needs you, whatever's shown.
   const needsYou = snap.agents.filter((a) => a.status === 'waiting').length;
   document.title = needsYou ? `(${needsYou}) Tabherd` : 'Tabherd';
   $('host').textContent = snap.host;
 
-  const groups = FILTER_GROUPS[filter] || [filter];
-  // To-do cards come first, under All and Todo.
+  // To-do cards come first, under All and the filters that ask for them.
+  const f = filterDef(filter);
   let shown = [
-    ...(filter === 'all' || filter === 'todo' ? todos.map((t) => [TODO_PREFIX + t.id, t, todoCard]) : []),
-    ...agents.filter((a) => filter === 'all' || groups.includes(status(a).group)).map((a) => [a.id, a, card]),
+    ...todos.filter((t) => matchesFilter(f, t, true)).map((t) => [TODO_PREFIX + t.id, t, todoCard]),
+    ...agents.filter((a) => matchesFilter(f, a, false)).map((a) => [a.id, a, card]),
   ];
   // In sections: each group's cards under its heading, in the groups' order,
-  // then those in no group.
+  // then those in no group. A closed section is its heading alone.
   if (sectionsOn && snap.groups?.length) {
     const items = shown;
     shown = [];
@@ -779,9 +1318,15 @@ function render() {
       const inGroup = items.filter(([, d]) => (d.group || null) === id);
       if (!inGroup.length) continue;
       const g = groupDef(id);
-      shown.push([`section:${id}`, { name: g ? g.name : 'No group', color: g?.color || null, count: inGroup.length }, sectionHead], ...inGroup);
+      const key = id || 'none';
+      const closed = closedSections.has(key);
+      const waiting = closed ? inGroup.filter(([, d]) => d.status === 'waiting').length : 0;
+      shown.push([`section:${id}`, { key, name: g ? g.name : tr('No group'), color: g?.color || null, count: inGroup.length, closed, waiting }, sectionHead]);
+      if (!closed) shown.push(...inGroup);
     }
   }
+  // The memory card comes first, whatever the filter.
+  if (memoryCardOn && snap.memory) shown.unshift(['memory', { memory: snap.memory, models }, memoryCard]);
   const seen = new Set();
   shown.forEach(([id, data, make], i) => {
     seen.add(id);
@@ -810,7 +1355,7 @@ function render() {
   }
   const nothing = !snap.agents.length && !snap.todos?.length;
   $('empty').hidden = !nothing && shown.length > 0;
-  $('empty').querySelector('.empty-title').textContent = nothing ? 'No Claude Code or Codex sessions are running.' : 'No sessions match this filter.';
+  $('empty').querySelector('.empty-title').textContent = nothing ? tr('No Claude Code or Codex sessions are running.') : tr('No sessions match this filter.');
 }
 
 // The app and group filters in the header. Each shows once there's a choice:
@@ -821,13 +1366,14 @@ let appFilter = 'all';
 let groupFilter = 'all';
 try {
   const saved = JSON.parse(localStorage.getItem(VIEW_KEY) || '{}');
-  if (['all', 'claude', 'codex'].includes(saved.app)) appFilter = saved.app;
+  if (['all', ...Object.keys(APPS)].includes(saved.app)) appFilter = saved.app;
   if (typeof saved.group === 'string') groupFilter = saved.group;
+  if (typeof saved.filter === 'string') filter = saved.filter;
 } catch {}
 
 function saveView() {
   try {
-    localStorage.setItem(VIEW_KEY, JSON.stringify({ app: appFilter, group: groupFilter }));
+    localStorage.setItem(VIEW_KEY, JSON.stringify({ app: appFilter, group: groupFilter, filter }));
   } catch {}
 }
 
@@ -835,11 +1381,18 @@ function renderViewFilters() {
   const groups = snap?.groups || [];
   if (!['all', 'none'].includes(groupFilter) && !groups.some((g) => g.id === groupFilter)) groupFilter = 'all';
   const app = $('app-filter');
-  app.hidden = appFilter === 'all' && !snap.agents.some((a) => a.app === 'codex');
+  // Claude, and each other app with something on the dashboard.
+  const apps = ['claude', ...Object.keys(APPS).filter((k) => k !== 'claude' && (k === appFilter || snap.agents.some((a) => a.app === k)))];
+  app.hidden = appFilter === 'all' && apps.length < 2;
+  const appOptions = [['all', tr('All apps')], ...apps.map((k) => [k, APPS[k]])];
+  if (app.dataset.signature !== JSON.stringify(appOptions)) {
+    app.replaceChildren(...appOptions.map(([value, text]) => el('option', { value, text })));
+    app.dataset.signature = JSON.stringify(appOptions);
+  }
   app.value = appFilter;
   const select = $('group-filter');
   select.hidden = !groups.length && groupFilter === 'all';
-  const options = [['all', 'All groups'], ...groups.map((g) => [g.id, g.name]), ['none', 'No group']];
+  const options = [['all', tr('All groups')], ...groups.map((g) => [g.id, g.name]), ['none', tr('No group')]];
   const signature = JSON.stringify(options);
   if (select.dataset.signature !== signature) {
     select.replaceChildren(...options.map(([value, text]) => el('option', { value, text })));
@@ -860,6 +1413,286 @@ $('group-filter').addEventListener('change', (e) => {
   saveView();
   render();
 });
+
+// ---- filters -------------------------------------------------------------------
+
+// The tabs across the top: All, then the filters kept on the server, in their
+// order, then the filters' menu. Each can pick statuses, apps, groups and
+// words; a list left empty matches any.
+const filterDef = (id) => (snap?.filters || []).find((f) => f.id === id) || null;
+
+// Whether a card shows under a filter, or under All (null). To-do cards have
+// no status, so they show under the filters that ask for them.
+function matchesFilter(f, x, isTodo) {
+  if (!f) return true;
+  if (isTodo ? !f.todos : f.statuses.length && !f.statuses.includes(filterStatus(x))) return false;
+  if (f.apps.length && !f.apps.includes(x.app || 'claude')) return false;
+  if (f.groups.length && !f.groups.includes(x.group || 'none')) return false;
+  if (f.text) {
+    const words = [x.name, x.title, x.cwd, x.where].filter(Boolean).join(' ').toLowerCase();
+    if (!f.text.toLowerCase().split(' ').every((w) => words.includes(w))) return false;
+  }
+  return true;
+}
+
+// What a filter shows, in words, like "Needs you or Idle, and to-dos".
+const anyOf = new Intl.ListFormat(lang, { type: 'disjunction' });
+
+function describeFilter(f) {
+  const or = (ids, name) => anyOf.format(ids.map(name).filter(Boolean));
+  return [
+    f.statuses.length ? or(f.statuses, (s) => FILTER_STATUSES[s]) : tr('Any status'),
+    f.apps.length ? or(f.apps, (a) => APPS[a]) : null,
+    f.groups.length ? tr('in {groups}', { groups: or(f.groups, (g) => (g === 'none' ? tr('no group') : groupDef(g)?.name)) }) : null,
+    f.text ? `“${f.text}”` : null,
+    f.todos ? tr('and to-dos') : null,
+  ]
+    .filter(Boolean)
+    .join(', ');
+}
+
+function chooseFilter(id) {
+  filter = id;
+  saveView();
+  render();
+}
+
+// Each tab with how many cards it shows, amber when one of them needs you.
+function renderFilterTabs(agents, todos) {
+  const filters = snap.filters || [];
+  if (filter !== 'all' && !filterDef(filter)) filter = 'all';
+  const nav = $('filters');
+  const tabs = [{ id: 'all', name: tr('All') }, ...filters];
+  const signature = JSON.stringify([tabs, snap.groups]);
+  if (nav.dataset.signature !== signature) {
+    nav.replaceChildren(
+      ...tabs.map((f) =>
+        el(
+          'button',
+          {
+            type: 'button',
+            'data-filter': f.id,
+            title: f.id === 'all' ? tr('Everything') : describeFilter(f),
+            onclick: () => chooseFilter(f.id),
+          },
+          `${tr(f.name)} `,
+          el('b', { text: '0' }),
+        ),
+      ),
+      el(
+        'button',
+        {
+          type: 'button',
+          class: 'filter-menu-button',
+          title: tr('New filter, or change the filters'),
+          'aria-label': tr('Filter options'),
+          'aria-haspopup': 'menu',
+          onclick: (e) => openFilterMenu(e.currentTarget),
+        },
+        '⋯',
+      ),
+    );
+    nav.dataset.signature = signature;
+  }
+  for (const b of nav.querySelectorAll('[data-filter]')) {
+    const f = filterDef(b.dataset.filter);
+    const matched = agents.filter((a) => matchesFilter(f, a, false));
+    b.querySelector('b').textContent = matched.length + todos.filter((t) => matchesFilter(f, t, true)).length;
+    b.setAttribute('aria-pressed', String(b.dataset.filter === filter));
+    b.classList.toggle('has', !!f && matched.some((a) => a.status === 'waiting'));
+  }
+}
+
+// The menu at the end of the tabs: a new filter, the one shown, or all of
+// them in Settings.
+function openFilterMenu(button) {
+  const menu = $('filter-menu');
+  const shown = filterDef(filter);
+  const full = (snap?.filters || []).length >= MAX_FILTERS;
+  const item = (label, onclick, disabled) =>
+    el('button', { type: 'button', class: 'menu-item', role: 'menuitem', disabled: disabled || null, onclick: () => (menu.hidePopover(), onclick()) }, label);
+  // All isn't a filter of its own, so with it shown there's none to change.
+  const items = [
+    item(full ? tr('New filter (up to {n})', { n: MAX_FILTERS }) : tr('New filter…'), () => editFilter(null), full),
+    shown ? item(tr('Edit “{name}”…', { name: tr(shown.name) }), () => editFilter(shown)) : null,
+    el('hr'),
+    item(tr('Edit filters…'), () => openSettings('filters-setting')),
+  ];
+  menu.replaceChildren(...items.filter(Boolean));
+  showMenu(menu, button);
+}
+
+// Every filter at once, one save at a time, in order; `null` puts the usual
+// ones back. Resolves to the filters as saved.
+let filtersSaving = Promise.resolve();
+
+function saveFilters(next) {
+  const run = filtersSaving.then(async () => {
+    const saved = (await api('/api/filters', next ? { filters: next } : { reset: true })).filters;
+    if (snap) snap = { ...snap, filters: saved };
+    render();
+    renderFilterSettings();
+    return saved;
+  });
+  filtersSaving = run.catch(() => {});
+  return run;
+}
+
+// Asks for a second click, like a group's Delete.
+function askTwice(button, then) {
+  if (button.classList.contains('btn-danger')) return then();
+  const label = button.textContent;
+  button.classList.add('btn-danger');
+  button.textContent = tr('{label}?', { label });
+  setTimeout(() => {
+    button.classList.remove('btn-danger');
+    button.textContent = label;
+  }, 3000);
+}
+
+let editingFilter = null;
+
+// A tick box for each choice.
+function filterChecks(box, options, chosen) {
+  box.replaceChildren(
+    ...options.map(([value, text, color]) =>
+      el('label', { class: `check${color ? ` g-${color}` : ''}` }, el('input', { type: 'checkbox', value, checked: chosen.includes(value) }), color ? el('span', { class: 'dot' }) : null, text),
+    ),
+  );
+}
+
+function filterFromForm() {
+  const ticked = (id) => [...$(id).querySelectorAll('input:checked')].map((i) => i.value);
+  const name = $('filter-name').value;
+  return {
+    ...(editingFilter || {}),
+    // One of the usual filters, shown in another language, keeps its name.
+    name: editingFilter && name === tr(editingFilter.name) ? editingFilter.name : name,
+    statuses: ticked('filter-statuses'),
+    apps: ticked('filter-apps'),
+    groups: ticked('filter-groups'),
+    text: $('filter-text').value.replace(/\s+/g, ' ').trim(),
+    todos: $('filter-todos').checked,
+  };
+}
+
+// How many cards it would show now, as it's changed.
+function showFilterCount() {
+  if (!snap) return;
+  const f = filterFromForm();
+  const n =
+    snap.agents.filter((a) => !onMemoryCard(a) && inView(a) && matchesFilter(f, a, false)).length +
+    (snap.todos || []).filter((t) => inView(t) && matchesFilter(f, t, true)).length;
+  $('filter-count').textContent = trn(n, 'Shows {n} card now.', 'Shows {n} cards now.');
+}
+
+// Opens the editor, for a new filter if `f` is null.
+function editFilter(f) {
+  editingFilter = f;
+  $('filter-dialog-title').textContent = f ? tr('Edit filter') : tr('New filter');
+  $('filter-save').textContent = f ? tr('Save') : tr('Add filter');
+  $('filter-delete').hidden = !f;
+  $('filter-name').value = f ? tr(f.name) : '';
+  filterChecks($('filter-statuses'), Object.entries(FILTER_STATUSES), f?.statuses || []);
+  // Every app, so a filter can be made before an app has anything running.
+  filterChecks($('filter-apps'), Object.entries(APPS), f?.apps || []);
+  const groups = snap?.groups || [];
+  $('filter-groups-field').hidden = !groups.length;
+  filterChecks($('filter-groups'), [...groups.map((g) => [g.id, g.name, g.color]), ['none', tr('No group')]], f?.groups || []);
+  $('filter-text').value = f?.text || '';
+  $('filter-todos').checked = !!f?.todos;
+  showFilterCount();
+  $('filter-dialog').showModal();
+  $('filter-name').focus();
+}
+
+$('filter-form').addEventListener('input', showFilterCount);
+$('filter-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = filterFromForm();
+  const filters = snap?.filters || [];
+  const next = editingFilter ? filters.map((x) => (x.id === editingFilter.id ? f : x)) : [...filters, f];
+  const save = $('filter-save');
+  save.disabled = true;
+  try {
+    const saved = await saveFilters(next);
+    $('filter-dialog').close();
+    // A new filter is shown as soon as it's made.
+    if (!editingFilter) chooseFilter(saved[saved.length - 1].id);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    save.disabled = false;
+  }
+});
+$('filter-delete').addEventListener('click', (e) =>
+  askTwice(e.currentTarget, async () => {
+    try {
+      await saveFilters((snap?.filters || []).filter((x) => x.id !== editingFilter.id));
+      $('filter-dialog').close();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }),
+);
+for (const id of ['filter-cancel', 'filter-close']) $(id).addEventListener('click', () => $('filter-dialog').close());
+
+// The list in Settings: each filter with what it shows, to move, change or delete.
+function renderFilterSettings(focusKey) {
+  const filters = snap?.filters || [];
+  const box = $('filter-list');
+  const focused = focusKey || (box.contains(document.activeElement) ? document.activeElement.dataset.focus : null);
+  const move = (i, by, key) => {
+    const next = [...filters];
+    [next[i], next[i + by]] = [next[i + by], next[i]];
+    saveFilters(next)
+      .then(() => box.querySelector(`[data-focus="${CSS.escape(key)}"]:not(:disabled)`)?.focus())
+      .catch((err) => toast(err.message, true));
+  };
+  box.replaceChildren(
+    ...filters.map((f, i) =>
+      el(
+        'li',
+        { class: 'filter-row' },
+        el('div', { class: 'filter-row-text' }, el('b', { text: tr(f.name) }), el('span', { text: describeFilter(f) })),
+        el(
+          'button',
+          { type: 'button', class: 'icon-btn', title: tr('Move up'), 'aria-label': tr('Move {name} up', { name: tr(f.name) }), 'data-focus': `up:${f.id}`, disabled: i === 0, onclick: () => move(i, -1, `up:${f.id}`) },
+          '↑',
+        ),
+        el(
+          'button',
+          {
+            type: 'button',
+            class: 'icon-btn',
+            title: tr('Move down'),
+            'aria-label': tr('Move {name} down', { name: tr(f.name) }),
+            'data-focus': `down:${f.id}`,
+            disabled: i === filters.length - 1,
+            onclick: () => move(i, 1, `down:${f.id}`),
+          },
+          '↓',
+        ),
+        el('button', { type: 'button', class: 'btn', onclick: () => editFilter(f) }, tr('Edit')),
+        el(
+          'button',
+          {
+            type: 'button',
+            class: 'btn btn-stop',
+            onclick: (e) => askTwice(e.currentTarget, () => saveFilters(filters.filter((x) => x.id !== f.id)).catch((err) => toast(err.message, true))),
+          },
+          tr('Delete'),
+        ),
+      ),
+    ),
+  );
+  if (!filters.length) box.append(el('li', { class: 'filter-none', text: tr('Only All, for now.') }));
+  $('filter-add').disabled = filters.length >= MAX_FILTERS;
+  if (focused) box.querySelector(`[data-focus="${CSS.escape(focused)}"]:not(:disabled)`)?.focus();
+}
+
+$('filter-add').addEventListener('click', () => editFilter(null));
+$('filter-reset').addEventListener('click', (e) => askTwice(e.currentTarget, () => saveFilters(null).catch((err) => toast(err.message, true))));
 
 // ---- updates and dings ---------------------------------------------------------
 
@@ -925,12 +1758,12 @@ function updateSoundButton() {
   button.classList.toggle('off', !soundOn);
   button.classList.toggle('blocked', blocked);
   button.setAttribute('aria-pressed', String(soundOn));
-  $('sound-label').textContent = blocked ? 'Click to enable sound' : '';
+  $('sound-label').textContent = blocked ? tr('Click to enable sound') : '';
   button.title = !soundOn
-    ? 'Sound is off. Click to ding when an agent needs you or finishes.'
+    ? tr('Sound is off. Click to ding when an agent needs you or finishes.')
     : blocked
-      ? 'The browser blocks sound until you click the page'
-      : 'Dings when an agent needs you or finishes. Click to mute.';
+      ? tr('The browser blocks sound until you click the page')
+      : tr('Dings when an agent needs you or finishes. Click to mute.');
 }
 
 // Browsers only let a page play sound after it has been clicked or typed in.
@@ -954,7 +1787,11 @@ function notableChanges(agents) {
     // A background run doesn't wait at a prompt when it's done: it exits.
     const running = new Set(agents.map((a) => a.id));
     for (const [id, a] of lastAgents) {
-      if (a.background && !running.has(id) && !stoppedHere.delete(id)) done.push(a);
+      // So do downloads, and anything else that leaves once it's done.
+      // How it ended, and its output, if the server knows: a ComfyUI job.
+      if ((a.background || a.leavesWhenDone) && !running.has(id) && !stoppedHere.delete(id)) {
+        done.push({ ...a, finished: snap?.finished?.find((f) => f.id === id) || null });
+      }
     }
   }
   lastAgents = new Map(agents.map((a) => [a.id, a]));
@@ -970,9 +1807,11 @@ function announce({ needs, done }) {
     void node.offsetWidth;
     node.classList.add('flash');
   }
-  const names = (list) => (list.length === 1 ? displayName(list[0]) : `${list.length} agents`);
-  if (needs.length) toast(`${names(needs)} ${needs.length === 1 ? 'needs' : 'need'} you${needs.length === 1 && needs[0].waitingFor ? `: ${needs[0].waitingFor}` : ''}`);
-  else toast(`${names(done)} finished`);
+  const [one] = needs.length ? needs : done;
+  const name = displayName(one);
+  if (needs.length > 1) toast(tr('{n} agents need you', { n: needs.length }));
+  else if (needs.length) toast(one.waitingFor ? tr('{name} needs you: {what}', { name, what: tr(one.waitingFor) }) : tr('{name} needs you', { name }));
+  else toast(done.length > 1 ? tr('{n} agents finished', { n: done.length }) : tr('{name} finished', { name }));
   if (Date.now() - lastDingAt < DING_GAP_MS) return;
   lastDingAt = Date.now();
   ding(needs.length ? 'needs' : 'done');
@@ -1012,7 +1851,18 @@ function updateNotes(agents, { needs, done }) {
   });
   const added = [
     ...needs.map((a) => ({ id: a.id, kind: 'needs', name: displayName(a), detail: a.waitingFor || '', at: snap.now })),
-    ...done.map((a) => ({ id: a.id, kind: 'done', name: displayName(a), detail: '', background: Boolean(a.background), at: snap.now })),
+    ...done.map((a) => ({
+      id: a.id,
+      kind: 'done',
+      name: displayName(a),
+      detail: '',
+      background: Boolean(a.background),
+      // Gone once it's done, so its leaving isn't a session closing.
+      gone: Boolean(a.background || a.leavesWhenDone),
+      label: a.finished?.label || null,
+      preview: a.finished?.preview || null,
+      at: snap.now,
+    })),
   ];
   if (added.length) notes = [...added, ...notes.filter((n) => !added.some((x) => x.id === n.id))];
   if (added.length || notes.length !== before) saveNotes();
@@ -1034,13 +1884,23 @@ function renderNotes() {
   // A finished background run is picked up again from the history.
   const resumable = (n) => n.background && Boolean(snap?.terminals);
   // Rebuilt only when something shown changes, so an open list doesn't flicker.
-  const key = JSON.stringify(rows.map((r) => [r.n.id, r.n.kind, r.n.at, r.name, Boolean(r.a), r.focus, resumable(r.n)]));
+  const key = JSON.stringify(rows.map((r) => [r.n.id, r.n.kind, r.n.at, r.name, Boolean(r.a), r.focus, resumable(r.n), r.n.preview]));
   if (key === notesKey) return;
   notesKey = key;
   $('notes-list').replaceChildren(
     ...rows.map(({ n, a, name, focus }) => {
-      const what = [n.kind === 'needs' ? `Needs you${n.detail ? `: ${n.detail}` : ''}` : n.background ? 'Finished in the background' : 'Finished'];
-      if (!a && !n.background) what.push('session closed');
+      const what = [
+        n.kind === 'needs'
+          ? n.detail
+            ? tr('Needs you: {what}', { what: tr(n.detail) })
+            : tr('Needs you')
+          : n.label
+            ? tr(n.label)
+            : n.background
+              ? tr('Finished in the background')
+              : tr('Finished'),
+      ];
+      if (!a && !n.gone && !n.background) what.push(tr('session closed'));
       return el(
         'li',
         { class: `note k-${n.kind}` },
@@ -1049,14 +1909,19 @@ function renderNotes() {
           'span',
           { class: 'note-text' },
           focus
-            ? el('button', { type: 'button', class: 'name-link note-name', title: 'Go to this session’s window', onclick: (e) => goToWindow(a, e.currentTarget) }, name)
+            ? el('button', { type: 'button', class: 'name-link note-name', title: tr('Go to this session’s window'), onclick: (e) => goToWindow(a, e.currentTarget) }, name)
             : !a && resumable(n)
-              ? el('button', { type: 'button', class: 'name-link note-name', title: 'Open a terminal tab in its folder and continue the conversation', onclick: (e) => resumeNote(n, e.currentTarget) }, name)
+              ? el(
+                  'button',
+                  { type: 'button', class: 'name-link note-name', title: tr('Open a terminal tab in its folder and continue the conversation'), onclick: (e) => resumeNote(n, e.currentTarget) },
+                  name,
+                )
               : el('span', { class: 'note-name', text: name }),
           el('span', { class: 'note-what', text: what.join(' · '), title: what.join(' · ') }),
+          n.preview ? el('img', { class: 'note-preview', src: n.preview, alt: tr('Output of {name}', { name }), loading: 'lazy' }) : null,
         ),
-        since(n.at, ' ago'),
-        el('button', { type: 'button', class: 'icon-btn note-clear', title: 'Clear', 'aria-label': `Clear ${name}`, onclick: () => clearNotes(n) }, '✕'),
+        since(n.at, true),
+        el('button', { type: 'button', class: 'icon-btn note-clear', title: tr('Clear'), 'aria-label': tr('Clear {name}', { name }), onclick: () => clearNotes(n) }, '✕'),
       );
     }),
   );
@@ -1066,8 +1931,8 @@ function renderNotes() {
   const needCount = notes.filter((n) => n.kind === 'needs').length;
   $('notes-button').classList.toggle('has-needs', needCount > 0);
   $('notes-button').title = notes.length
-    ? `${notes.length} notification${notes.length === 1 ? '' : 's'}${needCount ? `, ${needCount} needing you` : ''}`
-    : 'Notifications';
+    ? trn(notes.length, '{n} notification', '{n} notifications') + (needCount ? `, ${tr('{n} needing you', { n: needCount })}` : '')
+    : tr('Notifications');
 }
 
 $('notes-clear').addEventListener('click', () => clearNotes());
@@ -1077,7 +1942,7 @@ async function resumeNote(n, button) {
   button.disabled = true;
   try {
     await api(`/api/history/${n.id}/resume`);
-    toast(`Resuming ${n.name}`);
+    toast(tr('Resuming {name}', { name: n.name }));
     clearNotes(n);
   } catch (err) {
     toast(err.message, true);
@@ -1090,17 +1955,19 @@ function apply(next) {
   snap = next;
   clockSkew = snap.now - Date.now();
   $('conn').className = 'conn live';
-  $('updated').textContent = `Live · ${new Date(snap.now).toLocaleTimeString()}`;
+  $('updated').textContent = tr('Live · {time}', { time: new Date(snap.now).toLocaleTimeString(lang) });
   list.classList.remove('stale');
   const changes = notableChanges(snap.agents);
-  render();
+  // The cards hold still while the tour runs; dings and notifications don't.
+  if (!tourOn) render();
   announce(changes);
   updateNotes(snap.agents, changes);
+  if (tourPending) startTourWhenSettled();
 }
 
 function disconnected() {
   $('conn').className = 'conn down';
-  $('updated').textContent = 'Disconnected. Is the server running?';
+  $('updated').textContent = tr('Disconnected. Is the server running?');
   list.classList.add('stale');
 }
 
@@ -1125,9 +1992,11 @@ function confirmStop(a) {
   // Codex runs the session in its background service: Stop interrupts its
   // turn there, then ends the Codex in its window, if that's known.
   $('confirm-what').textContent =
-    a.app === 'codex'
-      ? `This interrupts its current turn${a.pid ? ` and ends Codex in its window, PID ${a.pid}` : ''}. What the turn hasn't finished is lost.${a.pid ? '' : " Its window isn't known, so close that yourself."}`
-      : `This force-ends PID ${a.pid} along with its shells and MCP servers. Anything the current turn hasn't saved is lost.`;
+    a.app !== 'codex'
+      ? tr("This force-ends PID {pid} along with its shells and MCP servers. Anything the current turn hasn't saved is lost.", { pid: a.pid })
+      : a.pid
+        ? tr("This interrupts its current turn and ends Codex in its window, PID {pid}. What the turn hasn't finished is lost.", { pid: a.pid })
+        : tr("This interrupts its current turn. What the turn hasn't finished is lost. Its window isn't known, so close that yourself.");
   $('confirm-resume').textContent = resumeCommand(a);
   dialog.returnValue = '';
   dialog.onclose = async () => {
@@ -1135,7 +2004,7 @@ function confirmStop(a) {
     try {
       if (a.background) stoppedHere.add(a.id);
       const r = await post(a, 'stop');
-      toast(r.windowLeft ? `Interrupted ${displayName(a)}. Close its window to end it.` : `Stopped ${displayName(a)}`);
+      toast(r.windowLeft ? tr('Interrupted {name}. Close its window to end it.', { name: displayName(a) }) : tr('Stopped {name}', { name: displayName(a) }));
     } catch (err) {
       toast(err.message, true);
     }
@@ -1188,7 +2057,7 @@ function folderGroupDot(node) {
   const sep = repoSep();
   const full = `${repoData.root}${sep}${node.path.split('/').join(sep)}`.toLowerCase();
   const g = (snap?.groups || []).find((x) => x.folders.some((f) => f.toLowerCase() === full));
-  return g ? el('span', { class: `group-dot g-${g.color}`, title: `Group: ${g.name}` }) : null;
+  return g ? el('span', { class: `group-dot g-${g.color}`, title: tr('Group: {group}', { group: g.name }) }) : null;
 }
 
 function repoItem(node, terms) {
@@ -1203,13 +2072,13 @@ function repoItem(node, terms) {
         type: 'button',
         class: 'repo',
         'data-path': node.path,
-        title: repoPick ? `Use ${node.path}` : `Open ${APPS[repoData.app] || APPS.claude} in ${node.path}`,
+        title: repoPick ? tr('Use {folder}', { folder: node.path }) : tr('Open {app} in {folder}', { app: APPS[repoData.app] || APPS.claude, folder: node.path }),
         onclick: (e) => (repoPick ? pickRepo(node, e.currentTarget) : openRepo(node, e.currentTarget)),
       },
       el('span', { class: 'repo-name', text: node.name }),
       folderGroupDot(node),
       live
-        ? el('span', { class: 'repo-live', title: `${live} session${live === 1 ? '' : 's'} running here` }, el('span', { class: 'dot' }), String(live))
+        ? el('span', { class: 'repo-live', title: trn(live, '{n} session running here', '{n} sessions running here') }, el('span', { class: 'dot' }), String(live))
         : null,
     ),
   );
@@ -1256,20 +2125,21 @@ function renderRepos() {
   if (!repoData) return;
   const terms = filterTerms();
   const list = treeList(repoData.tree, terms);
-  $('repos-tree').replaceChildren(list || el('p', { class: 'tree-empty', text: terms.length ? 'No repos match.' : 'No git repos found.' }));
+  $('repos-tree').replaceChildren(list || el('p', { class: 'tree-empty', text: terms.length ? tr('No repos match.') : tr('No git repos found.') }));
 }
 
 async function loadRepos(refresh) {
   try {
     const res = await fetch(`/api/repos${refresh ? '?refresh=1' : ''}`, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`Couldn't list repos (HTTP ${res.status})`);
+    if (!res.ok) throw new Error(tr("Couldn't list repos (HTTP {status})", { status: res.status }));
     repoData = await res.json();
-    const excluded = repoData.excluded ? ` · ${repoData.excluded} hidden` : '';
-    $('repos-root').textContent = `${shortPath(repoData.root)} · ${repoData.count} repos${excluded}`;
-    $('repos-root').title = excluded ? 'Change what is hidden in Settings' : '';
+    const excluded = repoData.excluded ? ` · ${tr('{n} hidden', { n: repoData.excluded })}` : '';
+    $('repos-root').textContent = `${shortPath(repoData.root)} · ${trn(repoData.count, '{n} repo', '{n} repos')}${excluded}`;
+    $('repos-root').title = excluded ? tr('Change what is hidden in Settings') : '';
     $('repos-command').textContent = repoData.command;
     // Claude or Codex, once Codex is installed; it's the setting in Settings.
-    $('repos-app').hidden = !snap?.codexInstalled;
+    $('repos-app').hidden = !otherAppsInstalled();
+    showInstalledChoices('repos-app');
     for (const r of document.querySelectorAll('input[name="repos-app"]')) r.checked = r.value === repoData.app;
     renderRepos();
     renderExcluded();
@@ -1285,7 +2155,7 @@ async function openRepo(node, button) {
   try {
     await api('/api/repos/open', { path: node.path });
     $('repos').close();
-    toast(`Opening ${APPS[repoData.app] || APPS.claude} in ${node.name}`);
+    toast(tr('Opening {app} in {folder}', { app: APPS[repoData.app] || APPS.claude, folder: node.name }));
   } catch (err) {
     toast(err.message, true);
   } finally {
@@ -1299,10 +2169,10 @@ let repoPick = null;
 
 function openRepoPicker(todo, start) {
   repoPick = { todo, start };
-  $('repos-title').textContent = 'Choose a folder';
+  $('repos-title').textContent = tr('Choose a folder');
   $('repos-foot').hidden = true;
   $('repos-pick-foot').hidden = false;
-  $('repos-pick-foot').textContent = start ? `Click a repo to start “${todo.title}” there.` : `Click a repo to use it for “${todo.title}”.`;
+  $('repos-pick-foot').textContent = start ? tr('Click a repo to start “{title}” there.', { title: todo.title }) : tr('Click a repo to use it for “{title}”.', { title: todo.title });
   $('repos-filter').value = '';
   $('repos').showModal();
   $('repos-filter').focus();
@@ -1345,7 +2215,7 @@ async function pickRepo(node, button) {
 $('repos').addEventListener('close', () => {
   if (!repoPick) return;
   repoPick = null;
-  $('repos-title').textContent = 'Repositories';
+  $('repos-title').textContent = tr('Repositories');
   $('repos-foot').hidden = false;
   $('repos-pick-foot').hidden = true;
 });
@@ -1386,9 +2256,9 @@ function dayLabel(t) {
   const d = new Date(t);
   const midnight = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const days = Math.round((midnight(new Date(now())) - midnight(d)) / 86400000);
-  if (days === 0) return 'Today';
-  if (days === 1) return 'Yesterday';
-  return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+  if (days === 0) return tr('Today');
+  if (days === 1) return tr('Yesterday');
+  return d.toLocaleDateString(lang, { weekday: 'long', month: 'short', day: 'numeric' });
 }
 
 async function resumePast(s, button) {
@@ -1396,7 +2266,7 @@ async function resumePast(s, button) {
   try {
     await api(`/api/history/${s.id}/resume`);
     $('history').close();
-    toast(`Resuming ${pastName(s)}`);
+    toast(tr('Resuming {name}', { name: pastName(s) }));
   } catch (err) {
     toast(err.message, true);
   } finally {
@@ -1408,27 +2278,31 @@ function pastItem(s) {
   const name = pastName(s);
   const subtitle = s.title && s.title !== name ? s.title : null;
   const meta = [];
-  if (s.prompts) meta.push(`${s.prompts} prompt${s.prompts === 1 ? '' : 's'}`);
+  if (s.prompts) meta.push(trn(s.prompts, '{n} prompt', '{n} prompts'));
   if (s.model) meta.push(modelLabel(s));
   return el(
     'li',
     { class: 'past' },
-    el('div', { class: 'past-head' }, el('span', { class: 'past-name', text: name, title: name }), groupTag(s), appTag(s), since(s.closedAt, ' ago')),
+    el('div', { class: 'past-head' }, el('span', { class: 'past-name', text: name, title: name }), groupTag(s), appTag(s), since(s.closedAt, true)),
     subtitle ? el('p', { class: 'past-title', text: subtitle, title: subtitle }) : null,
-    s.todo ? el('p', { class: 'past-title', title: todoText(s.todo) }, el('b', {}, 'To-do · '), s.todo.title) : null,
+    s.todo ? el('p', { class: 'past-title', title: todoText(s.todo) }, el('b', {}, `${tr('To-do')} · `), s.todo.title) : null,
     el(
       'div',
       { class: 'where' },
       el('span', { class: 'path', text: shortPath(s.cwd), title: s.cwd }),
-      s.gitBranch ? el('span', { class: 'tag branch', title: 'Git branch', text: `⎇ ${s.gitBranch}` }) : null,
-      s.background ? el('span', { class: 'tag background', title: 'Ran in the background, with claude -p', text: 'Background' }) : null,
+      s.gitBranch ? el('span', { class: 'tag branch', title: tr('Git branch'), text: `⎇ ${s.gitBranch}` }) : null,
+      s.background ? el('span', { class: 'tag background', title: tr('Ran in the background, with claude -p'), text: tr('Background') }) : null,
     ),
-    s.lastPrompt ? el('p', { class: 'past-prompt', title: s.lastPrompt.text }, el('b', {}, 'Last prompt · '), s.lastPrompt.text) : null,
+    s.lastPrompt ? el('p', { class: 'past-prompt', title: s.lastPrompt.text }, el('b', {}, `${tr('Last prompt')} · `), s.lastPrompt.text) : null,
     el(
       'div',
       { class: 'past-actions' },
       snap?.terminals
-        ? el('button', { type: 'button', class: 'btn btn-primary', title: 'Open a terminal tab in its folder and continue the conversation', onclick: (e) => resumePast(s, e.currentTarget) }, 'Resume')
+        ? el(
+            'button',
+            { type: 'button', class: 'btn btn-primary', title: tr('Open a terminal tab in its folder and continue the conversation'), onclick: (e) => resumePast(s, e.currentTarget) },
+            tr('Resume'),
+          )
         : null,
       el(
         'button',
@@ -1437,10 +2311,10 @@ function pastItem(s) {
           class: 'btn',
           onclick: async () => {
             await copy(resumeCommand(s));
-            toast('Resume command copied');
+            toast(tr('Resume command copied'));
           },
         },
-        'Copy resume command',
+        tr('Copy resume command'),
       ),
       meta.length ? el('span', { class: 'past-meta', text: meta.join(' · ') }) : null,
     ),
@@ -1460,7 +2334,7 @@ function renderHistory() {
     return terms.every((t) => text.includes(t));
   });
   const n = historyData.length;
-  $('history-sub').textContent = `${n} closed session${n === 1 ? '' : 's'}${shown.length < n ? ` · ${shown.length} shown` : ''}`;
+  $('history-sub').textContent = trn(n, '{n} closed session', '{n} closed sessions') + (shown.length < n ? ` · ${tr('{n} shown', { n: shown.length })}` : '');
   // The switch for background runs only shows once there are some.
   $('history-background-label').hidden = !historyData.some((s) => s.background);
   const days = [];
@@ -1472,14 +2346,14 @@ function renderHistory() {
   $('history-list').replaceChildren(
     ...(days.length
       ? days.flatMap((d) => [el('h3', { class: 'history-day', text: d.day }), el('ul', {}, d.sessions.map(pastItem))])
-      : [el('p', { class: 'tree-empty', text: n ? 'No closed sessions match.' : 'No sessions have closed in the last 30 days.' })]),
+      : [el('p', { class: 'tree-empty', text: n ? tr('No closed sessions match.') : tr('No sessions have closed in the last 30 days.') })]),
   );
 }
 
 async function loadHistory() {
   try {
     const res = await fetch('/api/history', { cache: 'no-store' });
-    if (!res.ok) throw new Error(`Couldn't load the history (HTTP ${res.status})`);
+    if (!res.ok) throw new Error(tr("Couldn't load the history (HTTP {status})", { status: res.status }));
     historyData = (await res.json()).sessions;
     renderHistory();
   } catch (err) {
@@ -1541,11 +2415,84 @@ radioSetting('theme', ['system', 'light', 'dark'], (theme) => {
   else document.documentElement.dataset.theme = theme;
 });
 
+// The page's language, from those there's a table for. Automatic follows the
+// browser's. Changing it reloads the page, which is translated as it loads,
+// and opens Settings again.
+const languageSelect = $('language');
+languageSelect.replaceChildren(
+  el('option', { value: 'auto', text: tr('Automatic ({language})', { language: LANGUAGES[browserLanguage] }) }),
+  ...Object.entries(LANGUAGES).map(([value, text]) => el('option', { value, text, lang: value })),
+);
+languageSelect.value = languageChoice in LANGUAGES ? languageChoice : 'auto';
+languageSelect.addEventListener('change', (e) => {
+  try {
+    localStorage.setItem(LANGUAGE_KEY, e.currentTarget.value);
+    sessionStorage.setItem(LANGUAGE_KEY, 'changed');
+  } catch {}
+  location.reload();
+});
+
 // Fit lets each card grow to its content; the others make every card the same size.
 radioSetting('card-size', ['fit', 'small', 'medium', 'large'], (size) => {
   list.dataset.size = size;
   list.classList.toggle('uniform', size !== 'fit');
 });
+
+// In the desktop app, the window can stay on top of other windows, from
+// Settings or the pin in the header, and on Windows its background can be
+// see-through. The app gives the page tabherdApp to say so. Both are kept in
+// this browser, the app's own, and put back as the page loads.
+const desktopApp = window.tabherdApp || null;
+const ON_TOP_KEY = 'tabherd:on-top';
+const SEE_THROUGH_KEY = 'tabherd:see-through';
+let onTop = false;
+let seeThrough = 0;
+try {
+  onTop = localStorage.getItem(ON_TOP_KEY) === 'on';
+  seeThrough = Math.max(0, Math.min(80, Number(localStorage.getItem(SEE_THROUGH_KEY)) || 0));
+} catch {}
+
+async function keepOnTop(on) {
+  try {
+    await desktopApp.setOnTop(on);
+    onTop = on;
+    try {
+      localStorage.setItem(ON_TOP_KEY, on ? 'on' : 'off');
+    } catch {}
+  } catch (err) {
+    toast(tr("Couldn't change that: {error}", { error: err }), true);
+  }
+  $('on-top').checked = onTop;
+  $('pin-button').setAttribute('aria-pressed', String(onTop));
+  $('pin-button').title = onTop ? tr('On top of other windows: click to stop') : tr('Keep this window on top of other windows');
+}
+
+// A percentage of the background that lets what's behind show through; 0 is off.
+function showSeeThrough() {
+  document.documentElement.classList.toggle('see-through', seeThrough > 0);
+  document.documentElement.style.setProperty('--see-through', `${seeThrough}%`);
+  $('see-through').value = String(seeThrough);
+  $('see-through-value').textContent = seeThrough ? `${seeThrough}%` : tr('Off');
+}
+
+if (desktopApp) {
+  $('window-setting').hidden = false;
+  $('pin-button').hidden = false;
+  $('pin-button').addEventListener('click', () => keepOnTop(!onTop));
+  $('on-top').addEventListener('change', (e) => keepOnTop(e.currentTarget.checked));
+  keepOnTop(onTop);
+  if (desktopApp.seeThrough) {
+    $('see-through-setting').hidden = false;
+    $('see-through').addEventListener('input', (e) => {
+      seeThrough = Number(e.currentTarget.value);
+      try {
+        localStorage.setItem(SEE_THROUGH_KEY, String(seeThrough));
+      } catch {}
+      showSeeThrough();
+    });
+    showSeeThrough();
+  }
+}
 
 // Folders and repos left out of the repo menu. The server keeps these, for
 // every browser, as paths under the repos folder with forward slashes.
@@ -1600,8 +2547,8 @@ function excludedBox(node, excluded, hiddenBy) {
     'data-path': node.path,
     checked: !hiddenBy && !excluded.has(node.path.toLowerCase()),
     disabled: !!hiddenBy,
-    title: hiddenBy ? `Hidden along with ${showRepoPath(hiddenBy)}` : null,
-    'aria-label': `Show ${label} in the repo menu`,
+    title: hiddenBy ? tr('Hidden along with {folder}', { folder: showRepoPath(hiddenBy) }) : null,
+    'aria-label': tr('Show {folder} in the repo menu', { folder: label }),
     onchange: (e) => setExcluded(node, e.currentTarget.checked),
   });
 }
@@ -1622,7 +2569,7 @@ function excludedItem(node, terms, excluded, hiddenBy) {
   const list = excludedList(node.children, matches ? [] : terms, excluded, off);
   if (!list) return null;
   const { total, hidden } = repoTally(node, excluded);
-  const count = !hidden ? String(total) : hidden === total ? `${total} hidden` : `${hidden} of ${total} hidden`;
+  const count = !hidden ? String(total) : hidden === total ? tr('{n} hidden', { n: total }) : tr('{hidden} of {total} hidden', { hidden, total });
   // The filter opens folders with matches inside; those aren't remembered.
   const auto = terms.length > 0 && !matches;
   return el(
@@ -1659,7 +2606,7 @@ function excludedList(nodes, terms, excluded, hiddenBy) {
 function renderExcluded() {
   const tree = $('excluded-tree');
   if (!repoData?.all || !serverSettings) {
-    tree.replaceChildren(el('p', { class: 'tree-empty', text: 'Loading…' }));
+    tree.replaceChildren(el('p', { class: 'tree-empty', text: tr('Loading…') }));
     return;
   }
   const excluded = excludedSet();
@@ -1680,7 +2627,7 @@ function renderExcluded() {
   const terms = excludedFilter();
   tree.replaceChildren(
     excludedList(repoData.all, terms, excluded, null) ||
-      el('p', { class: 'tree-empty', text: terms.length ? 'No folders or repos match.' : 'No git repos found.' }),
+      el('p', { class: 'tree-empty', text: terms.length ? tr('No folders or repos match.') : tr('No git repos found.') }),
   );
   if (focused) tree.querySelector(`input[data-path="${CSS.escape(focused)}"]`)?.focus();
 
@@ -1699,8 +2646,8 @@ function renderExcluded() {
           {
             type: 'button',
             class: 'icon-btn',
-            title: 'Stop hiding it',
-            'aria-label': `Stop hiding ${showRepoPath(p)}`,
+            title: tr('Stop hiding it'),
+            'aria-label': tr('Stop hiding {folder}', { folder: showRepoPath(p) }),
             onclick: () => setExcluded({ path: p }, true),
           },
           '✕',
@@ -1713,7 +2660,7 @@ function renderExcluded() {
 async function loadServerSettings() {
   try {
     const res = await fetch('/api/settings', { cache: 'no-store' });
-    if (!res.ok) throw new Error(`Couldn't load settings (HTTP ${res.status})`);
+    if (!res.ok) throw new Error(tr("Couldn't load settings (HTTP {status})", { status: res.status }));
     const data = await res.json();
     serverSettings = data.settings;
     terminalChoices = data.terminals || [];
@@ -1731,9 +2678,9 @@ function renderTerminalChoice() {
   $('terminal-setting').hidden = terminalChoices.length < 2;
   const current = serverSettings?.terminal || 'auto';
   select.replaceChildren(
-    el('option', { value: 'auto', text: 'Automatic' }),
+    el('option', { value: 'auto', text: tr('Automatic') }),
     ...terminalChoices.map((t) =>
-      el('option', { value: t.id, text: t.available ? t.name : `${t.name} (not found)`, disabled: !t.available && t.id !== current }),
+      el('option', { value: t.id, text: t.available ? t.name : tr('{name} (not found)', { name: t.name }), disabled: !t.available && t.id !== current }),
     ),
   );
   select.value = current;
@@ -1742,7 +2689,14 @@ function renderTerminalChoice() {
 // The settings kept on the server, other than the repo menu's. The to-do
 // folder box isn't changed under someone typing in it.
 function renderServerSettings() {
-  $('app-setting').hidden = !snap?.codexInstalled;
+  for (const [id, key] of APP_ADDRESSES) {
+    if (document.activeElement !== $(id)) $(id).value = serverSettings?.[key] || '';
+  }
+  $('lmstudio-key').placeholder = serverSettings?.lmstudioKeySet ? tr('Set. Type a new one to change it') : tr('None');
+  const key = $('localai-key');
+  key.placeholder = serverSettings?.localaiKeySet ? tr('Set. Type a new one to change it') : tr('None');
+  $('app-setting').hidden = !otherAppsInstalled();
+  showInstalledChoices('new-app');
   const app = serverSettings?.newSessionApp || 'claude';
   for (const r of document.querySelectorAll('input[name="new-app"]')) r.checked = r.value === app;
   $('skip-permissions').checked = Boolean(serverSettings?.skipPermissions);
@@ -1768,6 +2722,22 @@ async function saveServerSetting(changes) {
 }
 
 $('skip-permissions').addEventListener('change', (e) => saveServerSetting({ skipPermissions: e.currentTarget.checked }));
+for (const [id, key] of APP_ADDRESSES) {
+  $(id).addEventListener('change', (e) => saveServerSetting({ [key]: e.currentTarget.value }));
+  $(id).addEventListener('keydown', noSubmit((input) => input.blur()));
+}
+$('lmstudio-key').addEventListener('change', async (e) => {
+  const input = e.currentTarget;
+  if (await saveServerSetting({ lmstudioKey: input.value })) input.value = '';
+});
+$('lmstudio-key').addEventListener('keydown', noSubmit((input) => input.blur()));
+// The key box is left empty; what's typed replaces the key, and it's cleared
+// once saved, so the key is never shown.
+$('localai-key').addEventListener('change', async (e) => {
+  const input = e.currentTarget;
+  if (await saveServerSetting({ localaiKey: input.value })) input.value = '';
+});
+$('localai-key').addEventListener('keydown', noSubmit((input) => input.blur()));
 for (const r of document.querySelectorAll('input[name="new-app"]')) {
   r.addEventListener('change', () => saveServerSetting({ newSessionApp: r.value }).then(() => refresh()));
 }
@@ -1876,22 +2846,15 @@ function addGroupFolder(g, input) {
 function deleteGroup(g, button) {
   if (!button.classList.contains('btn-danger')) {
     button.classList.add('btn-danger');
-    button.textContent = 'Delete?';
+    button.textContent = tr('{label}?', { label: tr('Delete') });
     setTimeout(() => {
       button.classList.remove('btn-danger');
-      button.textContent = 'Delete';
+      button.textContent = tr('Delete');
     }, 3000);
     return;
   }
   saveGroups(editedGroups().filter((x) => x.id !== g.id));
 }
-
-// Enter in a text box would otherwise submit the Settings form, which closes it.
-const noSubmit = (then) => (e) => {
-  if (e.key !== 'Enter') return;
-  e.preventDefault();
-  then?.(e.currentTarget);
-};
 
 function groupRow(g) {
   return el(
@@ -1906,23 +2869,23 @@ function groupRow(g) {
         class: 'group-name',
         value: g.name,
         maxlength: '40',
-        'aria-label': 'Group name',
+        'aria-label': tr('Group name'),
         'data-focus': `name:${g.id}`,
         onchange: (e) => {
           const name = e.currentTarget.value.trim();
           if (name) changeGroup(g, { name });
           else {
             e.currentTarget.value = g.name;
-            toast('A group needs a name.', true);
+            toast(tr('A group needs a name.'), true);
           }
         },
         onkeydown: noSubmit((input) => input.blur()),
       }),
-      el('button', { type: 'button', class: 'btn btn-stop', onclick: (e) => deleteGroup(g, e.currentTarget) }, 'Delete'),
+      el('button', { type: 'button', class: 'btn btn-stop', onclick: (e) => deleteGroup(g, e.currentTarget) }, tr('Delete')),
     ),
     el(
       'div',
-      { class: 'swatches', role: 'radiogroup', 'aria-label': `${g.name}'s colour` },
+      { class: 'swatches', role: 'radiogroup', 'aria-label': tr("{group}'s colour", { group: g.name }) },
       Object.entries(GROUP_COLORS).map(([color, label]) =>
         el('button', {
           type: 'button',
@@ -1945,25 +2908,29 @@ function groupRow(g) {
               'li',
               {},
               el('span', { class: 'excluded-path', text: shortPath(f), title: f }),
-              el('button', { type: 'button', class: 'icon-btn', title: 'Remove', 'aria-label': `Remove ${shortPath(f)}`, onclick: () => changeGroup(g, { folders: g.folders.filter((x) => x !== f) }) }, '✕'),
+              el(
+                'button',
+                { type: 'button', class: 'icon-btn', title: tr('Remove'), 'aria-label': tr('Remove {folder}', { folder: shortPath(f) }), onclick: () => changeGroup(g, { folders: g.folders.filter((x) => x !== f) }) },
+                '✕',
+              ),
             ),
           ),
         )
-      : el('p', { class: 'settings-help', text: 'No folders yet, so only sessions moved here by hand are in it.' }),
+      : el('p', { class: 'settings-help', text: tr('No folders yet, so only sessions moved here by hand are in it.') }),
     el(
       'div',
       { class: 'group-add-folder' },
       el('input', {
         type: 'text',
         list: 'group-folders',
-        placeholder: 'Add a folder: a full path, or pick a repo',
-        'aria-label': `Add a folder to ${g.name}`,
+        placeholder: tr('Add a folder: a full path, or pick a repo'),
+        'aria-label': tr('Add a folder to {group}', { group: g.name }),
         autocomplete: 'off',
         spellcheck: 'false',
         'data-focus': `add:${g.id}`,
         onkeydown: noSubmit((input) => addGroupFolder(g, input)),
       }),
-      el('button', { type: 'button', class: 'btn', onclick: (e) => addGroupFolder(g, e.currentTarget.previousElementSibling) }, 'Add'),
+      el('button', { type: 'button', class: 'btn', onclick: (e) => addGroupFolder(g, e.currentTarget.previousElementSibling) }, tr('Add')),
     ),
   );
 }
@@ -1987,7 +2954,7 @@ function renderFolderSuggestions() {
 
 $('group-add').addEventListener('click', () => {
   const groups = editedGroups();
-  const g = { id: crypto.randomUUID(), name: `Group ${groups.length + 1}`, color: freeColor(groups), folders: [] };
+  const g = { id: crypto.randomUUID(), name: tr('Group {n}', { n: groups.length + 1 }), color: freeColor(groups), folders: [] };
   saveGroups([...groups, g], `name:${g.id}`);
   $('group-editor').querySelector(`[data-focus="name:${g.id}"]`)?.select();
 });
@@ -2001,30 +2968,315 @@ $('keep-notes').addEventListener('change', (e) => {
   saveNotes();
 });
 
-// Opens Settings, at one of its sections if given.
-function openSettings(sectionId) {
+// Settings shows one section at a time, picked from the list down its left
+// side. It opens at the last one used, kept in this browser.
+const SETTINGS_SECTION_KEY = 'tabherd:settings-section';
+
+function showSettingsSection(id, focus) {
+  const sections = [...document.querySelectorAll('.settings-section')];
+  const shown = sections.find((s) => s.id === id) || sections[0];
+  for (const s of sections) s.hidden = s !== shown;
+  for (const b of $('settings-nav').children) {
+    const on = b.dataset.section === shown.id;
+    b.setAttribute('aria-selected', String(on));
+    b.tabIndex = on ? 0 : -1;
+    if (on && focus) b.focus();
+  }
+  $('settings').querySelector('.settings-panels').scrollTop = 0;
+  try {
+    localStorage.setItem(SETTINGS_SECTION_KEY, shown.id);
+  } catch {}
+}
+
+$('settings-nav').replaceChildren(
+  ...[...document.querySelectorAll('.settings-section')].map((s) =>
+    el('button', { type: 'button', role: 'tab', 'data-section': s.id, 'aria-controls': s.id, onclick: () => showSettingsSection(s.id) }, s.dataset.title),
+  ),
+);
+// Up and down arrows move through the list, as in other tab lists.
+$('settings-nav').addEventListener('keydown', (e) => {
+  if (!['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+  e.preventDefault();
+  const tabs = [...$('settings-nav').children];
+  const i = tabs.indexOf(document.activeElement);
+  const next = tabs[(i + (e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+  showSettingsSection(next.dataset.section, true);
+});
+
+// Opens Settings, at the section holding `elementId` if given.
+function openSettings(elementId) {
   $('settings').showModal();
   groupsDraft = null;
   renderGroupEditor();
-  if (sectionId) $(sectionId).scrollIntoView({ block: 'start' });
-  else $('settings').querySelector('input:checked').focus();
+  renderFilterSettings();
+  let section = elementId ? $(elementId)?.closest('.settings-section')?.id : null;
+  if (!section) {
+    try {
+      section = localStorage.getItem(SETTINGS_SECTION_KEY);
+    } catch {}
+  }
+  showSettingsSection(section, true);
   loadServerSettings();
   loadRepos(false);
 }
+
+// ---- first-run tour ----------------------------------------------------------
+
+// A short look around the dashboard, on a browser's first visit and from
+// Settings → Help. While it runs the page is frozen: the cards don't update,
+// nothing scrolls, and only the tour can be clicked, so nothing moves under
+// it. A first visit's tour waits until every session is on the page, so none
+// look lost.
+const TOUR_KEY = 'tabherd:tour';
+let tourOn = false;
+let tourPending = firstVisit;
+let tourSteps = [];
+let tourAt = 0;
+let tourCard = null;
+let tourSample = null;
+
+const sessionCount = () => (snap?.agents || []).filter((a) => !isItem(a) && a.kind !== 'model').length;
+const tourAll = (selector) => () => [...document.querySelectorAll(selector)];
+
+const TOUR_STEPS = [
+  {
+    title: tr('Welcome to Tabherd'),
+    text: () => {
+      const n = sessionCount();
+      const yours = n ? ` ${trn(n, 'The one running now is on the page.', 'The {n} running now are on the page.')}` : '';
+      return `${tr('Every Claude Code, Codex and Copilot session on this computer gets a card here, and a ding when it needs you.')}${yours} ${tr(
+        'This is a quick look around: nothing on the page changes while it runs, and your sessions carry on as usual.',
+      )}`;
+    },
+  },
+  {
+    target: () => [tourCard],
+    title: tr('A card for each session'),
+    text: () =>
+      tr(
+        "Its status, Needs you, Working or Idle, and for how long; what it's doing; its last prompt and reply; and its model and tokens. Go to window brings up its terminal tab, and Catch up asks it where things stand.",
+      ) + (tourSample ? ` ${tr('This one is only an example, and goes when the tour ends.')}` : ''),
+  },
+  {
+    target: tourAll('#list .memory-card'),
+    title: tr('Memory and models'),
+    text: tr(
+      'Memory in use, on the computer and each graphics card, and the models loaded in ComfyUI, LocalAI, Ollama, LM Studio or llama.cpp, with Unload where it can. Settings → Appearance turns it off.',
+    ),
+  },
+  {
+    target: tourAll('#filters'),
+    title: tr('Filters'),
+    text: tr('All, then filters of your own. Each tab counts its cards, in amber when one needs you. The ⋯ at the end makes a new filter or changes the one shown.'),
+  },
+  {
+    target: tourAll('.view-filters > :not([hidden])'),
+    title: tr('Apps and groups'),
+    text: tr("Show only one app's sessions, or one group's. The counts on the tabs follow them."),
+  },
+  {
+    target: tourAll('#menu-button'),
+    title: tr('Your repos'),
+    text: tr('Every repo in your repos folder. Pick one to start a session in it, in a new terminal tab.'),
+  },
+  {
+    target: tourAll('#todo-new'),
+    title: tr('To-dos'),
+    text: tr("Note a task to start later. Its card's Start opens a session for it in its folder, named after it."),
+  },
+  {
+    target: tourAll('#sessions-button, #history-button'),
+    title: tr('Save and close, and History'),
+    text: tr('Save and close every session at once, then resume them all later. History lists the sessions closed in the last 30 days, each with Resume.'),
+  },
+  {
+    target: tourAll('#notes-button, #sound'),
+    title: tr('Notifications and sound'),
+    text: tr(
+      "A ding when a session needs you or finishes, and a list of what happened while you were away. Browsers only play sound once you've clicked the page, so the bell may ask for a click.",
+    ),
+  },
+  {
+    target: tourAll('#settings-button'),
+    title: tr('Settings'),
+    text: tr('Theme, card size, groups, filters, the app and terminal new sessions open in, and more. This tour is in Settings → Help whenever you want it again.'),
+  },
+];
+
+// The first session card on the page, or else an example one, put in for the
+// tour and taken out after.
+function tourSessionCard() {
+  const sessions = new Set((snap?.agents || []).filter((a) => !isItem(a) && a.kind !== 'model').map((a) => a.id));
+  const shown = [...list.children].find((n) => sessions.has(n.dataset.id));
+  if (shown) return shown;
+  const t = now();
+  const sep = snap?.platform === 'win32' ? '\\' : '/';
+  tourSample = card({
+    app: 'claude',
+    id: 'tour-example',
+    pid: 18244,
+    name: 'my-app',
+    title: tr('Add a sign-up page'),
+    cwd: [snap?.home || '', 'projects', 'my-app'].join(sep),
+    gitBranch: 'main',
+    status: 'busy',
+    statusSince: t - 95e3,
+    startedAt: t - 42 * 60e3,
+    tools: [{ name: 'Bash', detail: 'npm test', at: t - 8e3 }],
+    lastReply: { text: tr('The form and its checks are in. Running the tests now.'), at: t - 20e3 },
+    lastPrompt: { text: tr('Add a sign-up page with email and password, and tests for it.'), at: t - 6 * 60e3 },
+    model: 'claude-sonnet-5-5',
+    contextTokens: 61000,
+    contextLimit: 200000,
+    outputTokens: 18400,
+    prompts: 3,
+  });
+  tourSample.classList.add('tour-sample');
+  tourSample.removeAttribute('data-id');
+  // After the memory card, if it's there.
+  const memory = list.querySelector('.memory-card');
+  if (memory) memory.after(tourSample);
+  else list.prepend(tourSample);
+  $('empty').hidden = true;
+  return tourSample;
+}
+
+// What a step points at, as one box on screen, or null if it's not showing.
+function tourRect(step) {
+  if (!step.target) return null;
+  const rects = step
+    .target()
+    .filter(Boolean)
+    .map((n) => n.getBoundingClientRect())
+    .filter((r) => r.width && r.height);
+  if (!rects.length) return null;
+  const left = Math.max(0, Math.min(...rects.map((r) => r.left)));
+  const top = Math.max(0, Math.min(...rects.map((r) => r.top)));
+  const right = Math.min(innerWidth, Math.max(...rects.map((r) => r.right)));
+  const bottom = Math.min(innerHeight, Math.max(...rects.map((r) => r.bottom)));
+  return right > left && bottom > top ? { left, top, right, bottom, width: right - left, height: bottom - top } : null;
+}
+
+// Lights up what the step is about, with the panel beside it where there's
+// room: below, above, to the right or left, else at the bottom of the screen.
+function placeTour() {
+  const r = tourRect(tourSteps[tourAt]);
+  const spot = $('tour-spot');
+  const panel = $('tour-panel');
+  const pad = 6;
+  const gap = 12;
+  const edge = 12;
+  const pw = panel.offsetWidth;
+  const ph = panel.offsetHeight;
+  const x = (v) => Math.max(edge, Math.min(innerWidth - pw - edge, v));
+  const y = (v) => Math.max(edge, Math.min(innerHeight - ph - edge, v));
+  $('tour').classList.toggle('no-spot', !r);
+  let left = (innerWidth - pw) / 2;
+  let top = (innerHeight - ph) / 2;
+  if (r) {
+    Object.assign(spot.style, { left: `${r.left - pad}px`, top: `${r.top - pad}px`, width: `${r.width + pad * 2}px`, height: `${r.height + pad * 2}px` });
+    const middle = r.left + r.width / 2 - pw / 2;
+    if (r.bottom + pad + gap + ph <= innerHeight - edge) [left, top] = [x(middle), r.bottom + pad + gap];
+    else if (r.top - pad - gap - ph >= edge) [left, top] = [x(middle), r.top - pad - gap - ph];
+    else if (r.right + pad + gap + pw <= innerWidth - edge) [left, top] = [r.right + pad + gap, y(r.top)];
+    else if (r.left - pad - gap - pw >= edge) [left, top] = [r.left - pad - gap - pw, y(r.top)];
+    else [left, top] = [x((innerWidth - pw) / 2), innerHeight - ph - edge];
+  }
+  panel.style.left = `${left}px`;
+  panel.style.top = `${top}px`;
+}
+
+function showTourStep(i) {
+  tourAt = i;
+  const step = tourSteps[i];
+  const last = i === tourSteps.length - 1;
+  $('tour-step').textContent = tr('{n} of {total}', { n: i + 1, total: tourSteps.length });
+  $('tour-title').textContent = step.title;
+  $('tour-text').textContent = typeof step.text === 'function' ? step.text() : step.text;
+  $('tour-back').hidden = i === 0;
+  $('tour-next').textContent = i === 0 ? tr('Show me around') : last ? tr('Done') : tr('Next');
+  $('tour-skip').hidden = last;
+  // A card it points at is brought into view below the header, which stays put.
+  const first = step.target?.().find(Boolean);
+  if (first && !first.closest('.top')) {
+    const r = first.getBoundingClientRect();
+    const below = document.querySelector('.top').getBoundingClientRect().bottom + 12;
+    if (r.top < below || r.top > innerHeight / 2) scrollBy(0, r.top - below);
+  }
+  placeTour();
+  $('tour-next').focus();
+}
+
+function startTour() {
+  if (tourOn || !snap) return;
+  tourPending = false;
+  // Brought up to date, then frozen.
+  render();
+  tourOn = true;
+  window.scrollTo(0, 0);
+  tourCard = tourSessionCard();
+  tourSteps = TOUR_STEPS.filter((s) => !s.target || tourRect(s));
+  $('tour').showModal();
+  showTourStep(0);
+  try {
+    localStorage.setItem(TOUR_KEY, 'seen');
+  } catch {}
+}
+
+// A first visit's tour starts once the sessions have all arrived: Codex's are
+// known, and the same cards came in two updates running. It waits for any
+// dialog that's open to close.
+let tourIds = null;
+let tourWaitFrom = 0;
+
+function startTourWhenSettled() {
+  const ids = [...snap.agents.map((a) => a.id), ...(snap.todos || []).map((t) => t.id)].sort().join();
+  const steady = ids === tourIds && snap.settled !== false;
+  tourIds = ids;
+  tourWaitFrom ||= Date.now();
+  if ((steady || Date.now() - tourWaitFrom > 15000) && !document.querySelector('dialog[open]')) startTour();
+}
+
+$('tour-next').addEventListener('click', () => (tourAt === tourSteps.length - 1 ? $('tour').close() : showTourStep(tourAt + 1)));
+$('tour-back').addEventListener('click', () => tourAt > 0 && showTourStep(tourAt - 1));
+$('tour-skip').addEventListener('click', () => $('tour').close());
+// Esc closes it too, as it does any dialog. The arrow keys move through it,
+// and nothing else scrolls the page under it.
+$('tour').addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight' && tourAt < tourSteps.length - 1) showTourStep(tourAt + 1);
+  else if (e.key === 'ArrowLeft' && tourAt > 0) showTourStep(tourAt - 1);
+  else if (!['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(e.key)) return;
+  e.preventDefault();
+});
+for (const type of ['wheel', 'touchmove']) $('tour').addEventListener(type, (e) => e.preventDefault(), { passive: false });
+addEventListener('resize', () => tourOn && placeTour());
+$('tour').addEventListener('close', () => {
+  tourOn = false;
+  tourSample?.remove();
+  tourSample = null;
+  tourCard = null;
+  render();
+});
+$('tour-again').addEventListener('click', () => {
+  $('settings').close();
+  startTour();
+});
+
+// ---- start ---------------------------------------------------------------------
 
 $('settings-button').addEventListener('click', () => openSettings());
 $('settings').addEventListener('click', (e) => e.target === e.currentTarget && e.currentTarget.close());
 renderNotes();
 // Starting a to-do needs the folder setting before Settings is ever opened.
 loadServerSettings();
+// Back from choosing a language, Settings opens again where it was.
+try {
+  if (sessionStorage.getItem(LANGUAGE_KEY)) {
+    sessionStorage.removeItem(LANGUAGE_KEY);
+    openSettings('language');
+  }
+} catch {}
 
-for (const b of document.querySelectorAll('[data-filter]')) {
-  b.addEventListener('click', () => {
-    filter = b.dataset.filter;
-    for (const o of document.querySelectorAll('[data-filter]')) o.setAttribute('aria-pressed', String(o === b));
-    render();
-  });
-}
 $('sound').addEventListener('click', () => {
   const ctx = audioContext();
   // While sound is blocked, the first click only unblocks it.

@@ -28,7 +28,7 @@ Not yet confirmed in real use:
 
 ## Public (2026-11-19)
 
-The repository is public, and v0.4.0 is the latest release. It's licensed GPL-3.0-or-later, and *Skip permission prompts* is off unless chosen.
+The repository is public, and v0.5.0 is the latest release. It's licensed GPL-3.0-or-later, and *Skip permission prompts* is off unless chosen.
 
 Renamed from Claude Agents to Tabherd (2026-11-20). Anthropic's Claude Code terms don't allow its names in a product's name, and "Claude Agents" is close to "Claude Agent", Anthropic's own wording for products built on its Agent SDK. Searching for "claude agents" also brings up Anthropic's own docs first. "Tabherd" had no web results, and nothing on npm or GitHub of note. The description says what it works with: "a dashboard for your Claude Code sessions". The rename came before applying to SignPath, since the product name on a signed file must match the project.
 
@@ -73,6 +73,8 @@ In build order, smallest first. Items 1 to 3 only change the page. Items 4 to 6 
    - Start doesn't send the to-do's text to Claude. To use it as a prompt, copy and paste it into the session.
    - To-do cards count under All and the Todo filter.
    - Once linked, a to-do follows its session's process too, so it stays linked if the session ID changes (as `/clear` does). When the session closes, the to-do is hidden and kept for 30 days, so resuming the session brings it back. Its title and notes are also saved in the session's History entry.
+
+**Desktop app** (2026-11-24): a Tauri app in place of the browser window, starting the bundled Node as a sidecar, with macOS signing and notarization done by the release workflow. Specced in [docs/desktop-app.md](docs/desktop-app.md). Phase 1, Windows, built 2026-11-24: installer and zip, signed in two stages through SignPath.
 
 ## Ideas
 

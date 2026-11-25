@@ -71,16 +71,25 @@ Then open a pull request into `develop` and ask for a review.
 
 Keep examples, tests and docs free of real names. Use made-up projects, folders and people (`work/acme/api`, "API - auth") rather than ones from your own computer or work.
 
+### Languages
+
+The page is written in English and shown in the language chosen in Settings. Each other language has a table in `public/lang/<code>.js`, from the English as the page has it to that language.
+
+- In `public/app.js`, every text the page shows goes through `tr()`, with `{name}` for what's filled in: `tr('Moved to {group}', { group: g.name })`. A count goes through `trn()`, with the English for one and for more: `trn(n, '{n} prompt', '{n} prompts')`. Keep each sentence whole in one text, so a language can put its words in its own order.
+- Text in `public/index.html` is translated as the page loads, piece by piece. Where words run either side of a `<b>` or `<code>`, mark the element `data-i18n` so it's translated whole, markup and all.
+- Add the Spanish for each new text to `public/lang/es.js`. `npm test` lists any the page uses that the table doesn't have, any the table has that nothing uses, and any whose `{name}` parts or markup don't match.
+- A new language: a table like `es.js`, its name in `LANGUAGES` in `app.js`, a `<script>` for it in `index.html`, and its path in `STATIC` in `server.js`.
+
 ## Releasing
 
 1. Start the release from `develop`: `git switch -c release/<version> develop`. Set the version in `package.json` and add a `## <version>` section to `CHANGELOG.md`; the release notes come from it. Commit, push, and open a pull request into `main`.
 2. Merge it once the checks pass and it's been reviewed.
 3. Tag the merge on `main`: `git switch main && git pull && git tag v<version> && git push origin v<version>`.
-4. The Release workflow tests, builds the downloads and makes a draft release. Once signing is set up, it first waits up to an hour for the launcher's signing request to be approved on [signpath.io](https://app.signpath.io); an approver approves it there. Check the draft and publish it.
+4. The Release workflow tests, builds the downloads and makes a draft release. Once signing is set up, it waits up to an hour each for two signing requests to be approved on [signpath.io](https://app.signpath.io): the Windows app's, then its installer's. An approver approves them there. Check the draft and publish it.
 5. Open a pull request from `main` into `develop`, so `develop` has the release's changes.
 6. Package managers:
    - **Homebrew** ([tleeadams/homebrew-tap](https://github.com/tleeadams/homebrew-tap)) picks the release up by itself within a day: its Update workflow installs and tests the formula at the new release on macOS and Linux, then commits it. Run that workflow from its Actions tab to do it now.
-   - **winget**: submit the new version to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) as a pull request, with the three manifest files for `tleeadams.Tabherd` updated to the new version, URL and SHA-256 (`wingetcreate update tleeadams.Tabherd -v <version> -u <zip url> --submit` does it). Microsoft validates and merges it, typically within a few days.
+   - **winget**: submit the new version to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) as a pull request, with the three manifest files for `tleeadams.Tabherd` updated to the new version, URL and SHA-256 (`wingetcreate update tleeadams.Tabherd -v <version> -u <installer url> --submit` does it). Microsoft validates and merges it, typically within a few days. From the first release with the desktop app, the manifest should point at the installer (`-setup.exe`): installer type `nullsoft`, scope `user`, and `UpgradeBehavior: uninstallPrevious`, so that a copy installed from the portable zip is replaced rather than left beside it. The installer adds Tabherd to the Start menu, which a portable install doesn't. The zip still works as a portable install too (`zip`, nested `portable`, `tabherd-windows-x64Tabherd.exe`): the app follows winget's link back to its own folder to find Node and the server.
 
 ### Hotfixes
 
@@ -108,11 +117,11 @@ For maintainers, once, after creating the repository on GitHub:
 
 ### Code signing
 
-The launcher is signed by [SignPath Foundation](https://signpath.org), which signs open-source projects for free, under the policy in the README. Until the project is set up there, releases ship with the launcher unsigned. To set it up:
+The Windows app and its installer are signed by [SignPath Foundation](https://signpath.org), which signs open-source projects for free, under the policy in the README. Until the project is set up there, releases ship unsigned. To set it up:
 
 1. Apply at [signpath.org/apply](https://signpath.org/apply). Everyone on the team, on GitHub and on SignPath, needs two-factor sign-in.
-2. Once approved, on [app.signpath.io](https://app.signpath.io): link the project to the predefined GitHub.com trusted build system, and paste `.signpath/artifact-configuration.xml` into its default artifact configuration. The workflow uploads only `Tabherd.exe`. Releases are built from version tags on `main`, so if the signing policy limits what can be signed by branch, allow the `v*` tags.
+2. Once approved, on [app.signpath.io](https://app.signpath.io): link the project to the predefined GitHub.com trusted build system, and paste `.signpath/artifact-configuration.xml` into its default artifact configuration, for the app (`Tabherd.exe`). Add `.signpath/installer-configuration.xml` as a second artifact configuration with the slug `installer`. Releases are built from version tags on `main`, so if the signing policy limits what can be signed by branch, allow the `v*` tags.
 3. Make an API token for a user who can submit signing requests to the release signing policy.
-4. In the repository's settings, under **Secrets and variables → Actions**, add the token as the secret `SIGNPATH_API_TOKEN` and the organization's ID as the variable `SIGNPATH_ORGANIZATION_ID`. If the project or signing policy aren't called `tabherd` and `release-signing`, add `SIGNPATH_PROJECT_SLUG` or `SIGNPATH_POLICY_SLUG` too.
+4. In the repository's settings, under **Secrets and variables → Actions**, add the token as the secret `SIGNPATH_API_TOKEN` and the organization's ID as the variable `SIGNPATH_ORGANIZATION_ID`. If the project, signing policy or installer configuration aren't called `tabherd`, `release-signing` and `installer`, add `SIGNPATH_PROJECT_SLUG`, `SIGNPATH_POLICY_SLUG` or `SIGNPATH_INSTALLER_CONFIGURATION_SLUG` too.
 
-The variable turns signing on. The workflow checks the signature before zipping, and fails rather than release a launcher that isn't validly signed.
+The variable turns signing on. The app is signed first, and the installer is then built around the signed app and signed in a second request. Packaging is told not to touch the app (`--no-binary-patching`), which would break its signature. The workflow checks each signature, and fails rather than release a file that isn't validly signed.

@@ -14,7 +14,16 @@ const settings = require('./lib/settings');
 const history = require('./lib/history');
 const todos = require('./lib/todos');
 const groups = require('./lib/groups');
+const filters = require('./lib/filters');
 const codex = require('./lib/codex');
+const copilot = require('./lib/copilot');
+const comfy = require('./lib/comfy');
+const localai = require('./lib/localai');
+const ollama = require('./lib/ollama');
+const lmstudio = require('./lib/lmstudio');
+const llamacpp = require('./lib/llamacpp');
+const saved = require('./lib/saved');
+const dismissed = require('./lib/dismissed');
 
 const PORT = Number(process.env.PORT) || 4317;
 const HOST = '127.0.0.1';
@@ -31,11 +40,17 @@ const CATCH_UP_PROMPT = (
 const claudeCommand = () => (settings.get().skipPermissions ? 'claude --dangerously-skip-permissions' : 'claude');
 function sessionCommand(app, resume = null) {
   if (app === 'codex') return codex.command({ skipPermissions: settings.get().skipPermissions, resume });
+  if (app === 'copilot') return copilot.command({ skipPermissions: settings.get().skipPermissions, resume });
   return resume ? `${claudeCommand()} --resume ${resume}` : claudeCommand();
 }
 // The app new sessions start in, from Settings: Claude unless Codex is chosen
 // and installed.
-const newSessionApp = () => (settings.get().newSessionApp === 'codex' && codex.installed() ? 'codex' : 'claude');
+function newSessionApp() {
+  const app = settings.get().newSessionApp;
+  if (app === 'codex' && codex.installed()) return 'codex';
+  if (app === 'copilot' && copilot.installed()) return 'copilot';
+  return 'claude';
+}
 // Where a to-do with no folder of its own starts: the Start in folder from
 // Settings, else the repos folder. Claude can make a new project there.
 const todoStartsIn = () => settings.get().todoStartFolder || SOURCE_DIR;
@@ -51,6 +66,8 @@ const STATIC = {
   '/': ['index.html', 'text/html; charset=utf-8'],
   '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
   '/style.css': ['style.css', 'text/css; charset=utf-8'],
+  // Each language's words, other than English.
+  '/lang/es.js': ['lang/es.js', 'text/javascript; charset=utf-8'],
   // The launchers check for a running server by asking for this one.
   '/favicon.svg': ['favicon.svg', 'image/svg+xml'],
   '/icons/tabherd-32.png': ['icons/tabherd-32.png', 'image/png'],
@@ -66,6 +83,8 @@ function currentSnapshot() {
   if (!inflight) {
     inflight = snapshot()
       .then((snap) => {
+        // Failed jobs, chats and downloads that were cleared.
+        snap.agents = snap.agents.filter((a) => !dismissed.has(a.id));
         // To-dos first: a to-do goes on its session's card, and from there
         // into the history when the session closes.
         todos.observe(snap.agents, snap.now);
@@ -76,13 +95,24 @@ function currentSnapshot() {
         snap.groups = groups.list();
         for (const a of snap.agents) Object.assign(a, groups.groupOf(a));
         for (const t of snap.todos) Object.assign(t, groups.groupOf({ id: t.id, cwd: t.cwd || snap.todoStartsIn }));
+        // The filter tabs after All, the same in every browser.
+        snap.filters = filters.list();
         // Whether this computer has a terminal the dashboard can drive, for
         // Go to window, Catch up, Start, Resume and the repo menu.
         snap.terminals = terminals.terminals().some((t) => t.available);
         // Whether Codex can be chosen for new sessions, and which app they start in.
         snap.codexInstalled = codex.installed();
+        // Whether Codex's open sessions are known yet, so the first-run tour
+        // waits for them.
+        snap.settled = codex.settled();
+        snap.copilotInstalled = copilot.installed();
         snap.newSessionApp = newSessionApp();
         history.observe(snap.agents, snap.now);
+        // Sessions Save and close is waiting on: each closes once it's done.
+        closeFinished(snap.agents);
+        snap.closing = [...closing.keys()];
+        const last = saved.get();
+        snap.saved = last ? { savedAt: last.savedAt, count: last.sessions.length } : null;
         cached = snap;
         cachedAt = Date.now();
         return snap;
@@ -140,6 +170,20 @@ function send(res, status, body, type = 'application/json; charset=utf-8') {
   res.end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
 }
 
+// The settings as the page sees them: LocalAI's key only says whether one is set.
+const forPage = (s) => ({ ...s, localaiKey: '', localaiKeySet: Boolean(s.localaiKey), lmstudioKey: '', lmstudioKeySet: Boolean(s.lmstudioKey) });
+
+// Other apps' addresses and keys, from Settings.
+function configureApps() {
+  const s = settings.get();
+  comfy.configure({ url: s.comfyUrl });
+  localai.configure({ url: s.localaiUrl, key: s.localaiKey });
+  ollama.configure({ url: s.ollamaUrl });
+  lmstudio.configure({ url: s.lmstudioUrl, key: s.lmstudioKey });
+  llamacpp.configure({ url: s.llamacppUrl });
+}
+configureApps();
+
 // Opens a tab running `command` in `dir`, in the terminal chosen in Settings.
 // The command is always built here, never sent by the page.
 const openTab = (dir, command) => terminals.open(dir, command, { terminal: settings.get().terminal });
@@ -173,6 +217,32 @@ async function action(res, sessionId, name) {
     terminals.openFolder(agent.cwd);
     return send(res, 200, { ok: true });
   }
+  // A failed job, chat or download, cleared from the dashboard.
+  if (name === 'dismiss') {
+    if (!(agent.actions || []).includes('dismiss')) return send(res, 400, { ok: false, error: "That can't be cleared: it's still going." });
+    dismissed.add(agent.id);
+    pushSnapshot();
+    return send(res, 200, { ok: true });
+  }
+  // LocalAI: Unload a model, Stop a chat's turn, Cancel a download or agent
+  // job. Ollama, LM Studio and llama.cpp: Unload a model.
+  const service = { localai, ollama, lmstudio, llamacpp }[agent.app];
+  if (service && ['stop', 'cancel', 'unload'].includes(name)) {
+    const result = await service.act(agent, name);
+    return send(res, result.ok ? 200 : 500, result);
+  }
+  // A ComfyUI job: Stop and Cancel go to its ComfyUI, which ends a running
+  // job or takes a queued one out of the queue. A model's Unload frees all of
+  // its ComfyUI's models.
+  if (agent.app === 'comfy' && ['stop', 'cancel', 'unload'].includes(name)) {
+    const result = name === 'unload' ? await comfy.unload(agent) : await comfy.cancel(agent);
+    return send(res, result.ok ? 200 : 500, result);
+  }
+  // A VS Code Copilot session runs in VS Code's agent host, with every other
+  // VS Code session: its window can be brought up, and that's all.
+  if (agent.app === 'copilot' && agent.entrypoint === 'vscode' && name !== 'focus' && name !== 'open-folder') {
+    return send(res, 400, { ok: false, error: 'Use VS Code for that: this session runs inside it.' });
+  }
   // A Codex session's window is only known once its tab's title names it.
   if (name === 'focus' && !agent.pid) {
     return send(res, 409, { ok: false, error: `Couldn't tell which window ${agent.title || agent.name} is in.` });
@@ -199,7 +269,9 @@ async function action(res, sessionId, name) {
   }
   if (name === 'focus' || name === 'catch-up') {
     const prompt = name === 'catch-up' ? CATCH_UP_PROMPT : null;
-    const result = await terminals.focus(agent.pid, { send: prompt, statusFile: sessionFile(agent.pid) });
+    // Claude's registry file is checked again just before typing; other apps
+    // were checked above.
+    const result = await terminals.focus(agent.pid, { send: prompt, statusFile: agent.app === 'claude' ? sessionFile(agent.pid) : '' });
     return send(res, result.ok ? 200 : 500, result);
   }
   if (name === 'stop') {
@@ -207,6 +279,94 @@ async function action(res, sessionId, name) {
     return send(res, result.ok ? 200 : 500, result);
   }
   return send(res, 404, { ok: false, error: 'Unknown action.' });
+}
+
+// ---- Save and close, and Resume last session ----------------------------------
+
+// The sessions Save and close takes: Claude and Codex sessions in a
+// terminal. Not background runs, which have no tab, nor sessions in a VS Code
+// panel, which has no shell to close.
+const closable = (a) =>
+  (a.app === 'claude' && !a.background && (!a.kind || a.kind === 'interactive') && (!a.entrypoint || a.entrypoint === 'cli')) ||
+  a.app === 'codex' ||
+  (a.app === 'copilot' && a.entrypoint === 'cli');
+const working = (a) => a.status === 'busy' || a.status === 'shell';
+// Waiting to close once they're done: session ID -> its name.
+const closing = new Map();
+
+// Ends a session and its tab. A Codex session's turn is interrupted first,
+// and one whose window isn't known can't be closed from here.
+async function closeSession(a) {
+  if (a.app === 'codex') {
+    await codex.interrupt(a.id);
+    if (!a.pid) return { ok: false, error: "its window isn't known" };
+  }
+  return terminals.close(a.pid);
+}
+
+function closeFinished(agents) {
+  for (const [id] of closing) {
+    const a = agents.find((x) => x.id === id);
+    if (!a) closing.delete(id);
+    else if (!working(a)) {
+      closing.delete(id);
+      closeSession(a).catch(() => {});
+    }
+  }
+}
+
+// Saves every open session, replacing the last saved set, then closes them.
+// Working ones close now, or with `wait` once they finish their turn. A
+// session that was never asked anything has nothing to resume, so it's
+// closed but not saved.
+async function saveAndClose(res, body) {
+  cached = null;
+  const snap = await currentSnapshot();
+  const open = snap.agents.filter(closable);
+  const set = saved.save(
+    open.filter((a) => a.prompts > 0).map((a) => ({ app: a.app, id: a.id, cwd: a.cwd, name: a.terminalTitle || a.title || a.name })),
+    snap.now,
+  );
+  const failed = [];
+  let closed = 0;
+  for (const a of open) {
+    if (body.wait && working(a)) {
+      closing.set(a.id, a.name);
+      continue;
+    }
+    const result = await closeSession(a).catch((err) => ({ ok: false, error: err.message }));
+    if (result.ok) closed++;
+    else failed.push({ name: a.terminalTitle || a.title || a.name, error: result.error });
+  }
+  cached = null;
+  pushSnapshot();
+  return send(res, 200, { ok: true, saved: set.sessions.length, closed, waiting: closing.size, failed });
+}
+
+// Opens each session in the saved set in a terminal tab, carrying on its
+// conversation. Ones that are open already, or whose folder has gone, are
+// skipped.
+async function resumeLast(res) {
+  const set = saved.get();
+  if (!set?.sessions.length) return send(res, 404, { ok: false, error: 'There is no saved session to resume.' });
+  cached = null;
+  const snap = await currentSnapshot();
+  const open = new Set(snap.agents.map((a) => a.id));
+  const skipped = [];
+  let opened = 0;
+  for (const s of set.sessions) {
+    if (open.has(s.id)) skipped.push({ name: s.name, why: 'already open' });
+    else if (!fs.existsSync(s.cwd)) skipped.push({ name: s.name, why: 'its folder is gone' });
+    else {
+      // The ID comes from the saved set, which only holds UUIDs.
+      const result = await openTab(s.cwd, sessionCommand(s.app, s.id));
+      if (result.ok) opened++;
+      else skipped.push({ name: s.name, why: result.error });
+      // One at a time, so each tab opens before the next.
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    }
+  }
+  return send(res, 200, { ok: true, opened, skipped });
 }
 
 // Everything about a to-do's folder and session is decided here: the folder
@@ -242,7 +402,18 @@ async function todoAction(res, id, name, body) {
       const which = todo.cwd ? 'Its folder' : 'The folder to-dos start in';
       return send(res, 400, { ok: false, error: `${which} doesn't exist: ${cwd}` });
     }
-    if ((todo.app || newSessionApp()) === 'codex') {
+    const app = todo.app || newSessionApp();
+    if (app === 'copilot') {
+      if (!copilot.installed()) return send(res, 400, { ok: false, error: "The Copilot CLI isn't installed on this computer." });
+      // Like Claude: the server makes the session's ID, so it knows which
+      // session the to-do became, and Copilot names the session after it.
+      const sessionId = crypto.randomUUID();
+      const name = terminals.quote(todo.title.replace(/"/g, '”'));
+      const opened = await openTab(cwd, copilot.command({ skipPermissions: settings.get().skipPermissions, sessionId, name }));
+      if (!opened.ok) return send(res, 500, opened);
+      groups.carry(id, sessionId);
+      result = todos.started(id, sessionId);
+    } else if (app === 'codex') {
       if (!codex.installed()) return send(res, 400, { ok: false, error: "Codex isn't installed on this computer." });
       const opened = await openTab(cwd, sessionCommand('codex'));
       if (!opened.ok) return send(res, 500, opened);
@@ -294,11 +465,12 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname === '/api/settings') {
       // With the terminals this computer has, for the Terminal setting.
-      if (req.method === 'GET') return send(res, 200, { ok: true, settings: settings.get(), terminals: terminals.terminals() });
+      if (req.method === 'GET') return send(res, 200, { ok: true, settings: forPage(settings.get()), terminals: terminals.terminals() });
       if (req.method !== 'POST') return send(res, 405, { error: 'Use GET or POST' });
       if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
       const result = settings.update(await readJson(req));
-      return send(res, result.ok ? 200 : 400, result);
+      if (result.ok) configureApps();
+      return send(res, result.ok ? 200 : 400, result.ok ? { ...result, settings: forPage(result.settings) } : result);
     }
 
     if (url.pathname === '/api/repos/open') {
@@ -330,6 +502,21 @@ const server = http.createServer(async (req, res) => {
       return send(res, result.ok ? 200 : 500, result);
     }
 
+    // Save and close every open session, stop waiting on one, or resume the
+    // last saved set.
+    const sessionsAction = url.pathname.match(/^\/api\/sessions\/(save-close|keep-open|resume-last)$/);
+    if (sessionsAction) {
+      if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
+      if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
+      const body = await readJson(req);
+      if (sessionsAction[1] === 'save-close') return await saveAndClose(res, body);
+      if (sessionsAction[1] === 'resume-last') return await resumeLast(res);
+      closing.delete(String(body.id));
+      cached = null;
+      pushSnapshot();
+      return send(res, 200, { ok: true });
+    }
+
     // Every group at once, from the Settings editor; or one session or to-do
     // put in a group by hand.
     if (url.pathname === '/api/groups' || url.pathname === '/api/groups/place') {
@@ -337,6 +524,20 @@ const server = http.createServer(async (req, res) => {
       if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
       const body = await readJson(req);
       const result = url.pathname === '/api/groups' ? groups.setGroups(body.groups) : groups.place(body.id, body.group === undefined ? 'auto' : body.group);
+      if (result.ok) {
+        cached = null;
+        pushSnapshot();
+      }
+      return send(res, result.ok ? 200 : 400, result);
+    }
+
+    // Every filter at once, in order, as the page edits them; or the usual
+    // ones back.
+    if (url.pathname === '/api/filters') {
+      if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
+      if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
+      const body = await readJson(req);
+      const result = filters.setFilters(body.reset === true ? filters.DEFAULTS : body.filters);
       if (result.ok) {
         cached = null;
         pushSnapshot();
@@ -362,11 +563,28 @@ const server = http.createServer(async (req, res) => {
       return await todoAction(res, t[1], t[2] || 'edit', await readJson(req));
     }
 
-    const m = url.pathname.match(/^\/api\/agents\/([0-9a-f-]{36})\/(focus|catch-up|open-folder|stop)$/i);
+    // Sessions have UUIDs; jobs and models have IDs such as comfy:<install>:<job>.
+    // Either way it must be on the dashboard now.
+    const m = url.pathname.match(/^\/api\/agents\/([^/]{1,300})\/(focus|catch-up|open-folder|stop|cancel|unload|dismiss)$/i);
     if (m) {
       if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
       if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
-      return await action(res, m[1], m[2]);
+      let id;
+      try {
+        id = decodeURIComponent(m[1]);
+      } catch {
+        return send(res, 400, { error: 'Bad ID' });
+      }
+      return await action(res, id, m[2]);
+    }
+
+    // A ComfyUI job's output, for its card. Only outputs on cards are served.
+    if (req.method === 'GET' && url.pathname === '/api/comfy/view') {
+      const p = Object.fromEntries(url.searchParams);
+      const image = typeof p.i === 'string' && typeof p.filename === 'string' ? await comfy.view(p).catch(() => null) : null;
+      if (!image) return send(res, 404, { error: 'Not found' });
+      res.writeHead(200, { 'Content-Type': image.type, 'Cache-Control': 'private, max-age=600', 'X-Content-Type-Options': 'nosniff' });
+      return res.end(image.body);
     }
 
     const file = req.method === 'GET' && STATIC[url.pathname];

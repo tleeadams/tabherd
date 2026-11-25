@@ -21,24 +21,23 @@
       <h1>Tabherd</h1>
       <span id="host" class="host"></span>
     </div>
-    <nav class="filters" aria-label="Filter by status">
-      <button type="button" data-filter="all" aria-pressed="true">All <b id="n-all">0</b></button>
-      <button type="button" data-filter="todo" aria-pressed="false" title="Needs you, Idle and to-dos: everything waiting on you">Todo <b id="n-todo">0</b></button>
-      <button type="button" data-filter="needs" aria-pressed="false">Needs you <b id="n-needs">0</b></button>
-      <button type="button" data-filter="working" aria-pressed="false">Working <b id="n-working">0</b></button>
-      <button type="button" data-filter="idle" aria-pressed="false">Idle <b id="n-idle">0</b></button>
+    <nav id="filters" class="filters" aria-label="Filters">
+      <button type="button" data-filter="all" aria-pressed="true">All <b>0</b></button>
     </nav>
     <div class="view-filters">
-      <select id="app-filter" class="view-select" aria-label="Show sessions from" hidden>
-        <option value="all">All apps</option>
-        <option value="claude">Claude</option>
-        <option value="codex">Codex</option>
-      </select>
+      <select id="app-filter" class="view-select" aria-label="Show sessions from" hidden></select>
       <select id="group-filter" class="view-select" aria-label="Show a group" hidden></select>
     </div>
     <button type="button" id="todo-new" class="todo-new" title="New to-do: a task to start a Claude session for later" aria-haspopup="dialog" aria-controls="todo-dialog">
       <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path d="M10 4.25v11.5M4.25 10h11.5"/></svg>
       To-do
+    </button>
+    <button type="button" id="sessions-button" class="icon-btn header-icon" title="Save and close all sessions, or resume the last saved ones" aria-label="Save and close, or resume" aria-haspopup="menu">
+      <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+        <path d="M3.5 5.5h13v2h-13z"/>
+        <path d="M4.5 7.5v7.25a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V7.5"/>
+        <path d="M8.25 10.5h3.5"/>
+      </svg>
     </button>
     <button type="button" id="history-button" class="icon-btn header-icon history-button" title="History of closed sessions" aria-label="History" aria-haspopup="dialog" aria-controls="history">
       <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
@@ -62,6 +61,12 @@
       </svg>
       <span id="sound-label"></span>
     </button>
+    <button type="button" id="pin-button" class="icon-btn header-icon pin-button" title="Keep this window on top of other windows" aria-label="Keep on top" aria-pressed="false" hidden>
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+        <path d="M12 17v5"/>
+        <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>
+      </svg>
+    </button>
     <button type="button" id="settings-button" class="icon-btn header-icon" title="Settings" aria-label="Settings" aria-haspopup="dialog" aria-controls="settings">
       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
         <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
@@ -77,7 +82,7 @@
     <div id="list" class="list"></div>
     <div id="empty" class="empty" hidden>
       <p class="empty-title">No Claude Code or Codex sessions are running.</p>
-      <p>Start one with <code>claude</code> or <code>codex</code> in any terminal and it will appear here within a few seconds.</p>
+      <p data-i18n>Start one with <code>claude</code> or <code>codex</code> in any terminal and it will appear here within a few seconds.</p>
     </div>
   </main>
 
@@ -95,10 +100,11 @@
       <div id="repos-app" class="segmented repos-app" role="radiogroup" aria-label="Open in" hidden>
         <label><input type="radio" name="repos-app" value="claude">Claude</label>
         <label><input type="radio" name="repos-app" value="codex">Codex</label>
+        <label><input type="radio" name="repos-app" value="copilot">Copilot</label>
       </div>
     </div>
     <nav id="repos-tree" class="tree" aria-label="Repositories"></nav>
-    <p id="repos-foot" class="drawer-foot">Click a repo to open a terminal tab there running <code id="repos-command">claude</code>.</p>
+    <p id="repos-foot" class="drawer-foot" data-i18n>Click a repo to open a terminal tab there running <code id="repos-command">claude</code>.</p>
     <p id="repos-pick-foot" class="drawer-foot" hidden></p>
   </dialog>
 
@@ -124,103 +130,211 @@
         <h2 id="settings-title">Settings</h2>
         <button value="close" class="icon-btn" title="Close" aria-label="Close">✕</button>
       </div>
-      <fieldset>
-        <legend>Theme</legend>
-        <div class="segmented">
-          <label><input type="radio" name="theme" value="system">System</label>
-          <label><input type="radio" name="theme" value="light">Light</label>
-          <label><input type="radio" name="theme" value="dark">Dark</label>
+      <div class="settings-body">
+        <nav id="settings-nav" class="settings-nav" role="tablist" aria-label="Settings sections"></nav>
+        <div class="settings-panels">
+          <section class="settings-section" id="settings-appearance" data-title="Appearance">
+            <fieldset>
+              <legend>Language</legend>
+              <label class="field language-field">
+                <select id="language" aria-label="Language"></select>
+              </label>
+              <p class="settings-help">Changing it reloads the page.</p>
+            </fieldset>
+            <fieldset>
+              <legend>Theme</legend>
+              <div class="segmented">
+                <label><input type="radio" name="theme" value="system">System</label>
+                <label><input type="radio" name="theme" value="light">Light</label>
+                <label><input type="radio" name="theme" value="dark">Dark</label>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Card size</legend>
+              <label class="choice">
+                <input type="radio" name="card-size" value="fit">
+                <span class="size-shape fit" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span class="choice-text"><b>Fit content <em>Default</em></b><span>Each card is as tall as its content, so heights vary.</span></span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="card-size" value="small">
+                <span class="size-shape small" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+                <span class="choice-text"><b>Small</b><span>All cards one size, compact. Fits the most on screen.</span></span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="card-size" value="medium">
+                <span class="size-shape medium" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span class="choice-text"><b>Medium</b><span>All cards one size, with room for a typical session.</span></span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="card-size" value="large">
+                <span class="size-shape large" aria-hidden="true"><i></i><i></i></span>
+                <span class="choice-text"><b>Large</b><span>All cards one size, with room for subagents and PRs.</span></span>
+              </label>
+              <p class="settings-foot">At Small, Medium or Large, whatever doesn't fit scrolls inside its card.</p>
+            </fieldset>
+            <fieldset>
+              <legend>Top card</legend>
+              <label class="choice">
+                <input type="checkbox" id="memory-card">
+                <span class="choice-text"><b>Memory and models</b><span>Memory in use and the loaded models, across the top. Turned off, each loaded model gets a card of its own instead.</span></span>
+              </label>
+              <label class="choice">
+                <input type="checkbox" id="memory-float">
+                <span class="choice-text"><b>Keep it in view</b><span>The card stays at the top of the window while the cards below it scroll.</span></span>
+              </label>
+            </fieldset>
+            <fieldset id="window-setting" hidden>
+              <legend>Window</legend>
+              <label class="choice">
+                <input type="checkbox" id="on-top">
+                <span class="choice-text"><b>Keep on top</b><span>Above other windows, even while you work in one. The pin in the header does the same.</span></span>
+              </label>
+              <div id="see-through-setting" hidden>
+                <label class="field see-through">
+                  <span>Transparency</span>
+                  <span class="see-through-row">
+                    <input type="range" id="see-through" min="0" max="80" step="5">
+                    <output id="see-through-value" for="see-through">Off</output>
+                  </span>
+                </label>
+                <p class="settings-help">How much of what's behind the window shows through its background and cards. Text, buttons and dialogs stay solid.</p>
+              </div>
+            </fieldset>
+          </section>
+          <section class="settings-section" id="settings-notifications" data-title="Notifications">
+            <fieldset>
+              <legend>Notifications</legend>
+              <label class="choice">
+                <input type="checkbox" id="keep-notes">
+                <span class="choice-text"><b>Keep the list after a reload</b><span>Reloading or reopening the dashboard keeps the notifications you haven't cleared.</span></span>
+              </label>
+            </fieldset>
+          </section>
+          <section class="settings-section" id="settings-filters" data-title="Filters">
+            <fieldset id="filters-setting">
+              <legend>Filters</legend>
+              <p class="settings-help">The tabs across the top, after All. Each shows the cards that match everything it names. The ⋯ after the tabs makes one, or changes the one shown.</p>
+              <ul id="filter-list" class="filter-list"></ul>
+              <div class="filter-list-actions">
+                <button type="button" id="filter-add" class="btn">Add filter</button>
+                <button type="button" id="filter-reset" class="btn">Restore the usual filters</button>
+              </div>
+            </fieldset>
+          </section>
+          <section class="settings-section" id="settings-groups" data-title="Groups">
+            <fieldset id="groups-setting">
+              <legend>Groups</legend>
+              <p class="settings-help">A session is in the group with a folder that holds it, the nearest one if several do. The group button on a card moves it by hand.</p>
+              <div id="group-editor" class="group-editor"></div>
+              <button type="button" id="group-add" class="btn">Add group</button>
+              <datalist id="group-folders"></datalist>
+              <label class="choice">
+                <input type="checkbox" id="group-sections">
+                <span class="choice-text"><b>Sections by group</b><span>Each group's cards together under its name, and the rest after them.</span></span>
+              </label>
+            </fieldset>
+          </section>
+          <section class="settings-section" id="settings-new-sessions" data-title="New sessions">
+            <fieldset>
+              <legend>New sessions</legend>
+              <div id="app-setting" hidden>
+                <div class="segmented">
+                  <label><input type="radio" name="new-app" value="claude">Claude</label>
+                  <label><input type="radio" name="new-app" value="codex">Codex</label>
+                  <label><input type="radio" name="new-app" value="copilot">Copilot</label>
+                </div>
+                <p class="settings-help">The app the repo menu opens, and to-dos start in unless they name one.</p>
+              </div>
+              <label class="choice">
+                <input type="checkbox" id="skip-permissions">
+                <span class="choice-text"><b>Skip permission prompts</b><span data-i18n>Sessions the dashboard opens run <code>claude --dangerously-skip-permissions</code>, or <code>codex --dangerously-bypass-approvals-and-sandbox</code>, so they edit files and run commands without asking. Only for folders you trust.</span></span>
+              </label>
+              <div id="terminal-setting" hidden>
+                <label class="field">
+                  <span>Terminal</span>
+                  <select id="terminal-choice"></select>
+                </label>
+                <p class="settings-help">Where the repo menu, Resume and to-dos open Claude. Automatic uses one this computer has.</p>
+              </div>
+            </fieldset>
+          </section>
+          <section class="settings-section" id="settings-other-apps" data-title="Other apps">
+            <fieldset>
+              <legend>Other apps</legend>
+              <p class="settings-help">ComfyUI's jobs and models, LocalAI's models, downloads and agent chats, and the models loaded in Ollama, LM Studio and llama.cpp show while they run.</p>
+              <label class="field">
+                <span>ComfyUI address</span>
+                <input id="comfy-url" type="text" placeholder="http://127.0.0.1:8188" autocomplete="off" spellcheck="false">
+              </label>
+              <p class="settings-help">For a ComfyUI that Comfy Desktop didn't start. Comfy Desktop's are found by themselves, whatever their port.</p>
+              <label class="field">
+                <span>LocalAI address</span>
+                <input id="localai-url" type="text" placeholder="http://127.0.0.1:8080" autocomplete="off" spellcheck="false">
+              </label>
+              <label class="field">
+                <span>LocalAI API key</span>
+                <input id="localai-key" type="password" autocomplete="off" spellcheck="false">
+              </label>
+              <p class="settings-help">Only if LocalAI has one set. It's kept on this computer and never shown again.</p>
+              <label class="field">
+                <span>Ollama address</span>
+                <input id="ollama-url" type="text" placeholder="http://127.0.0.1:11434" autocomplete="off" spellcheck="false">
+              </label>
+              <label class="field">
+                <span>LM Studio address</span>
+                <input id="lmstudio-url" type="text" placeholder="http://127.0.0.1:1234" autocomplete="off" spellcheck="false">
+              </label>
+              <label class="field">
+                <span>LM Studio API token</span>
+                <input id="lmstudio-key" type="password" autocomplete="off" spellcheck="false">
+              </label>
+              <label class="field">
+                <span>llama.cpp address</span>
+                <input id="llamacpp-url" type="text" placeholder="http://127.0.0.1:8080" autocomplete="off" spellcheck="false">
+              </label>
+              <p class="settings-help">Ollama's address defaults to OLLAMA_HOST; LM Studio's to the port its server last used; llama.cpp's to LLAMA_ARG_HOST and LLAMA_ARG_PORT. A token is only needed if LM Studio requires one.</p>
+            </fieldset>
+          </section>
+          <section class="settings-section" id="settings-to-dos" data-title="To-dos">
+            <fieldset>
+              <legend>To-dos</legend>
+              <p class="settings-help" data-i18n>A to-do starts Claude in its folder. Without one, it starts in the folder below, where Claude can make a new project. <b>Choose folder</b> on a to-do picks one from:</p>
+              <div class="segmented">
+                <label><input type="radio" name="todo-source" value="repos">Repo menu</label>
+                <label><input type="radio" name="todo-source" value="picker">Any folder</label>
+              </div>
+              <label class="field">
+                <span>Start in</span>
+                <input id="todo-start" type="text" autocomplete="off" spellcheck="false">
+              </label>
+              <p class="settings-help">Where to-dos without a folder start, and where the repo menu and folder picker open. Leave it empty for the repos folder.</p>
+            </fieldset>
+          </section>
+          <section class="settings-section" id="settings-repo-menu" data-title="Repo menu">
+            <fieldset>
+              <legend>Repo menu</legend>
+              <p class="settings-help">Untick a folder or repo to hide it, and everything inside it, from the ☰ menu.</p>
+              <div class="excluded-search">
+                <input id="excluded-filter" type="search" placeholder="Filter folders and repos" aria-label="Filter folders and repos" autocomplete="off" spellcheck="false">
+              </div>
+              <nav id="excluded-tree" class="tree excluded-tree" aria-label="Folders and repos in the repo menu"></nav>
+              <div id="excluded-missing" hidden>
+                <p class="settings-help">Also hidden, but no longer in the repos folder:</p>
+                <ul id="excluded-list" class="excluded"></ul>
+              </div>
+            </fieldset>
+          </section>
+          <section class="settings-section" id="settings-help" data-title="Help">
+            <fieldset>
+              <legend>Tour</legend>
+              <p class="settings-help">A quick look around the dashboard, as on the first visit. The page holds still while it runs, and your sessions carry on as usual.</p>
+              <button type="button" id="tour-again" class="btn">Show the tour</button>
+            </fieldset>
+          </section>
+          <p class="settings-foot">Appearance, Notifications and Sections by group are saved in this browser. The rest are saved on this computer, for every browser.</p>
         </div>
-      </fieldset>
-      <fieldset>
-        <legend>Card size</legend>
-        <label class="choice">
-          <input type="radio" name="card-size" value="fit">
-          <span class="size-shape fit" aria-hidden="true"><i></i><i></i><i></i></span>
-          <span class="choice-text"><b>Fit content <em>Default</em></b><span>Each card is as tall as its content, so heights vary.</span></span>
-        </label>
-        <label class="choice">
-          <input type="radio" name="card-size" value="small">
-          <span class="size-shape small" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-          <span class="choice-text"><b>Small</b><span>All cards one size, compact. Fits the most on screen.</span></span>
-        </label>
-        <label class="choice">
-          <input type="radio" name="card-size" value="medium">
-          <span class="size-shape medium" aria-hidden="true"><i></i><i></i><i></i></span>
-          <span class="choice-text"><b>Medium</b><span>All cards one size, with room for a typical session.</span></span>
-        </label>
-        <label class="choice">
-          <input type="radio" name="card-size" value="large">
-          <span class="size-shape large" aria-hidden="true"><i></i><i></i></span>
-          <span class="choice-text"><b>Large</b><span>All cards one size, with room for subagents and PRs.</span></span>
-        </label>
-        <p class="settings-foot">At Small, Medium or Large, whatever doesn't fit scrolls inside its card.</p>
-      </fieldset>
-      <fieldset>
-        <legend>Notifications</legend>
-        <label class="choice">
-          <input type="checkbox" id="keep-notes">
-          <span class="choice-text"><b>Keep the list after a reload</b><span>Reloading or reopening the dashboard keeps the notifications you haven't cleared.</span></span>
-        </label>
-      </fieldset>
-      <fieldset id="groups-setting">
-        <legend>Groups</legend>
-        <p class="settings-help">A session is in the group with a folder that holds it, the nearest one if several do. The group button on a card moves it by hand.</p>
-        <div id="group-editor" class="group-editor"></div>
-        <button type="button" id="group-add" class="btn">Add group</button>
-        <datalist id="group-folders"></datalist>
-        <label class="choice">
-          <input type="checkbox" id="group-sections">
-          <span class="choice-text"><b>Sections by group</b><span>Each group's cards together under its name, and the rest after them.</span></span>
-        </label>
-      </fieldset>
-      <fieldset>
-        <legend>New sessions</legend>
-        <div id="app-setting" hidden>
-          <div class="segmented">
-            <label><input type="radio" name="new-app" value="claude">Claude</label>
-            <label><input type="radio" name="new-app" value="codex">Codex</label>
-          </div>
-          <p class="settings-help">The app the repo menu opens, and to-dos start in unless they name one.</p>
-        </div>
-        <label class="choice">
-          <input type="checkbox" id="skip-permissions">
-          <span class="choice-text"><b>Skip permission prompts</b><span>Sessions the dashboard opens run <code>claude --dangerously-skip-permissions</code>, or <code>codex --dangerously-bypass-approvals-and-sandbox</code>, so they edit files and run commands without asking. Only for folders you trust.</span></span>
-        </label>
-        <div id="terminal-setting" hidden>
-          <label class="field">
-            <span>Terminal</span>
-            <select id="terminal-choice"></select>
-          </label>
-          <p class="settings-help">Where the repo menu, Resume and to-dos open Claude. Automatic uses one this computer has.</p>
-        </div>
-      </fieldset>
-      <fieldset>
-        <legend>To-dos</legend>
-        <p class="settings-help">A to-do starts Claude in its folder. Without one, it starts in the folder below, where Claude can make a new project. <b>Choose folder</b> on a to-do picks one from:</p>
-        <div class="segmented">
-          <label><input type="radio" name="todo-source" value="repos">Repo menu</label>
-          <label><input type="radio" name="todo-source" value="picker">Any folder</label>
-        </div>
-        <label class="field">
-          <span>Start in</span>
-          <input id="todo-start" type="text" autocomplete="off" spellcheck="false">
-        </label>
-        <p class="settings-help">Where to-dos without a folder start, and where the repo menu and folder picker open. Leave it empty for the repos folder.</p>
-      </fieldset>
-      <fieldset>
-        <legend>Repo menu</legend>
-        <p class="settings-help">Untick a folder or repo to hide it, and everything inside it, from the ☰ menu.</p>
-        <div class="excluded-search">
-          <input id="excluded-filter" type="search" placeholder="Filter folders and repos" aria-label="Filter folders and repos" autocomplete="off" spellcheck="false">
-        </div>
-        <nav id="excluded-tree" class="tree excluded-tree" aria-label="Folders and repos in the repo menu"></nav>
-        <div id="excluded-missing" hidden>
-          <p class="settings-help">Also hidden, but no longer in the repos folder:</p>
-          <ul id="excluded-list" class="excluded"></ul>
-        </div>
-      </fieldset>
-      <p class="settings-foot">Theme, Card size, Notifications and Sections by group are saved in this browser. The rest are saved on this computer, for every browser.</p>
+      </div>
     </form>
   </dialog>
 
@@ -244,6 +358,7 @@
           <option value="" id="todo-app-default">As in Settings</option>
           <option value="claude">Claude</option>
           <option value="codex">Codex</option>
+          <option value="copilot">Copilot</option>
         </select>
       </label>
       <p class="settings-help">Nothing here is sent to the session. To use it as a prompt, copy it in once it's started.</p>
@@ -254,9 +369,67 @@
     </form>
   </dialog>
 
+  <dialog id="filter-dialog" class="settings" aria-labelledby="filter-dialog-title">
+    <form id="filter-form">
+      <div class="settings-head">
+        <h2 id="filter-dialog-title">New filter</h2>
+        <button type="button" id="filter-close" class="icon-btn" title="Close" aria-label="Close">✕</button>
+      </div>
+      <label class="field">
+        <span>Name</span>
+        <input id="filter-name" type="text" required maxlength="24" autocomplete="off">
+      </label>
+      <fieldset class="filter-pick">
+        <legend>Status</legend>
+        <div id="filter-statuses" class="checks"></div>
+      </fieldset>
+      <fieldset class="filter-pick">
+        <legend>App</legend>
+        <div id="filter-apps" class="checks"></div>
+      </fieldset>
+      <fieldset id="filter-groups-field" class="filter-pick">
+        <legend>Group</legend>
+        <div id="filter-groups" class="checks"></div>
+      </fieldset>
+      <p class="settings-help">Tick none in a row to match any.</p>
+      <label class="field">
+        <span>Name or folder has</span>
+        <input id="filter-text" type="text" maxlength="100" placeholder="Any words" autocomplete="off" spellcheck="false">
+      </label>
+      <label class="choice filter-todos">
+        <input type="checkbox" id="filter-todos">
+        <span class="choice-text"><b>Show to-dos</b><span>To-dos have no status, so they show if they're from an app, in a group and have words that match.</span></span>
+      </label>
+      <p id="filter-count" class="settings-help filter-count"></p>
+      <div class="confirm-actions">
+        <button type="button" id="filter-delete" class="btn btn-stop">Delete</button>
+        <button type="button" id="filter-cancel" class="btn">Cancel</button>
+        <button type="submit" id="filter-save" class="btn btn-primary">Add filter</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="save-close" class="confirm">
+    <form method="dialog">
+      <h2 id="save-close-title"></h2>
+      <p data-i18n>Each one's tab closes too. <b>Resume last session</b>, in the same menu, opens them again, carrying on each conversation.</p>
+      <ul id="save-close-list" class="save-close-list"></ul>
+      <fieldset id="save-close-busy" class="save-close-busy">
+        <legend id="save-close-busy-text"></legend>
+        <label><input type="radio" name="save-close-busy" value="wait" checked> Wait for them to finish, then close them</label>
+        <label><input type="radio" name="save-close-busy" value="now"> Close them now: their current turn is lost</label>
+      </fieldset>
+      <p id="save-close-left" class="save-close-left"></p>
+      <div class="confirm-actions">
+        <button value="cancel" class="btn" autofocus>Cancel</button>
+        <button value="save" class="btn btn-danger">Save and close</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="confirm" class="confirm">
     <form method="dialog">
-      <h2>Stop <span id="confirm-name"></span>?</h2>
+      <h2 data-i18n>Stop <span id="confirm-name"></span>?</h2>
       <p id="confirm-what"></p>
       <p>You can reopen the conversation later with:</p>
       <pre id="confirm-resume"></pre>
@@ -277,8 +450,28 @@
   </div>
 
   <div id="group-menu" class="menu" popover role="menu" aria-label="Group"></div>
+  <div id="sessions-menu" class="menu" popover role="menu" aria-label="Save and close, or resume"></div>
+  <div id="filter-menu" class="menu" popover role="menu" aria-label="Filter options"></div>
+
+  <dialog id="tour" class="tour" aria-labelledby="tour-title" aria-describedby="tour-text">
+    <div id="tour-spot" class="tour-spot" aria-hidden="true"></div>
+    <div id="tour-panel" class="tour-panel">
+      <div class="tour-head">
+        <span id="tour-step" class="tour-step"></span>
+        <button type="button" id="tour-skip" class="btn tour-skip">Skip tour <span aria-hidden="true">✕</span></button>
+      </div>
+      <h2 id="tour-title"></h2>
+      <p id="tour-text"></p>
+      <div class="tour-actions">
+        <button type="button" id="tour-back" class="btn">Back</button>
+        <button type="button" id="tour-next" class="btn btn-primary">Next</button>
+      </div>
+    </div>
+  </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite" popover="manual"></div>
+  <!-- Each language's words, in LANGUAGES in app.js and STATIC in server.js. -->
+  <script src="/lang/es.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

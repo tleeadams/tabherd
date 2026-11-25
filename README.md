@@ -12,13 +12,16 @@ Each [release](../../releases/latest) has a download for Windows, macOS (Apple s
 
 ### Windows
 
-1. Download `tabherd-v<version>-windows-x64.zip`.
-2. Extract it somewhere to keep it, such as `%LOCALAPPDATA%\Programs`. It holds one folder, `tabherd-windows-x64`.
-3. Run **Tabherd.exe**. To add it to the Start menu and the Desktop, run **Install shortcuts.cmd**. **Remove shortcuts.cmd** takes them away again.
+On Windows, Tabherd is a desktop app with a window of its own.
 
-The launcher isn't code-signed yet: signing through SignPath Foundation is waiting on their approval (see the [code signing policy](#code-signing-policy)). Until then, Windows SmartScreen may warn about it the first time. Choose **More info**, then **Run anyway**.
+- **With the installer:** download `tabherd-v<version>-windows-x64-setup.exe` and run it. It installs for you alone, without asking for administrator rights, into `%LOCALAPPDATA%\Tabherd`, and adds Tabherd to the Start menu.
+- **From the zip,** without installing: download `tabherd-v<version>-windows-x64.zip` and extract it somewhere to keep it, such as `%LOCALAPPDATA%\Programs`. It holds one folder, `tabherd-windows-x64`. Run **Tabherd.exe** in it.
 
-The launcher starts the dashboard server in the background, with no console window, if it isn't already running. It then opens the dashboard in its own Edge app window, with no tabs or address bar. If that window is already open, it brings the window to the front instead.
+Neither is code-signed yet: signing through SignPath Foundation is waiting on their approval (see the [code signing policy](#code-signing-policy)). Until then, Windows SmartScreen may warn about them the first time. Choose **More info**, then **Run anyway**.
+
+Tabherd starts the dashboard server in the background, with no console window, unless one is already running. It shows the dashboard in WebView2, the engine Edge uses, which comes with Windows. Nothing from your browser shows in its window, and sound plays without a click first. Links to pull requests and other sites open in your browser. Opening Tabherd while it's open brings its window to the front. Closing the window stops the server it started.
+
+The pin in the header keeps the window on top of other windows. Settings → Appearance → **Window** has the same, as *Keep on top*, and **Transparency**, which lets what's behind the window show through its background and cards, up to 80%. Text, buttons and dialogs stay solid. Both are only in the app, not in a browser.
 
 ### macOS and Linux
 
@@ -40,11 +43,11 @@ Or from a download:
 
 ### Updating and uninstalling
 
-A server started by the launcher stops by itself 10 minutes after the last dashboard closes, and the next launch starts it again in a couple of seconds.
+On macOS and Linux, a server started by `tabherd` stops by itself 10 minutes after the last dashboard closes, and the next launch starts it again in a couple of seconds.
 
-To update, replace the folder with the new release's. Its name doesn't change between releases, so shortcuts and the `tabherd` command keep working. Settings, history and to-dos are kept in `~/.tabherd`, outside it.
+To update on Windows, run the new release's installer, which installs over the old one. From the zip, replace the folder with the new release's. On macOS and Linux, replace the folder; its name doesn't change between releases, so the `tabherd` command and its entry in your applications keep working. Settings, history and to-dos are kept in `~/.tabherd`, outside the app.
 
-To uninstall, remove the shortcuts (**Remove shortcuts.cmd**, or `./tabherd --uninstall`), then delete the folder. Delete `~/.tabherd` too unless you want to keep your settings, history and to-dos. Nothing else is installed.
+To uninstall on Windows, use Settings › Apps › Installed apps, or delete the zip's folder. On macOS and Linux, run `./tabherd --uninstall`, then delete the folder. Delete `~/.tabherd` too unless you want to keep your settings, history and to-dos.
 
 ## Run from source
 
@@ -65,7 +68,17 @@ npm run install-shortcut     # add Tabherd to the Start menu, Applications or ap
 npm run uninstall-shortcut   # remove it again
 ```
 
-On Windows the launcher is a small C# program (`launcher/Tabherd.cs`), compiled with the C# compiler that comes with Windows, with its icon made from the logo. Run the install again after moving the folder or switching Node versions; it records which `node.exe` to use. On macOS and Linux it's a shell script, `launcher/tabherd.sh`, which uses the `node` on your PATH.
+On Windows the launcher is a small C# program (`launcher/Tabherd.cs`), compiled with the C# compiler that comes with Windows, with its icon made from the logo. It opens the dashboard in an Edge app window. Run the install again after moving the folder or switching Node versions; it records which `node.exe` to use. On macOS and Linux it's a shell script, `launcher/tabherd.sh`, which uses the `node` on your PATH.
+
+The desktop app is in `app/src-tauri`, built with [Tauri](https://tauri.app). Building it needs [Rust](https://rustup.rs): on Windows its MSVC toolchain (`rustup default stable-msvc`), with Visual Studio's C++ build tools; on Linux, WebKitGTK and the other libraries in [Tauri's prerequisites](https://v2.tauri.app/start/prerequisites/). Then:
+
+```
+node scripts/stage-app.js    # put this Node beside the app as its server's Node, and make its icons
+cd app/src-tauri
+cargo run                    # build and open it; it starts a server unless one is running on PORT
+```
+
+`npm run build` builds the Windows release, the installer and the zip, with Tauri's command-line tool: `cargo tauri` if it's installed (`cargo install tauri-cli --version "^2" --locked`), otherwise its npm package. The design is in [docs/desktop-app.md](docs/desktop-app.md).
 
 ## Platform support
 
@@ -99,13 +112,22 @@ Checked that way so far: Windows Terminal; tmux, kitty, WezTerm, GNOME Terminal 
 
 ## What it shows
 
+The first time a browser opens the dashboard, a short tour points out each part of it, with **Skip tour** on every step, or Esc. It starts once every running session is on the page, and the page holds still while it runs: the cards don't update and only the tour can be clicked, though dings and notifications carry on. With no sessions running, it shows an example card, marked as one, which goes when the tour ends. A browser that has used the dashboard before doesn't get it. Settings → **Help** shows it again.
+
 - **Status**: *Needs you* (blocked on a prompt or dialog), *Working*, *Shell running* (at the prompt while a background shell runs) or *Idle*, plus how long it has been in that state.
 - **Activity**: the tools running now and for how long, the latest message or recap, and the last prompt. Click a message to expand it.
 - **Model and tokens**: the model, how full the context window is, output tokens and number of prompts.
 - **Subagents**: running subagents with their current step, then recently finished ones.
 - **Actions**: go to the session's window, catch up, open its folder, copy a `claude --resume` command, or stop the session. Clicking a session's name also goes to its window.
 
-The filters in the header show every session, or only those in one state. **Todo** shows *Needs you* and *Idle* together, along with the to-do cards: everything whose turn it is. *Shell running* counts as Working, not Todo.
+A card across the top, **Memory and models**, shows the computer's memory in use against what it has, and each NVIDIA graphics card's, from `nvidia-smi` when it's there. Under them it lists the models loaded in ComfyUI, LocalAI, Ollama, LM Studio and llama.cpp, each with the memory it takes and **Unload** where the app allows it. Where the app doesn't say what a model takes, as ComfyUI, LM Studio and llama.cpp don't, it's the model's size, marked ≈, as that's about what it takes; where some of an Ollama model is in the computer's memory rather than graphics memory, the line says how much is on the GPU. The line above the models, with how many there are and what they take together, closes the list and opens it again, which the browser remembers. It shows whatever the filter. Settings → Appearance → *Keep it in view* keeps it under the header while the cards below it scroll, with a long list of models scrolling inside it. *Memory and models* turns it off, and each loaded model then gets a card of its own, shown under All.
+
+The tabs in the header filter the cards. **All** shows everything. The others are yours to change, and start as **Todo** (*Needs you* and *Idle*, with the to-do cards: everything whose turn it is), **Needs you**, **Working** and **Idle**. *Queued* counts as Working, and so does *Shell running* on the Working tab, though a filter can pick Shell running on its own. Each tab counts its cards, in amber when one of them needs you.
+
+- **Make one** from the **⋯** menu after the tabs, with **New filter…**. A filter picks statuses, apps and groups, and words that must be in the card's name or folder. A row with nothing ticked matches any. To-dos have no status, so a filter shows them only when *Show to-dos* is ticked, and then only those from its apps, in its groups and with its words.
+- **Change or delete one**: the same menu's **Edit** changes the tab you're on, and **Edit filters…** opens Settings → **Filters**, which lists them all to change, delete or move up and down the tabs, and has **Restore the usual filters** to put back the four above.
+
+Filters are saved in `~/.tabherd/filters.json`, for every browser. The tab you're on is remembered in the browser.
 
 Each card says which app the session is, **Claude** or **Codex**. Once a Codex session is running, a list beside the filters shows only one app's sessions, and once there are [groups](#groups), another shows one group, or the sessions in none. The counts on the filters follow both lists, and both are remembered in the browser.
 
@@ -129,6 +151,46 @@ Sessions run headless, with `claude -p`, show too: a background PR review, say, 
 
 A background run doesn't wait at a prompt when it's done: it exits. When one the dashboard saw running exits, it dings as finished, unless you stopped it, and its notification reads *Finished in the background*. Clicking its name there resumes it in a terminal tab, running `claude --resume <id>` in its folder, so you can ask about what it did. History lists background runs too, tagged **Background**, and its **Background runs** switch hides them, for when scripts run `claude -p` often.
 
+## GitHub Copilot
+
+GitHub Copilot's sessions get cards marked **Copilot**: the Copilot CLI's, and the agent sessions VS Code runs on the same Copilot runtime, which keep their state in the same place, `~/.copilot/session-state` (or `$COPILOT_HOME`).
+
+- **Which sessions are open** comes from Copilot's own list of open sessions and the lock each one's process holds. A lock left by a process that's gone doesn't count.
+- **Status**: *Needs you* while an approval Copilot asked for is unanswered, or while its ask_user tool waits for an answer; *Working* while Copilot's list says so, or a turn or tool is running; otherwise *Idle*.
+- **Activity**: the last prompt and reply, the tools running, the model and output tokens, from the session's `events.jsonl`, read a few new bytes at a time.
+- **Go to window**, **Catch up** and **Stop** work for the CLI as they do for Claude. A VS Code session runs inside VS Code, with all its others, so its card only has Go to window, which brings up VS Code.
+- **Starting Copilot**: once the Copilot CLI is installed, Settings → New sessions, the repo menu and a to-do's *Start with* offer it. A to-do starts `copilot --session-id=<new id> --name "<the to-do's title>"`, so, as with Claude, the server knows which session the to-do became.
+- **History and Resume**: the CLI's closed sessions are listed, and Resume runs `copilot --resume=<id>`. *Skip permission prompts* adds `--allow-all`. Save and close takes CLI sessions too.
+
+## ComfyUI and LocalAI
+
+The dashboard also shows what ComfyUI and LocalAI are doing, as cards marked **Comfy** and **LocalAI**. They join the app list in the header once they have something to show. Nothing needs setting up in either, unless LocalAI has an API key.
+
+**ComfyUI.** Comfy Desktop keeps a record of each ComfyUI it runs, with its port, so every installation that's running is found, whatever its port. A ComfyUI run some other way is looked for at Settings → Other apps → *ComfyUI address*, `http://127.0.0.1:8188` unless you set another. Each job gets a card:
+
+- **Working**, the job running now. Comfy Desktop's window title gives its progress, which goes on the card as a bar on Windows. ComfyUI only sends progress to the window that queued a job, so there's no other way to see it.
+- **Queued**, with its place in the queue.
+- **Finished** jobs leave the dashboard at once. Finishing dings, and the notification list says it finished, with its first output image. A **Failed** job keeps its card, with the error, as needing you, until you **Clear** it.
+
+A job is named after its saved workflow; one queued from an unsaved workflow is called *Unsaved workflow*. **Go to window** brings up Comfy Desktop. **Stop** ends the running job and **Cancel** takes a queued one out of the queue, each after a second click. The output images come through the dashboard's own server, which only passes on those of jobs it has reported, for a day.
+
+The models ComfyUI has loaded are listed on the Memory and models card, each with what it is (diffusion model, text encoder, VAE, LoRA and so on), the workflow that loaded it, and the size of its file, which is about what it takes in memory. ComfyUI doesn't list them itself. They're the model files named in the latest job's workflow, which ComfyUI keeps in memory after the job for the next one. **Unload** frees them, all at once, as ComfyUI only frees them all together. They're listed again once another job runs. If ComfyUI frees them itself, to make room or from its own menu, the list doesn't know until the next job.
+
+**LocalAI.** It's found at Settings → Other apps → *LocalAI address*, `http://127.0.0.1:8080` unless you set another, with the API key there if LocalAI has one. It shows:
+
+- **Each loaded model**, on the Memory and models card, with the graphics memory, memory and CPU it's using, and **Unload** to free them.
+- **Each download or install** in progress, with its progress and size, and **Cancel**. Finishing dings.
+- **Each agent chat** that's running (*Working*, with **Stop**) or paused at its step limit (*Needs you*). One that finishes leaves the dashboard and dings.
+- **Each agent job** running or queued, with **Cancel**. One that finishes leaves and dings.
+
+A chat, agent job or download that fails keeps its card, as needing you, until you **Clear** it. Cleared cards stay cleared, in every browser, in `~/.tabherd/dismissed.json`.
+
+**Open in LocalAI** opens LocalAI's own page. LocalAI keeps no list of plain API requests in progress, so a request from another app doesn't get a card.
+
+**Ollama** and **LM Studio**: each loaded model is listed on the Memory and models card, marked with its app, with its size, context and, for Ollama, the graphics memory it holds and when Ollama will unload it, and **Unload**. Ollama is found at Settings → Other apps → *Ollama address*, else `OLLAMA_HOST`, else `http://127.0.0.1:11434`. LM Studio's local server must be on (its Developer tab, or `lms server start`); it's found at *LM Studio address*, else the port it last served on, else `http://127.0.0.1:1234`, with *LM Studio API token* if LM Studio requires one. Neither tells anyone but the caller about downloads or requests in progress, so those don't get cards.
+
+**llama.cpp**: the model llama.cpp's server (`llama-server`) has loaded is listed on the Memory and models card too, with its size, context, quantization and how many requests it's answering at once. In router mode (`--models-dir` or `--models-preset`), each model loaded or loading is listed, and **Unload** unloads one; a server started with one model (`-m`) keeps it until it's stopped, so it has no Unload. It's found at Settings → Other apps → *llama.cpp address*, else `LLAMA_ARG_HOST` and `LLAMA_ARG_PORT`, else `http://127.0.0.1:8080`. LocalAI's default is the same port; Tabherd tells the two apart by what they answer, so whichever is running there shows.
+
 ## Groups
 
 Groups gather sessions by project, client or anything else, each with a name and a colour. Make them in Settings → **Groups**, or from a card: its group button, which reads *No group* while the card is pointed at, has **New group for** the card's folder.
@@ -136,7 +198,7 @@ Groups gather sessions by project, client or anything else, each with a name and
 - **By folder.** A group has folders, and a session or to-do in one of them, or in a folder inside it, is in that group. If several groups' folders hold it, the nearest folder wins. New sessions there join with nothing to do. A to-do without a folder goes by the folder it will start in.
 - **By hand.** The group button on a card moves that session or to-do to another group, or to none. It stays there, kept by its session ID so it's still there when resumed, until **Follow its folder again**. A to-do moved by hand passes its group on to the session it starts.
 - **On the card.** The group's colour runs along the top of the card, and its name is on the button. The left edge still shows the status. History shows each session's group, and the repo menu marks a group's folders with a dot in its colour.
-- **Sections.** Settings → Groups → **Sections by group** puts each group's cards under its name, in the order the groups are listed, with the sessions in no group last.
+- **Sections.** Settings → Groups → **Sections by group** puts each group's cards under its name, in the order the groups are listed, with the sessions in no group last. Clicking a section's name closes it, hiding its cards, and clicking again opens it. A closed section still shows how many cards it has, and how many of its sessions need you. The browser remembers which are closed.
 
 The colours are a set of eight, each tuned for light and dark and kept apart from the status colours. In Settings, a group's folder box suggests the folders and repos from the repo menu, and takes any full path, with `~` for your home folder. Groups are saved in `~/.tabherd/groups.json`, for every browser.
 
@@ -159,11 +221,11 @@ When the session closes, the to-do goes too. Its title and notes stay with the s
 
 ## Settings
 
-The gear button in the header opens Settings.
+The gear button in the header opens Settings, one section at a time, picked from the list down its left side. It opens at the section last used.
 
 **New sessions**: once Codex is installed, *Claude* or *Codex* chooses the app the repo menu opens, and to-dos start in unless they name one. *Skip permission prompts* (off by default) makes every session the dashboard opens, from the repo menu, Resume or a to-do, run `claude --dangerously-skip-permissions`, or `codex --dangerously-bypass-approvals-and-sandbox`. They then edit files and run commands without asking first. Only turn it on if you'd run them that way yourself in those folders. *Terminal* chooses which terminal they open in, where there's more than one; see [Platform support](#platform-support).
 
-**Theme**: *System* (the default) follows the system's light or dark mode. *Light* or *Dark* sets one regardless.
+**Appearance** has *Language*, *Theme*, *Card size* and the *Memory and models* card, which can be turned off. **Language**: *Automatic* (the default) follows the browser's languages, and *English* or *Español* sets one. Changing it reloads the page. The Spanish is a first translation, so some of it may read oddly; corrections are welcome. A few of the server's messages, those with details in them, stay English. **Theme**: *System* (the default) follows the system's light or dark mode. *Light* or *Dark* sets one regardless.
 
 **Card size** sets how the cards are laid out:
 
@@ -172,13 +234,19 @@ The gear button in the header opens Settings.
 
 **Notifications**: *Keep the list after a reload* (on by default) saves the notification list, so reloading or reopening the dashboard keeps it.
 
+**Filters**: the tabs after All, in their order, each with what it shows, to move, change or delete; **Add filter**; and **Restore the usual filters**. See [What it shows](#what-it-shows).
+
 **Groups**: each group's name, colour and folders, and *Sections by group*. See [Groups](#groups).
+
+**Other apps**: ComfyUI's, LocalAI's, Ollama's, LM Studio's and llama.cpp's addresses, and LocalAI's API key and LM Studio's token. The key is kept in `~/.tabherd/settings.json` and never sent back to the page. See [ComfyUI and LocalAI](#comfyui-and-localai).
 
 **To-dos**: where a to-do's folder is chosen from (the repo menu or any folder), and the folder that choice starts at. See [To-dos](#to-dos).
 
 **Repo menu**: every folder and repo under the repos folder, nested as in the ☰ menu, each with a tick box. Untick one to hide it, and everything inside it, from the menu. What's inside a hidden folder is greyed out but keeps its own setting, so ticking the folder again brings back exactly what was shown before. A folder with some repos hidden says how many, in amber. The filter box works like the menu's. A hidden path that's no longer in the repos folder is listed underneath, with ✕ to remove it.
 
-Theme, Card size, Notifications and Sections by group are saved in the browser, so each browser profile remembers its own choice. The rest are saved by the server, in `~/.tabherd/settings.json` and `~/.tabherd/groups.json`, so every browser shares them.
+**Help**: *Show the tour* shows the first-run tour again. See [What it shows](#what-it-shows).
+
+Appearance, Notifications and Sections by group are saved in the browser, so each browser profile remembers its own choice. The rest are saved by the server, in `~/.tabherd/settings.json`, `~/.tabherd/filters.json` and `~/.tabherd/groups.json`, so every browser shares them.
 
 ## Catch up
 
@@ -204,6 +272,16 @@ Each change is also added to the notification list, the tray button left of the 
 Browsers only let a page play sound after you've clicked or typed in it, so after opening or reloading the dashboard the bell reads **Click to enable sound** until you click anywhere on the page. To skip that, allowing media autoplay for `http://localhost:4317` in Edge (Settings → Cookies and site permissions → Media autoplay) should let it play straight away.
 
 The server pushes each update to open dashboards (`/api/stream`, server-sent events) instead of the page checking every few seconds. A browser slows timers in hidden or covered windows to as little as once a minute, which would make dings late. Pushed messages are handled right away.
+
+## Save and close
+
+The box button in the header saves every open session and closes it, so you can stop for the day, restart the computer or switch to other work, and later pick them all up again:
+
+- **Save and close all** lists the Claude and Codex sessions open in terminals and asks first. Any still working are listed apart, with a choice: wait for them to finish their turn and then close them, or close them now, which loses their current turn. A card waiting to close says *Closes when done*; clicking that keeps it open.
+- Closing a session closes its terminal tab too. On Windows the session ends, then `exit` is typed into the tab's shell, so Windows Terminal closes the tab as it would if you'd typed it. Launchers in between, such as npm's wrappers and mise's or nvm's shims, end with it. On macOS and Linux the shell is hung up, and the terminal closes the tab or pane if its settings say to.
+- **Resume last session** opens each saved session again, one tab each, running `claude --resume <id>` or `codex resume <id>` in its folder, so each conversation carries on. Sessions already open, or whose folder has gone, are skipped.
+
+Only the last saved set is kept, in `~/.tabherd/saved-sessions.json`; the next Save and close replaces it. A session never asked anything has no conversation to resume, so it's closed but not saved. Sessions in a VS Code panel, background runs, and other apps' jobs and models are left alone. A Codex session's turn is interrupted before its window closes; one whose window isn't known is saved but stays open.
 
 ## History
 
@@ -243,7 +321,7 @@ Start the server from a normal terminal. If it's started from a sandboxed shell,
 
 ## Where the data comes from
 
-All of it is read-only, from files Claude Code and Codex already write, and from Codex's own background service:
+All of it is read-only, from files Claude Code and Codex already write, and from Codex's, ComfyUI's and LocalAI's own services:
 
 | Source | Used for |
 | --- | --- |
@@ -255,10 +333,13 @@ All of it is read-only, from files Claude Code and Codex already write, and from
 | `~/.codex/sessions/<yyyy>/<mm>/<dd>/rollout-<time>-<session>.jsonl` | A Codex session's prompts, replies, tool calls, model and token usage. |
 | `~/.codex/session_index.jsonl` | Closed Codex sessions' names, for History. |
 | The `codex` processes and their tab titles | Which window each Codex session is in, and its memory use. |
+| Comfy Desktop's `comfy-procs/*.json` and `installations.json` | Which ComfyUIs are running, on which ports, and their names. |
+| ComfyUI's `/api/jobs`, `/queue`, `/api/userdata` and `/view` | Its jobs, their workflows' names and the models they load, and their output images. Its window's title gives the running job's progress. |
+| LocalAI's `/system`, `/api/operations`, `/api/chats` and `/api/agent/jobs` | Its loaded models, downloads, agent chats and agent jobs. |
 
 A session file whose process has exited, or whose PID now belongs to another process, is ignored.
 
-The only files the server writes are its own, in `~/.tabherd`: `settings.json` holds the settings that aren't kept in the browser, `history.json` the closed sessions, `todos.json` the to-dos and `groups.json` the groups, with the sessions moved between them by hand.
+The only files the server writes are its own, in `~/.tabherd`: `settings.json` holds the settings that aren't kept in the browser, `history.json` the closed sessions, `todos.json` the to-dos, `groups.json` the groups, with the sessions moved between them by hand, and `saved-sessions.json` the sessions Save and close saved last.
 
 ## Safety
 
@@ -286,7 +367,7 @@ To add a platform to the releases, give `scripts/build-release.js` a target for 
 
 Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
 
-Only the Windows launcher, `Tabherd.exe`, is signed. The [Release workflow](.github/workflows/release.yml) builds it on GitHub from the tagged source, and SignPath signs it only after an approver approves that release. The bundled `node.exe` keeps the Node.js project's own signature.
+Only the Windows app, `Tabherd.exe`, and its installer are signed. The [Release workflow](.github/workflows/release.yml) builds them on GitHub from the tagged source, and SignPath signs each only after an approver approves it for that release: the app first, then the installer built around the signed app. The bundled `node.exe` keeps the Node.js project's own signature.
 
 - Committers and reviewers: the people in [`.github/CODEOWNERS`](.github/CODEOWNERS)
 - Approvers: [@tleeadams](https://github.com/tleeadams)
@@ -295,4 +376,4 @@ Privacy: this program will not transfer any information to other networked syste
 
 ## License
 
-Tabherd is free software under the [GNU General Public License, version 3](LICENSE) or later. Releases include Node.js, which has its own licence, in `node/LICENSE`.
+Tabherd is free software under the [GNU General Public License, version 3](LICENSE) or later. Releases include Node.js, which has its own licence: in `node/LICENSE`, or `node-LICENSE` beside the Windows app.
