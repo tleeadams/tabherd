@@ -1890,17 +1890,19 @@ function renderNotes() {
   $('notes-list').replaceChildren(
     ...rows.map(({ n, a, name, focus }) => {
       const what = [
-        n.kind === 'needs'
-          ? n.detail
-            ? tr('Needs you: {what}', { what: tr(n.detail) })
-            : tr('Needs you')
-          : n.label
-            ? tr(n.label)
-            : n.background
-              ? tr('Finished in the background')
-              : tr('Finished'),
+        n.kind === 'update'
+          ? tr('A new version is out')
+          : n.kind === 'needs'
+            ? n.detail
+              ? tr('Needs you: {what}', { what: tr(n.detail) })
+              : tr('Needs you')
+            : n.label
+              ? tr(n.label)
+              : n.background
+                ? tr('Finished in the background')
+                : tr('Finished'),
       ];
-      if (!a && !n.gone && !n.background) what.push(tr('session closed'));
+      if (!a && !n.gone && !n.background && n.kind !== 'update') what.push(tr('session closed'));
       return el(
         'li',
         { class: `note k-${n.kind}` },
@@ -1908,15 +1910,17 @@ function renderNotes() {
         el(
           'span',
           { class: 'note-text' },
-          focus
-            ? el('button', { type: 'button', class: 'name-link note-name', title: tr('Go to this session’s window'), onclick: (e) => goToWindow(a, e.currentTarget) }, name)
-            : !a && resumable(n)
-              ? el(
-                  'button',
-                  { type: 'button', class: 'name-link note-name', title: tr('Open a terminal tab in its folder and continue the conversation'), onclick: (e) => resumeNote(n, e.currentTarget) },
-                  name,
-                )
-              : el('span', { class: 'note-name', text: name }),
+          n.kind === 'update'
+            ? el('button', { type: 'button', class: 'name-link note-name', title: tr("See what's new, and how to update"), onclick: () => openUpdate() }, name)
+            : focus
+              ? el('button', { type: 'button', class: 'name-link note-name', title: tr('Go to this session’s window'), onclick: (e) => goToWindow(a, e.currentTarget) }, name)
+              : !a && resumable(n)
+                ? el(
+                    'button',
+                    { type: 'button', class: 'name-link note-name', title: tr('Open a terminal tab in its folder and continue the conversation'), onclick: (e) => resumeNote(n, e.currentTarget) },
+                    name,
+                  )
+                : el('span', { class: 'note-name', text: name }),
           el('span', { class: 'note-what', text: what.join(' · '), title: what.join(' · ') }),
           n.preview ? el('img', { class: 'note-preview', src: n.preview, alt: tr('Output of {name}', { name }), loading: 'lazy' }) : null,
         ),
@@ -1951,6 +1955,161 @@ async function resumeNote(n, button) {
   }
 }
 
+// ---- update alerts -------------------------------------------------------------
+
+// When a newer Tabherd is out, the header has an Update to button and the
+// notification list says so, once. Not now hides the button until the next
+// version, in this browser. The server only checks once Settings says yes,
+// which a bar above the cards asks once, after any first-run tour.
+const UPDATE_DISMISSED_KEY = 'tabherd:update-dismissed';
+const UPDATE_NOTED_KEY = 'tabherd:update-noted';
+let updateDismissed = null;
+let updateNoted = null;
+try {
+  updateDismissed = localStorage.getItem(UPDATE_DISMISSED_KEY);
+  updateNoted = localStorage.getItem(UPDATE_NOTED_KEY);
+} catch {}
+
+// How to update, for each way the server can tell Tabherd was installed.
+const HOW_TO_UPDATE = {
+  git: { text: tr('This copy runs from a clone of the repository. Pull the new version, then start the server again:'), command: 'git pull' },
+  homebrew: { text: tr('Installed with Homebrew:'), command: 'brew upgrade tabherd' },
+  winget: { text: tr('Installed with winget:'), command: 'winget upgrade tleeadams.Tabherd' },
+  'windows-installer': { text: tr('Download the new installer from the release and run it. It installs over this version.') },
+  'windows-zip': { text: tr("Download the new zip from the release, and put its folder in place of this one's.") },
+  'mac-app': { text: tr('Download the new disk image from the release, and drag Tabherd to Applications, replacing this version.') },
+  'linux-package': { text: tr('Download the new .deb or .rpm from the release, and install it as you did this one.') },
+  appimage: { text: tr('Download the new AppImage from the release, and use it in place of this one.') },
+  archive: { text: tr("Download the new archive for your system from the release, and unpack it in place of this one's folder.") },
+};
+
+function showUpdates() {
+  const u = snap.updates;
+  if (!u) return;
+  const latest = u.latest;
+  $('update-button').hidden = !latest || updateDismissed === latest.version;
+  if (latest) $('update-label').textContent = tr('Update to {version}', { version: latest.version });
+  // Asked once for every browser, as the server keeps the answer, but not
+  // over the first-run tour.
+  $('update-ask').hidden = u.check !== null || tourOn || tourPending;
+  if (latest && updateNoted !== latest.version) {
+    updateNoted = latest.version;
+    try {
+      localStorage.setItem(UPDATE_NOTED_KEY, updateNoted);
+    } catch {}
+    notes = [{ id: `update:${latest.version}`, kind: 'update', name: `Tabherd ${latest.version}`, detail: '', at: snap.now }, ...notes.filter((n) => n.kind !== 'update')];
+    saveNotes();
+    renderNotes();
+  }
+  if ($('settings').open) renderUpdateSetting();
+}
+
+// Settings → Help: whether to check, and what the last check found.
+function renderUpdateSetting() {
+  const u = snap?.updates;
+  $('update-check').checked = u?.check === true;
+  if (!u) return;
+  const said = [tr('This is Tabherd {version}.', { version: u.version })];
+  if (u.latest) said.push(tr('{version} is out.', { version: u.latest.version }));
+  else if (u.checkedAt) said.push(tr('It’s the latest: checked {time}.', { time: sinceText(u.checkedAt, true) }));
+  if (u.error) said.push(tr("The last check didn't reach GitHub: {error}", { error: u.error }));
+  $('update-status').textContent = said.join(' ');
+}
+
+// A release's notes, from GitHub's Markdown, as plain paragraphs and lists:
+// links, bold and code show as their text. The line every release starts
+// with, saying what Tabherd is, and the link to the signing policy are left out.
+function releaseNotes(markdown) {
+  const plain = (s) =>
+    s
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/\*\*|`/g, '')
+      .replace(/(^|\W)\*([^*]+)\*/g, '$1$2')
+      .trim();
+  const blocks = [];
+  let items = null;
+  for (const line of String(markdown || '').split(/\r?\n/)) {
+    const text = line.trim();
+    const item = /^[-*]\s+(.*)$/.exec(text);
+    if (!text || text.startsWith('**Tabherd** is a dashboard') || text.startsWith('[Code signing policy]')) items = null;
+    else if (item) {
+      if (!items) blocks.push((items = el('ul')));
+      items.append(el('li', { text: plain(item[1]) }));
+    } else {
+      items = null;
+      blocks.push(el('p', { text: plain(text) }));
+    }
+  }
+  return blocks;
+}
+
+// What's new in the newer version, and how to update this copy.
+async function openUpdate() {
+  let info = null;
+  try {
+    const res = await fetch('/api/updates', { cache: 'no-store' });
+    if (res.ok) info = await res.json();
+  } catch {}
+  const latest = info?.latest;
+  if (!latest) return toast(tr("There's no newer version."));
+  const dialog = $('update-dialog');
+  $('update-title').textContent = tr('Tabherd {version} is out', { version: latest.version });
+  $('update-current').textContent = [
+    tr('You have {version}.', { version: info.version }),
+    latest.prerelease ? tr('This one is a prerelease, to try before a release has it.') : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  $('update-notes').replaceChildren(...releaseNotes(latest.notes));
+  const how = HOW_TO_UPDATE[info.install] || HOW_TO_UPDATE.archive;
+  $('update-how').textContent = how.text;
+  $('update-command').hidden = !how.command;
+  $('update-command-text').textContent = how.command || '';
+  $('update-release').href = latest.url;
+  dialog.dataset.version = latest.version;
+  dialog.returnValue = '';
+  dialog.showModal();
+}
+
+async function answerUpdateCheck(yes) {
+  if (!(await saveServerSetting({ updateCheck: yes }))) return;
+  $('update-ask').hidden = true;
+  toast(yes ? tr('Tabherd will tell you when a new version is out.') : tr("It won't check. Settings → Help can turn it on."));
+  refresh();
+}
+
+$('update-button').addEventListener('click', () => openUpdate());
+$('update-ask-yes').addEventListener('click', () => answerUpdateCheck(true));
+$('update-ask-no').addEventListener('click', () => answerUpdateCheck(false));
+$('update-copy').addEventListener('click', async () => {
+  await copy($('update-command-text').textContent);
+  toast(tr('Command copied'));
+});
+$('update-dialog').addEventListener('close', (e) => {
+  const dialog = e.currentTarget;
+  if (dialog.returnValue !== 'later') return;
+  updateDismissed = dialog.dataset.version;
+  try {
+    localStorage.setItem(UPDATE_DISMISSED_KEY, updateDismissed);
+  } catch {}
+  $('update-button').hidden = true;
+});
+$('update-check').addEventListener('change', (e) => saveServerSetting({ updateCheck: e.currentTarget.checked }).then(() => refresh()));
+// Check now asks whatever the setting is, as it's asked for.
+$('update-now').addEventListener('click', async (e) => {
+  const button = e.currentTarget;
+  button.disabled = true;
+  try {
+    const u = await api('/api/updates/check');
+    toast(u.latest ? tr('Tabherd {version} is out', { version: u.latest.version }) : tr('You have the latest version.'));
+    await refresh();
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    button.disabled = false;
+  }
+});
+
 function apply(next) {
   snap = next;
   clockSkew = snap.now - Date.now();
@@ -1962,6 +2121,7 @@ function apply(next) {
   if (!tourOn) render();
   announce(changes);
   updateNotes(snap.agents, changes);
+  showUpdates();
   if (tourPending) startTourWhenSettled();
 }
 
@@ -3016,6 +3176,7 @@ function openSettings(elementId) {
     } catch {}
   }
   showSettingsSection(section, true);
+  renderUpdateSetting();
   loadServerSettings();
   loadRepos(false);
 }
@@ -3213,6 +3374,8 @@ function startTour() {
   // Brought up to date, then frozen.
   render();
   tourOn = true;
+  // The update question waits, so the cards don't move under the tour.
+  $('update-ask').hidden = true;
   window.scrollTo(0, 0);
   tourCard = tourSessionCard();
   tourSteps = TOUR_STEPS.filter((s) => !s.target || tourRect(s));

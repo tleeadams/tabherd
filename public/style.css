@@ -98,7 +98,8 @@ a { color: var(--accent); }
 
 .notes-button,
 .sound,
-.todo-new {
+.todo-new,
+.update-button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -115,7 +116,8 @@ a { color: var(--accent); }
 .sound:hover { color: var(--text); }
 .notes-button svg,
 .sound svg,
-.todo-new svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.todo-new svg,
+.update-button svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .notes-button { padding: 0 7px; }
 .notes-button b { font-weight: 600; }
 .notes-button b:empty { display: none; }
@@ -136,6 +138,43 @@ a { color: var(--accent); }
 .pin-button[aria-pressed="true"] { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
 .pin-button[aria-pressed="true"] svg { fill: color-mix(in srgb, var(--accent) 30%, transparent); }
 .history-button { margin-left: auto; }
+/* A newer Tabherd: first of the buttons on the right, until it's updated or
+   put off. */
+.update-button { margin-left: auto; gap: 5px; color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); font-weight: 600; }
+.update-button:hover { border-color: var(--accent); }
+.update-button svg { stroke-width: 2; }
+.update-button[hidden] { display: none; }
+.update-button:not([hidden]) ~ .history-button { margin-left: 0; }
+
+/* Asking once whether to check for a newer Tabherd, above the cards. */
+.update-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+  border-radius: 10px;
+  background: var(--panel);
+}
+.update-ask[hidden] { display: none; }
+.update-ask p { flex: 1 1 320px; margin: 0; color: var(--muted); font-size: 13px; }
+.update-ask b { color: var(--text); }
+.update-ask-actions { display: flex; gap: 8px; }
+
+/* What's new in a newer Tabherd, and how to update. */
+.update-notes { max-height: 45vh; overflow: auto; margin: 0 0 4px; font-size: 13px; }
+.update-notes p { margin: 0 0 8px; }
+.update-notes ul { margin: 0 0 8px; padding-left: 18px; }
+.update-notes li + li { margin-top: 6px; }
+.update-how-title { margin: 14px 0 4px; font-size: 13px; font-weight: 650; }
+.update-how { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
+.update-command { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; }
+.update-command[hidden] { display: none; }
+.update-command code { flex: 1; padding: 6px 8px; border-radius: 6px; background: var(--panel-2); font-size: 12.5px; }
+a.btn { display: inline-flex; align-items: center; color: inherit; text-decoration: none; }
+a.btn-primary { color: var(--on-accent); }
 
 .conn { display: flex; align-items: center; gap: 7px; color: var(--faint); font-size: 12.5px; }
 .conn-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
@@ -793,6 +832,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible, .msg .text:focus-v
 .note:hover { background: var(--panel-2); }
 .note .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
 .note.k-needs .dot { background: var(--wait); }
+.note.k-update .dot { background: var(--accent); }
 .note-text { display: grid; min-width: 0; }
 .note-name,
 .note-what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

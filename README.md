@@ -47,6 +47,8 @@ Or from a download:
 
 On macOS and Linux, a server started by `tabherd` stops by itself 10 minutes after the last dashboard closes, and the next launch starts it again in a couple of seconds.
 
+The dashboard can tell you when a new version is out, and how to update; see [Update alerts](#update-alerts).
+
 To update on Windows, run the new release's installer, which installs over the old one. From the zip, replace the folder with the new release's. On macOS and Linux, replace the folder; its name doesn't change between releases, so the `tabherd` command and its entry in your applications keep working. Settings, history and to-dos are kept in `~/.tabherd`, outside the app.
 
 To uninstall on Windows, use Settings › Apps › Installed apps, or delete the zip's folder. On macOS and Linux, run `./tabherd --uninstall`, then delete the folder. Delete `~/.tabherd` too unless you want to keep your settings, history and to-dos.
@@ -246,7 +248,7 @@ The gear button in the header opens Settings, one section at a time, picked from
 
 **Repo menu**: every folder and repo under the repos folder, nested as in the ☰ menu, each with a tick box. Untick one to hide it, and everything inside it, from the menu. What's inside a hidden folder is greyed out but keeps its own setting, so ticking the folder again brings back exactly what was shown before. A folder with some repos hidden says how many, in amber. The filter box works like the menu's. A hidden path that's no longer in the repos folder is listed underneath, with ✕ to remove it.
 
-**Help**: *Show the tour* shows the first-run tour again. See [What it shows](#what-it-shows).
+**Help**: *Show the tour* shows the first-run tour again. See [What it shows](#what-it-shows). *Tell me when a new version is out* turns update alerts on or off, and **Check now** checks at once. See [Update alerts](#update-alerts).
 
 Appearance, Notifications and Sections by group are saved in the browser, so each browser profile remembers its own choice. The rest are saved by the server, in `~/.tabherd/settings.json`, `~/.tabherd/filters.json` and `~/.tabherd/groups.json`, so every browser shares them.
 
@@ -274,6 +276,20 @@ Each change is also added to the notification list, the tray button left of the 
 Browsers only let a page play sound after you've clicked or typed in it, so after opening or reloading the dashboard the bell reads **Click to enable sound** until you click anywhere on the page. To skip that, allowing media autoplay for `http://localhost:4317` in Edge (Settings → Cookies and site permissions → Media autoplay) should let it play straight away.
 
 The server pushes each update to open dashboards (`/api/stream`, server-sent events) instead of the page checking every few seconds. A browser slows timers in hidden or covered windows to as little as once a minute, which would make dings late. Pushed messages are handled right away.
+
+## Update alerts
+
+Tabherd can tell you when a new version is out. It's off until you say yes:
+- **Asking:** the dashboard asks once, above the cards, after the first-run tour. The answer is kept by the server, so no other browser asks again.
+- **Changing it:** Settings → Help turns it on or off.
+- **What it sends:** with it on, the server asks GitHub for Tabherd's list of releases when it starts, then once a day, or an hour after a check that failed. Nothing about you, your computer or your sessions is sent. GitHub sees a request from your address, as it does for any web page.
+- **Check now:** in Settings → Help, it asks straight away, on or off.
+
+When there's a newer version:
+- **The header** gets an **Update to <version>** button, and the notification list says so once.
+- **The button** shows what's new, from the release's notes on GitHub, which are in English. It also says how to update this copy: the command for Homebrew, winget or a clone of the repository, or which download to get. **See the release** opens its page.
+- **Not now** hides the button, in that browser, until the next version.
+- **Prereleases** are only mentioned to someone already running one.
 
 ## Save and close
 
@@ -338,10 +354,11 @@ All of it is read-only, from files Claude Code and Codex already write, and from
 | Comfy Desktop's `comfy-procs/*.json` and `installations.json` | Which ComfyUIs are running, on which ports, and their names. |
 | ComfyUI's `/api/jobs`, `/queue`, `/api/userdata` and `/view` | Its jobs, their workflows' names and the models they load, and their output images. Its window's title gives the running job's progress. |
 | LocalAI's `/system`, `/api/operations`, `/api/chats` and `/api/agent/jobs` | Its loaded models, downloads, agent chats and agent jobs. |
+| GitHub's list of Tabherd's releases (`api.github.com/repos/tleeadams/tabherd/releases`) | Whether a newer version is out. Only with [update alerts](#update-alerts) on, or after **Check now**. |
 
 A session file whose process has exited, or whose PID now belongs to another process, is ignored.
 
-The only files the server writes are its own, in `~/.tabherd`: `settings.json` holds the settings that aren't kept in the browser, `history.json` the closed sessions, `todos.json` the to-dos, `groups.json` the groups, with the sessions moved between them by hand, and `saved-sessions.json` the sessions Save and close saved last.
+The only files the server writes are its own, in `~/.tabherd`: `settings.json` holds the settings that aren't kept in the browser, `history.json` the closed sessions, `todos.json` the to-dos, `groups.json` the groups, with the sessions moved between them by hand, `saved-sessions.json` the sessions Save and close saved last, and `updates.json` what the last check for a new version found.
 
 ## Safety
 
@@ -374,7 +391,7 @@ Only the Windows app, `Tabherd.exe`, and its installer are signed. The [Release 
 - Committers and reviewers: the people in [`.github/CODEOWNERS`](.github/CODEOWNERS)
 - Approvers: [@tleeadams](https://github.com/tleeadams)
 
-Privacy: this program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
+Privacy: this program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. [Update alerts](#update-alerts), which ask GitHub for Tabherd's latest release, are off until you turn them on.
 
 ## License
 

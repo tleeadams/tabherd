@@ -24,7 +24,15 @@ test('defaults are safe', () => {
     lmstudioUrl: '',
     lmstudioKey: '',
     llamacppUrl: '',
+    updateCheck: null,
   });
+});
+
+test('checking for updates is a yes or a no, once asked', () => {
+  assert.equal(settings.update({ updateCheck: true }).settings.updateCheck, true);
+  assert.equal(settings.update({ updateCheck: false }).settings.updateCheck, false);
+  assert.equal(settings.update({ updateCheck: null }).ok, false, "can't go back to unasked");
+  assert.equal(settings.update({ updateCheck: 'yes' }).ok, false);
 });
 
 test("other apps' addresses must be web addresses, and LocalAI's key one line", () => {
