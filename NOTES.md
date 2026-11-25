@@ -28,7 +28,7 @@ Not yet confirmed in real use:
 
 ## Public (2026-11-19)
 
-The repository is public, and v0.4.0 is the latest release. It's licensed GPL-3.0-or-later, and *Skip permission prompts* is off unless chosen.
+The repository is public, and v0.5.0 is the latest release. It's licensed GPL-3.0-or-later, and *Skip permission prompts* is off unless chosen.
 
 Renamed from Claude Agents to Tabherd (2026-11-20). Anthropic's Claude Code terms don't allow its names in a product's name, and "Claude Agents" is close to "Claude Agent", Anthropic's own wording for products built on its Agent SDK. Searching for "claude agents" also brings up Anthropic's own docs first. "Tabherd" had no web results, and nothing on npm or GitHub of note. The description says what it works with: "a dashboard for your Claude Code sessions". The rename came before applying to SignPath, since the product name on a signed file must match the project.
 
