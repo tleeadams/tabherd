@@ -17,6 +17,11 @@
 //                                                     Windows builds the installer around its app
 //   node scripts/build-release.js --checksums         writes each release file's checksum again,
 //                                                     once the installer is signed
+//   node scripts/build-release.js --target macos-arm64 --app
+//                                                     the macOS desktop app as a disk image, on
+//                                                     macOS: signed and notarized when the APPLE_*
+//                                                     variables are set (see CONTRIBUTING.md),
+//                                                     unsigned for trying out when they aren't
 //
 // The Windows release is the desktop app in app/src-tauri, built on Windows
 // with Rust and Tauri's command-line tool. The release workflow builds the
@@ -190,15 +195,35 @@ function writeChecksum(file) {
   console.log(`Built ${path.relative(ROOT, file)} (${(fs.statSync(file).size / 1048576).toFixed(1)} MB)\nSHA-256 ${hash}`);
 }
 
+// The macOS app as a disk image, built for the target's processor with that
+// target's Node beside it. Tauri reads the APPLE_* variables itself: with
+// them it signs the app and its Node under the hardened runtime, has Apple
+// notarize it and staples the ticket.
+async function buildMacApp(targetName, target) {
+  if (target.os !== 'darwin' || process.platform !== 'darwin') throw new Error('The macOS app is built on macOS, for a macOS target.');
+  const triple = { arm64: 'aarch64-apple-darwin', x64: 'x86_64-apple-darwin' }[target.arch];
+  const node = option('--node') ? path.resolve(option('--node')) : await downloadNode(target);
+  stageApp({ target: triple, node, needLicense: true });
+  tauri(['build', '--target', triple, '--bundles', 'dmg']);
+  const built = path.join(APP_DIR, 'target', triple, 'release', 'bundle', 'dmg');
+  const image = fs.readdirSync(built).find((name) => name.endsWith('.dmg'));
+  if (!image) throw new Error(`Tauri built no disk image in ${path.relative(ROOT, built)}.`);
+  const file = path.join(DIST, `tabherd-v${version}-${targetName}.dmg`);
+  fs.mkdirSync(DIST, { recursive: true });
+  fs.copyFileSync(path.join(built, image), file);
+  writeChecksum(file);
+}
+
 async function main() {
   if (process.argv.includes('--checksums')) {
-    const files = fs.readdirSync(DIST).filter((name) => /^tabherd-v.*\.(zip|tar\.gz|exe)$/.test(name));
+    const files = fs.readdirSync(DIST).filter((name) => /^tabherd-v.*\.(zip|tar\.gz|exe|dmg)$/.test(name));
     for (const name of files) writeChecksum(path.join(DIST, name));
     return;
   }
   const targetName = option('--target') || hostTarget();
   const target = TARGETS[targetName];
   if (!target) throw new Error(`No release target ${targetName}. Targets: ${Object.keys(TARGETS).join(', ')}.`);
+  if (process.argv.includes('--app')) return buildMacApp(targetName, target);
   if (target.os === 'win32' && process.platform !== 'win32') throw new Error('The Windows release is built on Windows, where Tauri builds its app and installer.');
   if (target.os !== 'win32' && process.platform === 'win32') throw new Error('The macOS and Linux releases are built on macOS or Linux, which keep their files executable.');
   const notes = releaseNotes(fs.readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf8'), version);

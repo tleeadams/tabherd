@@ -222,4 +222,4 @@ A short spike on Windows, before the rest:
 - **Building on Windows needs Rust's MSVC toolchain.** A machine whose default is the GNU one can add MSVC alongside and use `RUSTUP_TOOLCHAIN=stable-x86_64-pc-windows-msvc`.
 - **Checked by hand on Windows** (the owner, 2026-11-24): Go to window, Catch up and the folder picker bring their windows forward with Tabherd in front, and PR links open in the browser.
 - **Still to check:** the first signed release.
-- **Next:** phase 2, macOS. CI already lints and compiles the app on macOS and Linux.
+- **Phase 2, macOS, is ready for its keys** (2026-11-24). `build-release.js --target macos-<arch> --app` builds the disk image; the Release workflow's `build-macos` job runs it for Apple silicon and Intel once `APPLE_SIGNING` is on, then checks the signature, Gatekeeper and the stapled ticket. CI builds the same image unsigned on every change. CONTRIBUTING has the setup. Still to see: the first signed, notarized build, and the app on a Mac.

@@ -150,8 +150,70 @@ jobs:
             dist/*.tar.gz
             dist/*.tar.gz.sha256
 
+  build-macos:
+    # The macOS desktop app, signed and notarized, once the APPLE_SIGNING
+    # variable is "on" and the Apple secrets are in the release environment
+    # (see CONTRIBUTING.md). Until then this is skipped, and macOS ships the
+    # archives build-unix makes. One Apple silicon runner builds both, the
+    # Intel one for its target.
+    if: vars.APPLE_SIGNING == 'on'
+    environment: release
+    strategy:
+      matrix:
+        arch: [arm64, x64]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          targets: ${{ matrix.arch == 'arm64' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin' }}
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: app/src-tauri
+          key: ${{ matrix.arch }}
+      # Tauri imports the certificate into a keychain of its own, signs the
+      # app and its Node under the hardened runtime, has Apple notarize the
+      # app with the API key, and staples the ticket.
+      - name: Build, sign and notarize the app
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+        run: |
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_API_ISSUER APPLE_API_KEY APPLE_API_PRIVATE_KEY; do
+            if [ -z "${!name}" ]; then echo "::error::APPLE_SIGNING is on, but the secret $name isn't in the release environment."; exit 1; fi
+          done
+          export APPLE_API_KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s\n' "$APPLE_API_PRIVATE_KEY" > "$APPLE_API_KEY_PATH"
+          node scripts/build-release.js --target "macos-${{ matrix.arch }}" --app
+          rm -f "$APPLE_API_KEY_PATH"
+      # Fails rather than release an app that macOS would refuse.
+      - name: Check the signature and the notarization
+        run: |
+          triple=${{ matrix.arch == 'arm64' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin' }}
+          app=$(ls -d app/src-tauri/target/$triple/release/bundle/macos/*.app)
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign --display --verbose=2 "$app" 2>&1 | grep -E '^(Authority|TeamIdentifier)='
+          codesign --verify --strict "$app/Contents/MacOS/node"
+          spctl --assess --type execute --verbose=2 "$app"
+          xcrun stapler validate "$app"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-macos-${{ matrix.arch }}
+          path: |
+            dist/*.dmg
+            dist/*.dmg.sha256
+
   release:
-    needs: [build, build-unix]
+    # Waits for every build, and goes ahead without the macOS app when its
+    # build is switched off.
+    needs: [build, build-unix, build-macos]
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.build-unix.result == 'success' && contains(fromJSON('["success", "skipped"]'), needs.build-macos.result) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -175,6 +237,8 @@ jobs:
             printf '\n[Code signing policy](%s#code-signing-policy)\n' "$repo"
           } > dist/notes.md
           mv dist/notes.md dist/RELEASE_NOTES.md
-          gh release create "$GITHUB_REF_NAME" dist/*.exe dist/*.zip dist/*.tar.gz dist/*.sha256 \
+          # The macOS app's disk images are there only when it was built.
+          shopt -s nullglob
+          gh release create "$GITHUB_REF_NAME" dist/*.exe dist/*.dmg dist/*.zip dist/*.tar.gz dist/*.sha256 \
             --repo "$GITHUB_REPOSITORY" --draft $prerelease \
             --title "Tabherd $GITHUB_REF_NAME" --notes-file dist/RELEASE_NOTES.md
