@@ -2,7 +2,15 @@
 
 Notable changes in each release. Version numbers follow [Semantic Versioning](https://semver.org). The release build takes each release's notes from its section here.
 
-## Unreleased
+## 0.6.0-beta.3 - 2026-11-25
+
+A prerelease with everything since 0.6.0-beta.2, to try before 0.6.0: the app's own title bar, **Complete**, update alerts, a *Working* card for LocalAI, and the first part of linking tickets to cards.
+
+- **Windows:** run `tabherd-v0.6.0-beta.3-windows-x64-setup.exe`. It installs over the version you have. It isn't code-signed yet, so SmartScreen may warn the first time: choose **More info**, then **Run anyway**.
+- **macOS** (Apple silicon): open the disk image and drag Tabherd to Applications. The app isn't signed by Apple yet, so the first time you open it macOS says it can't check it: choose Done, then System Settings → Privacy & Security → *Open Anyway*.
+- **Linux:** install the .deb with `sudo apt install ./tabherd-v0.6.0-beta.3-linux-x64.deb`, or the .rpm with `sudo dnf install ./tabherd-v0.6.0-beta.3-linux-x64.rpm`, or make the AppImage executable (`chmod +x`) and run it. Use arm64 in place of x64 on an ARM computer.
+
+What's new:
 
 - The desktop app's window has no title bar of the system's: the dashboard's header stands in for it, with more room for the cards. Drag the header to move the window and double-click it to maximize. On Windows and Linux, minimize, maximize and close are in its top right corner; on macOS, the system's own buttons sit in its top left. The cards scroll below the header. See [docs/desktop-app.md](docs/desktop-app.md#the-window).
 - **Settings → Tickets**, the first step towards linking tickets to cards. Add your Jira sites, Linear, GitHub Issues and Zendesk, as many as you use, and **Test** each one's sign-in. See [the plan](docs/ticket-links.md).
