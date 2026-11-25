@@ -734,8 +734,8 @@ function actions(a) {
           'span',
           { class: 'actions-end' },
           closable(a) && !snap?.closing?.includes(a.id)
-            ? btn(isArmed(a) ? tr('{label}?', { label: tr('Complete') }) : tr('Complete'), (e) => completeSession(a, e.currentTarget), isArmed(a) ? 'btn-danger' : '', {
-                'data-complete': a.id,
+            ? btn(armedLabel(`complete:${a.id}`, tr('Complete')), (e) => completeSession(a, e.currentTarget), armedClass(`complete:${a.id}`), {
+                'data-armed': `complete:${a.id}`,
                 title: tr('Mark it complete and close it. A working session finishes its turn first.'),
               })
             : null,
@@ -744,31 +744,43 @@ function actions(a) {
   );
 }
 
-// Complete asks for a second click, like Unload, then closes the session,
-// once its turn ends if it's working. History keeps it, marked complete. The
-// first click is kept by session for three seconds, as a session's card is
-// drawn again whenever it changes, which can be every update.
-const armedComplete = new Map();
-const isArmed = (a) => (armedComplete.get(a.id) || 0) > Date.now();
+// Buttons that ask for a second click: Complete, and a job's, model's or
+// download's Stop, Cancel and Unload. The first click is kept for three
+// seconds by what the button does, as `key`, not by the button, since a card
+// is drawn again whenever what it shows changes, which can be every update.
+// A button that may be armed is drawn with armedLabel, armedClass and
+// data-armed set to its key.
+const armed = new Map();
+const isArmed = (key) => (armed.get(key) || 0) > Date.now();
+const armedLabel = (key, label) => (isArmed(key) ? tr('{label}?', { label }) : label);
+const armedClass = (key) => (isArmed(key) ? 'btn-danger' : '');
 
-async function completeSession(a, button) {
-  if (!isArmed(a)) {
-    const until = Date.now() + 3000;
-    armedComplete.set(a.id, until);
-    button.classList.add('btn-danger');
-    button.textContent = tr('{label}?', { label: tr('Complete') });
-    setTimeout(() => {
-      if (armedComplete.get(a.id) !== until) return;
-      armedComplete.delete(a.id);
-      const shown = document.querySelector(`[data-complete="${CSS.escape(a.id)}"]`);
-      if (shown) {
-        shown.classList.remove('btn-danger');
-        shown.textContent = tr('Complete');
-      }
-    }, 3000);
-    return;
+// True on the second click. The first arms the button, and any copy of it
+// drawn in the next three seconds, and says so on it.
+function secondClick(key, button, label) {
+  if (isArmed(key)) {
+    armed.delete(key);
+    return true;
   }
-  armedComplete.delete(a.id);
+  const until = Date.now() + 3000;
+  armed.set(key, until);
+  button.classList.add('btn-danger');
+  button.textContent = tr('{label}?', { label });
+  setTimeout(() => {
+    if (armed.get(key) !== until) return;
+    armed.delete(key);
+    for (const shown of document.querySelectorAll(`[data-armed="${CSS.escape(key)}"]`)) {
+      shown.classList.remove('btn-danger');
+      shown.textContent = label;
+    }
+  }, 3000);
+  return false;
+}
+
+// Complete asks for a second click, like Unload, then closes the session,
+// once its turn ends if it's working. History keeps it, marked complete.
+async function completeSession(a, button) {
+  if (!secondClick(`complete:${a.id}`, button, tr('Complete'))) return;
   button.disabled = true;
   try {
     const r = await post(a, 'complete');
@@ -787,6 +799,11 @@ function itemCard(a) {
   const st = status(a);
   const can = (action) => (a.actions || []).includes(action);
   const btn = (label, onclick, cls = '', props = {}) => el('button', { type: 'button', class: `btn ${cls}`, onclick, ...props }, label);
+  // Stop, Cancel and Unload, which ask for a second click.
+  const twice = (action, label) => {
+    const key = `${action}:${a.id}`;
+    return btn(armedLabel(key, label), (e) => itemAction(a, action, label, e.currentTarget), `btn-stop ${armedClass(key)}`, { 'data-armed': key });
+  };
   const proc = [a.pid && !isItem(a) ? `PID ${a.pid}` : null, a.memBytes ? `${Math.round(a.memBytes / 1048576)} MB` : null].filter(Boolean);
   const pct = a.progress ? Math.max(0, Math.min(100, (a.progress.value / (a.progress.max || 100)) * 100)) : null;
   const fill = el('i');
@@ -829,9 +846,9 @@ function itemCard(a) {
       can('open') && a.url
         ? el('a', { class: 'btn btn-primary', href: a.url, target: '_blank', rel: 'noopener noreferrer' }, a.openLabel ? tr(a.openLabel) : tr('Open in {app}', { app: APPS[a.app] }))
         : null,
-      can('stop') ? btn(tr('Stop'), (e) => itemAction(a, 'stop', e.currentTarget), 'btn-stop') : null,
-      can('cancel') ? btn(tr('Cancel'), (e) => itemAction(a, 'cancel', e.currentTarget), 'btn-stop') : null,
-      can('unload') ? btn(tr('Unload'), (e) => itemAction(a, 'unload', e.currentTarget), 'btn-stop') : null,
+      can('stop') ? twice('stop', tr('Stop')) : null,
+      can('cancel') ? twice('cancel', tr('Cancel')) : null,
+      can('unload') ? twice('unload', tr('Unload')) : null,
       can('dismiss') ? btn(tr('Clear'), (e) => clearItem(a, e.currentTarget), '', { title: tr('Take this off the dashboard') }) : null,
     ),
   );
@@ -853,17 +870,8 @@ async function clearItem(a, button) {
 }
 
 // Stop, Cancel and Unload ask for a second click, like a to-do's Delete.
-async function itemAction(a, action, button) {
-  if (!button.classList.contains('btn-danger')) {
-    const label = button.textContent;
-    button.classList.add('btn-danger');
-    button.textContent = tr('{label}?', { label });
-    setTimeout(() => {
-      button.classList.remove('btn-danger');
-      button.textContent = label;
-    }, 3000);
-    return;
-  }
+async function itemAction(a, action, label, button) {
+  if (!secondClick(`${action}:${a.id}`, button, label)) return;
   button.disabled = true;
   try {
     if (a.leavesWhenDone) stoppedHere.add(a.id);
@@ -1222,11 +1230,12 @@ function memoryCard({ memory, models }) {
             'button',
             {
               type: 'button',
-              class: 'btn btn-stop',
+              class: `btn btn-stop ${armedClass(`unload:${m.id}`)}`,
+              'data-armed': `unload:${m.id}`,
               title: m.app === 'comfy' ? tr("Unloads all of {name}'s models: ComfyUI can't unload one alone", { name: m.host }) : null,
-              onclick: (e) => itemAction(m, 'unload', e.currentTarget),
+              onclick: (e) => itemAction(m, 'unload', tr('Unload'), e.currentTarget),
             },
-            tr('Unload'),
+            armedLabel(`unload:${m.id}`, tr('Unload')),
           )
         : null,
     ),
