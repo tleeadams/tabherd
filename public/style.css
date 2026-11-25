@@ -66,7 +66,11 @@ a { color: var(--accent); }
 
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand h1 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
+/* The computer's name, with the version running under it. */
+.brand-host { display: grid; line-height: 1.2; }
 .host { color: var(--faint); font-size: 12.5px; }
+.version { color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+.version:empty { display: none; }
 
 .filters {
   display: flex;

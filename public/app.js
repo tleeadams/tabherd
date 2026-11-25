@@ -1302,6 +1302,7 @@ function render() {
   const needsYou = snap.agents.filter((a) => a.status === 'waiting').length;
   document.title = needsYou ? `(${needsYou}) Tabherd` : 'Tabherd';
   $('host').textContent = snap.host;
+  $('version').textContent = snap.version ? `v${snap.version}` : '';
 
   // To-do cards come first, under All and the filters that ask for them.
   const f = filterDef(filter);

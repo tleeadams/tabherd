@@ -116,6 +116,8 @@ Checked that way so far: Windows Terminal; tmux, kitty, WezTerm, GNOME Terminal 
 
 ## What it shows
 
+The header names the computer the dashboard runs on, with the version of Tabherd running under it.
+
 The first time a browser opens the dashboard, a short tour points out each part of it, with **Skip tour** on every step, or Esc. It starts once every running session is on the page, and the page holds still while it runs: the cards don't update and only the tour can be clicked, though dings and notifications carry on. With no sessions running, it shows an example card, marked as one, which goes when the tour ends. A browser that has used the dashboard before doesn't get it. Settings → **Help** shows it again.
 
 - **Status**: *Needs you* (blocked on a prompt or dialog), *Working*, *Shell running* (at the prompt while a background shell runs) or *Idle*, plus how long it has been in that state.
