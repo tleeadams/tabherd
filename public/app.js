@@ -2753,6 +2753,31 @@ if (desktopApp) {
   }
 }
 
+// In the desktop app the header stands in for the window's title bar. On
+// Windows and Linux it has the window's buttons; on macOS it leaves room for
+// the system's, in its top left corner. The cards scroll below it, rather
+// than the whole page, so the scroll bar doesn't run up beside the buttons.
+const cardScroller = () => (desktopApp?.titleBar ? document.querySelector('main') : document.scrollingElement);
+if (desktopApp?.titleBar) {
+  document.documentElement.dataset.titleBar = desktopApp.titleBar;
+  if (desktopApp.titleBar === 'buttons') {
+    $('window-buttons').hidden = false;
+    $('window-minimize').addEventListener('click', () => desktopApp.minimize());
+    $('window-maximize').addEventListener('click', () => desktopApp.toggleMaximize());
+    $('window-close').addEventListener('click', () => desktopApp.close());
+    // Maximize turns into Restore while the window is maximized.
+    const showMaximized = async () => {
+      const maximized = await desktopApp.isMaximized().catch(() => false);
+      const label = maximized ? tr('Restore') : tr('Maximize');
+      $('window-maximize').classList.toggle('maximized', maximized);
+      $('window-maximize').title = label;
+      $('window-maximize').setAttribute('aria-label', label);
+    };
+    addEventListener('resize', showMaximized);
+    showMaximized();
+  }
+}
+
 // Folders and repos left out of the repo menu. The server keeps these, for
 // every browser, as paths under the repos folder with forward slashes.
 let serverSettings = null;
@@ -3613,7 +3638,7 @@ function showTourStep(i) {
   if (first && !first.closest('.top')) {
     const r = first.getBoundingClientRect();
     const below = document.querySelector('.top').getBoundingClientRect().bottom + 12;
-    if (r.top < below || r.top > innerHeight / 2) scrollBy(0, r.top - below);
+    if (r.top < below || r.top > innerHeight / 2) cardScroller().scrollBy(0, r.top - below);
   }
   placeTour();
   $('tour-next').focus();
@@ -3627,7 +3652,7 @@ function startTour() {
   tourOn = true;
   // The update question waits, so the cards don't move under the tour.
   $('update-ask').hidden = true;
-  window.scrollTo(0, 0);
+  cardScroller().scrollTo(0, 0);
   tourCard = tourSessionCard();
   tourSteps = TOUR_STEPS.filter((s) => !s.target || tourRect(s));
   $('tour').showModal();

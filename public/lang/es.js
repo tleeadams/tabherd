@@ -66,6 +66,9 @@
   'Keep this window on top of other windows': 'Mantener esta ventana encima de las demás',
   'On top of other windows: click to stop': 'Encima de las demás ventanas: haz clic para dejar de estarlo',
   "Couldn't change that: {error}": 'No se pudo cambiar: {error}',
+  Minimize: 'Minimizar',
+  Maximize: 'Maximizar',
+  Restore: 'Restaurar',
   'No Claude Code or Codex sessions are running.': 'No hay ninguna sesión de Claude Code ni de Codex en marcha.',
   'Start one with <code>claude</code> or <code>codex</code> in any terminal and it will appear here within a few seconds.':
     'Inicia una con <code>claude</code> o <code>codex</code> en cualquier terminal y aparecerá aquí en unos segundos.',

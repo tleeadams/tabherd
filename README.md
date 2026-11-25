@@ -21,7 +21,7 @@ Neither is code-signed yet: signing through SignPath Foundation is waiting on th
 
 Tabherd starts the dashboard server in the background, with no console window, unless one is already running. It shows the dashboard in WebView2, the engine Edge uses, which comes with Windows. Nothing from your browser shows in its window, and sound plays without a click first. Links to pull requests and other sites open in your browser. Opening Tabherd while it's open brings its window to the front. Closing the window stops the server it started.
 
-The pin in the header keeps the window on top of other windows. Settings → Appearance → **Window** has the same, as *Keep on top*, and **Transparency**, which lets what's behind the window show through its background and cards, up to 80%. Text, buttons and dialogs stay solid. Both are only in the app, not in a browser.
+The header is the window's title bar: drag it to move the window, double-click it to maximize, and minimize, maximize and close are in its top right corner. The pin in the header keeps the window on top of other windows. Settings → Appearance → **Window** has the same, as *Keep on top*, and **Transparency**, which lets what's behind the window show through its background and cards, up to 80%. Text, buttons and dialogs stay solid. Both are only in the app, not in a browser.
 
 ### macOS and Linux
 

@@ -4,6 +4,7 @@ Notable changes in each release. Version numbers follow [Semantic Versioning](ht
 
 ## Unreleased
 
+- The desktop app's window has no title bar of the system's: the dashboard's header stands in for it, with more room for the cards. Drag the header to move the window and double-click it to maximize. On Windows and Linux, minimize, maximize and close are in its top right corner; on macOS, the system's own buttons sit in its top left. The cards scroll below the header. See [docs/desktop-app.md](docs/desktop-app.md#the-window).
 - **Settings → Tickets**, the first step towards linking tickets to cards. Add your Jira sites, Linear, GitHub Issues and Zendesk, as many as you use, and **Test** each one's sign-in. See [the plan](docs/ticket-links.md).
 - **Secrets are encrypted** in `settings.json`: the trackers, with their addresses, emails and tokens, and LocalAI's key and LM Studio's token. The key is held by Windows (DPAPI), the macOS Keychain or your Linux keyring, so the file can't be read on another computer or by another user. Keys saved by older versions are encrypted on the first start. See [Secrets](README.md#secrets).
 - **Complete** on a session's card, beside Stop…, for work that's done: after a second click it closes the session, once its turn ends if it's working, and History marks it *Completed*, with a switch to hide completed sessions. Save and close doesn't save a completed session, and one resumed and asked something new is no longer complete. See [Complete](README.md#complete).
