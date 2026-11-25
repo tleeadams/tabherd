@@ -225,7 +225,10 @@ async function buildApp(targetName, target) {
   stageApp({ target: triple, node, needLicense: true });
   const packages = PACKAGES[target.os];
   const adHoc = target.os === 'darwin' && !process.env.APPLE_CERTIFICATE && !process.env.APPLE_SIGNING_IDENTITY;
-  tauri(['build', '--target', triple, '--bundles', Object.keys(packages).join(',')], adHoc ? { ...process.env, APPLE_SIGNING_IDENTITY: '-' } : process.env);
+  // On macOS the .app is asked for too, as the release workflow checks its
+  // signature: built for the disk image alone, Tauri removes it.
+  const bundles = [...(target.os === 'darwin' ? ['app'] : []), ...Object.keys(packages)];
+  tauri(['build', '--target', triple, '--bundles', bundles.join(',')], adHoc ? { ...process.env, APPLE_SIGNING_IDENTITY: '-' } : process.env);
   fs.mkdirSync(DIST, { recursive: true });
   for (const [folder, ext] of Object.entries(packages)) {
     const built = path.join(APP_DIR, 'target', triple, 'release', 'bundle', folder);

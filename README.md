@@ -39,6 +39,8 @@ Or from a download:
 2. Run `./tabherd` in that folder.
 3. To add Tabherd to your applications, run `./tabherd --install`: on macOS that's **Tabherd** in `~/Applications`, on Linux an entry in the applications menu. Both also add a `tabherd` command in `~/.local/bin`. `./tabherd --uninstall` removes them again.
 
+**Intel Macs:** the `macos-x64` download won't be supported forever. We'll try to keep it updated until the official cutoff in 2029, but support may end sooner if it becomes too much for the team to keep up. The macOS desktop app is for Apple silicon only.
+
 `tabherd` starts the dashboard server in the background if it isn't running, then opens the dashboard: as an app window, with no tabs or address bar, if Chrome, Edge, Brave, Chromium or Vivaldi is installed, otherwise in your browser.
 
 ### Updating and uninstalling
