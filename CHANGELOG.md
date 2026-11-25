@@ -2,6 +2,10 @@
 
 Notable changes in each release. Version numbers follow [Semantic Versioning](https://semver.org). The release build takes each release's notes from its section here.
 
+## Unreleased
+
+- The desktop app comes to Linux: a .deb, an .rpm and an AppImage, for x64 and arm64, built on Ubuntu 22.04. They need WebKitGTK 4.1. Prereleases have the macOS app too, for Apple silicon and Intel Macs, signed ad hoc until it can be signed and notarized: macOS asks before opening it the first time. See [docs/desktop-app.md](docs/desktop-app.md).
+
 ## 0.5.0 - 2026-11-24
 
 - On Windows, Tabherd is a desktop app with a window of its own, in place of the launcher and its Edge window. It comes as an installer, which installs for you alone with no administrator rights and adds Tabherd to the Start menu, or as a zip. It starts the dashboard server unless one is running, and stops it on closing. Nothing from your browser shows in its window, and sound plays without a click first. Links open in your browser, and opening Tabherd again brings its window forward. Settings kept in the browser (Appearance, Notifications, Sections by group) start fresh once in the new window. See [Install](README.md#windows) and [docs/desktop-app.md](docs/desktop-app.md).
