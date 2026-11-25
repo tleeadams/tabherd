@@ -107,7 +107,7 @@ The first time a browser opens the dashboard, a short tour points out each part 
 - **Subagents**: running subagents with their current step, then recently finished ones.
 - **Actions**: go to the session's window, catch up, open its folder, copy a `claude --resume` command, or stop the session. Clicking a session's name also goes to its window.
 
-A card across the top, **Memory and models**, shows the computer's memory in use against what it has, and each NVIDIA graphics card's, from `nvidia-smi` when it's there. Under them it lists the models loaded in LocalAI, Ollama, LM Studio and llama.cpp, with **Unload** where the app allows it. It shows whatever the filter. Settings → Appearance → *Memory and models* turns it off, and each loaded model then gets a card of its own, shown under All.
+A card across the top, **Memory and models**, shows the computer's memory in use against what it has, and each NVIDIA graphics card's, from `nvidia-smi` when it's there. Under them it lists the models loaded in ComfyUI, LocalAI, Ollama, LM Studio and llama.cpp, with **Unload** where the app allows it. It shows whatever the filter. Settings → Appearance → *Memory and models* turns it off, and each loaded model then gets a card of its own, shown under All.
 
 The tabs in the header filter the cards. **All** shows everything. The others are yours to change, and start as **Todo** (*Needs you* and *Idle*, with the to-do cards: everything whose turn it is), **Needs you**, **Working** and **Idle**. *Queued* counts as Working, and so does *Shell running* on the Working tab, though a filter can pick Shell running on its own. Each tab counts its cards, in amber when one of them needs you.
 
@@ -160,6 +160,8 @@ The dashboard also shows what ComfyUI and LocalAI are doing, as cards marked **C
 - **Finished** jobs leave the dashboard at once. Finishing dings, and the notification list says it finished, with its first output image. A **Failed** job keeps its card, with the error, as needing you, until you **Clear** it.
 
 A job is named after its saved workflow; one queued from an unsaved workflow is called *Unsaved workflow*. **Go to window** brings up Comfy Desktop. **Stop** ends the running job and **Cancel** takes a queued one out of the queue, each after a second click. The output images come through the dashboard's own server, which only passes on those of jobs it has reported, for a day.
+
+The models ComfyUI has loaded are listed on the Memory and models card, each with what it is (diffusion model, text encoder, VAE, LoRA and so on) and the workflow that loaded it. ComfyUI doesn't list them itself. They're the model files named in the latest job's workflow, which ComfyUI keeps in memory after the job for the next one. **Unload** frees them, all at once, as ComfyUI only frees them all together. They're listed again once another job runs. If ComfyUI frees them itself, to make room or from its own menu, the list doesn't know until the next job.
 
 **LocalAI.** It's found at Settings → Other apps → *LocalAI address*, `http://127.0.0.1:8080` unless you set another, with the API key there if LocalAI has one. It shows:
 
@@ -319,7 +321,7 @@ All of it is read-only, from files Claude Code and Codex already write, and from
 | `~/.codex/session_index.jsonl` | Closed Codex sessions' names, for History. |
 | The `codex` processes and their tab titles | Which window each Codex session is in, and its memory use. |
 | Comfy Desktop's `comfy-procs/*.json` and `installations.json` | Which ComfyUIs are running, on which ports, and their names. |
-| ComfyUI's `/api/jobs`, `/api/userdata` and `/view` | Its jobs, their workflows' names, and their output images. Its window's title gives the running job's progress. |
+| ComfyUI's `/api/jobs`, `/queue`, `/api/userdata` and `/view` | Its jobs, their workflows' names and the models they load, and their output images. Its window's title gives the running job's progress. |
 | LocalAI's `/system`, `/api/operations`, `/api/chats` and `/api/agent/jobs` | Its loaded models, downloads, agent chats and agent jobs. |
 
 A session file whose process has exited, or whose PID now belongs to another process, is ignored.
