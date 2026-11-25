@@ -86,6 +86,8 @@ The page is written in English and shown in the language chosen in Settings. Eac
 2. Merge it once the checks pass and it's been reviewed.
 3. Tag the merge on `main`: `git switch main && git pull && git tag v<version> && git push origin v<version>`.
 4. The Release workflow tests, builds the downloads and makes a draft release. Once signing is set up, it waits up to an hour each for two signing requests to be approved on [signpath.io](https://app.signpath.io): the Windows app's, then its installer's. An approver approves them there. Check the draft and publish it.
+
+   Publishing tidies up the prereleases: each upcoming version keeps only its newest on the releases page. The Prune prereleases workflow turns the ones it supersedes back into drafts, which keeps their files and notes, so publishing one again brings it back. A newer prerelease of a version hides its older ones (1.2.3-beta.1 hides 1.2.3-alpha.3), a release hides its version's prereleases and any older version's, and a prerelease of another version stays (1.2.4-alpha.1 doesn't hide 1.2.3-beta.1). Releases are never hidden. Run the workflow from the Actions tab to see what it would hide, or `node scripts/prune-prereleases.js --dry-run`.
 5. Open a pull request from `main` into `develop`, so `develop` has the release's changes.
 6. Package managers:
    - **Homebrew** ([tleeadams/homebrew-tap](https://github.com/tleeadams/homebrew-tap)) picks the release up by itself within a day: its Update workflow installs and tests the formula at the new release on macOS and Linux, then commits it. Run that workflow from its Actions tab to do it now.
