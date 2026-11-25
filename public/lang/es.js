@@ -22,6 +22,7 @@
   'A Claude Code session': 'Una sesión de Claude Code',
   'A Codex session': 'Una sesión de Codex',
   'A GitHub Copilot session': 'Una sesión de GitHub Copilot',
+  'An OpenCode session': 'Una sesión de OpenCode',
   'A ComfyUI job': 'Un trabajo de ComfyUI',
   'From LocalAI': 'De LocalAI',
   'From Ollama': 'De Ollama',
@@ -188,6 +189,8 @@
     'Esto fuerza el cierre del PID {pid} junto con sus shells y servidores MCP. Se pierde todo lo que el turno actual no haya guardado.',
   "This interrupts its current turn and ends Codex in its window, PID {pid}. What the turn hasn't finished is lost.":
     'Esto interrumpe su turno actual y cierra Codex en su ventana, PID {pid}. Se pierde lo que el turno no haya terminado.',
+  "This interrupts its current turn and ends OpenCode in its window, PID {pid}. What the turn hasn't finished is lost.":
+    'Esto interrumpe su turno actual y cierra OpenCode en su ventana, PID {pid}. Se pierde lo que el turno no haya terminado.',
   "This interrupts its current turn. What the turn hasn't finished is lost. Its window isn't known, so close that yourself.":
     'Esto interrumpe su turno actual. Se pierde lo que el turno no haya terminado. No se sabe cuál es su ventana, así que ciérrala tú.',
   'You can reopen the conversation later with:': 'Puedes volver a abrir la conversación más tarde con:',

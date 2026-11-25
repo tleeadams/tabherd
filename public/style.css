@@ -307,6 +307,7 @@ main { padding: 20px 24px 48px; }
 .app-claude { color: light-dark(#a8502b, #e3916b); border-color: light-dark(#ecd3c6, #4a3127); }
 .app-codex { color: var(--text); background: var(--panel-2); }
 .app-copilot { color: light-dark(#2f5fb3, #8fb3f0); border-color: light-dark(#d3def2, #2c3a55); }
+.app-opencode { color: light-dark(#4a4a52, #c9c9d1); border-color: light-dark(#d6d6dc, #3c3c44); }
 
 .badge {
   display: inline-flex;

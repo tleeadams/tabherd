@@ -168,6 +168,17 @@ GitHub Copilot's sessions get cards marked **Copilot**: the Copilot CLI's, and t
 - **Starting Copilot**: once the Copilot CLI is installed, Settings → New sessions, the repo menu and a to-do's *Start with* offer it. A to-do starts `copilot --session-id=<new id> --name "<the to-do's title>"`, so, as with Claude, the server knows which session the to-do became.
 - **History and Resume**: the CLI's closed sessions are listed, and Resume runs `copilot --resume=<id>`. *Skip permission prompts* adds `--allow-all`. Save and close takes CLI sessions too.
 
+## OpenCode
+
+OpenCode's sessions get cards marked **OpenCode**. OpenCode 2 runs a background service that all its windows use, and the dashboard asks it what each session is doing. The service's address and password are in `~/.local/state/opencode/service.json` (or under `$XDG_STATE_HOME`). The password only goes to a service on this computer.
+
+- **Which sessions have cards:** each one an OpenCode window shows, and any that's working or waiting on you without one. A window is matched to its session by its tab's title, which OpenCode sets to *OC | <the session's title>*, or by the `--session` it was started with. When two sessions share a title, neither is guessed.
+- **Status:** *Needs you* while it asks permission or a question; *Working* while a turn runs; otherwise *Idle*. A turn that failed needs you too.
+- **Activity:** the last prompt and reply, the model and output tokens.
+- **Catch up** sends its prompt through the service, as Codex's does, so nothing is typed into the window. **Stop** interrupts the turn, then ends OpenCode in its window. **Complete** and Save and close take OpenCode sessions too.
+- **Resume:** `opencode --session <id>`. *Skip permission prompts* adds `--auto`.
+- **Not yet:** starting OpenCode from a to-do or the repo menu, and OpenCode's closed sessions in History.
+
 ## ComfyUI and LocalAI
 
 The dashboard also shows what ComfyUI and LocalAI are doing, as cards marked **Comfy** and **LocalAI**. They join the app list in the header once they have something to show. Nothing needs setting up in either, unless LocalAI has an API key.
@@ -368,6 +379,8 @@ All of it is read-only, from files Claude Code and Codex already write, and from
 | `~/.codex/sessions/<yyyy>/<mm>/<dd>/rollout-<time>-<session>.jsonl` | A Codex session's prompts, replies, tool calls, model and token usage. |
 | `~/.codex/session_index.jsonl` | Closed Codex sessions' names, for History. |
 | The `codex` processes and their tab titles | Which window each Codex session is in, and its memory use. |
+| OpenCode's background service: `/api/session`, `/api/session/active`, and each shown session's permission requests, questions and messages | Which OpenCode sessions are open, their status, titles, prompts and replies. |
+| The `opencode` processes and their tab titles | Which window each OpenCode session is in, and its memory use. |
 | Comfy Desktop's `comfy-procs/*.json` and `installations.json` | Which ComfyUIs are running, on which ports, and their names. |
 | ComfyUI's `/api/jobs`, `/queue`, `/api/userdata` and `/view` | Its jobs, their workflows' names and the models they load, and their output images. Its window's title gives the running job's progress. |
 | LocalAI's `/system`, `/api/operations`, `/api/chats` and `/api/agent/jobs` | Its loaded models and which are working, downloads, agent chats and agent jobs. |

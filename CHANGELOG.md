@@ -2,6 +2,10 @@
 
 Notable changes in each release. Version numbers follow [Semantic Versioning](https://semver.org). The release build takes each release's notes from its section here.
 
+## Unreleased
+
+- **OpenCode** sessions get cards. They show *Working*, *Needs you* while OpenCode asks permission or a question, or *Idle*, with the last prompt and reply. **Go to window**, **Catch up**, **Stop**, **Complete** and Save and close work as they do for Codex. The dashboard asks OpenCode 2's background service, and matches each window to its session by its tab's title. See [OpenCode](README.md#opencode).
+
 ## 0.6.0-beta.3 - 2026-11-25
 
 A prerelease with everything since 0.6.0-beta.2, to try before 0.6.0: the app's own title bar, **Complete**, update alerts, a *Working* card for LocalAI, and the first part of linking tickets to cards.
