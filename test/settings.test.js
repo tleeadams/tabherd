@@ -7,7 +7,17 @@ const os = require('os');
 const path = require('path');
 
 process.env.TABHERD_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'tabherd-test-'));
+// A key of the test's own, so the computer's key store isn't touched.
+const secrets = require('../lib/secrets');
+secrets.useKey(require('crypto').randomBytes(32));
 const settings = require('../lib/settings');
+const FILE = path.join(process.env.TABHERD_DATA_DIR, 'settings.json');
+const onDisk = () => JSON.parse(fs.readFileSync(FILE, 'utf8'));
+// The settings module again, as the server's next start loads it.
+function reload() {
+  delete require.cache[require.resolve('../lib/settings')];
+  return require('../lib/settings');
+}
 
 test('defaults are safe', () => {
   assert.deepEqual(settings.get(), {
@@ -24,7 +34,20 @@ test('defaults are safe', () => {
     lmstudioUrl: '',
     lmstudioKey: '',
     llamacppUrl: '',
+    updateCheck: null,
+    updatePrereleases: false,
+    trackers: [],
   });
+});
+
+test('checking for updates is a yes or a no, once asked, and prereleases are too', () => {
+  assert.equal(settings.update({ updateCheck: true }).settings.updateCheck, true);
+  assert.equal(settings.update({ updateCheck: false }).settings.updateCheck, false);
+  assert.equal(settings.update({ updateCheck: null }).ok, false, "can't go back to unasked");
+  assert.equal(settings.update({ updateCheck: 'yes' }).ok, false);
+  assert.equal(settings.update({ updatePrereleases: true }).settings.updatePrereleases, true);
+  assert.equal(settings.update({ updatePrereleases: 1 }).ok, false);
+  assert.equal(settings.update({ updatePrereleases: false }).settings.updatePrereleases, false);
 });
 
 test("other apps' addresses must be web addresses, and LocalAI's key one line", () => {
@@ -70,4 +93,46 @@ test('changes are all or none, and saved', () => {
   assert.deepEqual(settings.get(), before);
   const saved = JSON.parse(fs.readFileSync(path.join(process.env.TABHERD_DATA_DIR, 'settings.json'), 'utf8'));
   assert.deepEqual(saved, before);
+});
+
+test('keys and trackers are encrypted on disk, and read back', () => {
+  assert.equal(settings.update({ localaiKey: 'sk-local-123', lmstudioUrl: 'http://127.0.0.1:1234' }).ok, true);
+  const saved = onDisk();
+  assert.match(saved.localaiKey, /^enc:v1:/);
+  assert.ok(!fs.readFileSync(FILE, 'utf8').includes('sk-local-123'), 'the key is nowhere in the file');
+  assert.equal(saved.lmstudioUrl, 'http://127.0.0.1:1234', 'plain settings stay readable');
+  assert.equal(saved.lmstudioKey, '', 'an empty key is just empty');
+  assert.equal(reload().get().localaiKey, 'sk-local-123');
+  settings.update({ localaiKey: '', lmstudioUrl: '' });
+});
+
+test('trackers are only changed through their own routes', () => {
+  const tracker = { id: '11111111-1111-4111-8111-111111111111', type: 'linear', name: 'Work', token: 'lin_api_x' };
+  assert.equal(settings.update({ trackers: [tracker] }).ok, false, "the page's settings route can't set them");
+  assert.equal(settings.update({ trackers: [tracker] }, { internal: true }).ok, true);
+  assert.match(onDisk().trackers, /^enc:v1:/, 'the whole list is encrypted, addresses and all');
+  assert.equal(reload().get().trackers[0].token, 'lin_api_x');
+  settings.update({ trackers: [] }, { internal: true });
+});
+
+test('a key saved before encryption is encrypted on the next start', () => {
+  fs.writeFileSync(FILE, JSON.stringify({ ...onDisk(), lmstudioKey: 'plain-token' }));
+  const fresh = reload();
+  assert.equal(fresh.get().lmstudioKey, 'plain-token');
+  assert.match(onDisk().lmstudioKey, /^enc:v1:/);
+  fresh.update({ lmstudioKey: '' });
+});
+
+test("a secret this computer can't decrypt counts as unset, and isn't lost by other changes", () => {
+  const foreign = 'enc:v1:' + Buffer.alloc(48, 7).toString('base64');
+  fs.writeFileSync(FILE, JSON.stringify({ ...onDisk(), localaiKey: foreign }));
+  const fresh = reload();
+  assert.equal(fresh.get().localaiKey, '');
+  assert.deepEqual(fresh.unreadableKeys(), ['localaiKey']);
+  fresh.update({ skipPermissions: false });
+  assert.equal(onDisk().localaiKey, foreign, 'kept as it was');
+  fresh.update({ localaiKey: 'new-key' });
+  assert.notEqual(onDisk().localaiKey, foreign, 'setting it replaces it');
+  assert.deepEqual(fresh.unreadableKeys(), []);
+  fresh.update({ localaiKey: '' });
 });

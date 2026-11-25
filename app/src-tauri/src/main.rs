@@ -3,7 +3,9 @@
 // port, and shows the dashboard in the system's web view. Links that would
 // open a new window open in the default browser. Quitting stops the server
 // this app started, never one it found running. The dashboard's Settings can
-// keep the window on top of others and, on Windows, make it see-through.
+// keep the window on top of others and, on Windows, make it see-through. The
+// window has no title bar of the system's: the dashboard's header stands in
+// for it.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -12,6 +14,7 @@ use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpStream};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -21,6 +24,7 @@ use tauri::{
     AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window,
 };
 use tauri_plugin_opener::OpenerExt;
+use tauri_plugin_window_state::StateFlags;
 
 const DEFAULT_PORT: u16 = 4317;
 const START_TIMEOUT: Duration = Duration::from_secs(30);
@@ -194,13 +198,61 @@ fn set_on_top(window: Window, on: bool) -> Result<(), String> {
     window.set_always_on_top(on).map_err(|e| e.to_string())
 }
 
+// Whether the page in the window stands in for its title bar. The window
+// starts without the system's, for the dashboard and the starting page.
+static OWN_TITLE_BAR: AtomicBool = AtomicBool::new(true);
+
+// Gives the window the system's title bar back, or takes it away again. Each
+// page says as it loads whether it stands in for it, with a tabherd-title-bar
+// meta tag: one from an older server, found running on the port, doesn't, and
+// nor does an error page of the web view's.
+#[tauri::command]
+fn own_title_bar(window: Window, own: bool) -> Result<(), String> {
+    if OWN_TITLE_BAR.swap(own, Ordering::SeqCst) == own {
+        return Ok(());
+    }
+    #[cfg(target_os = "macos")]
+    let changed = window.set_title_bar_style(if own {
+        tauri::TitleBarStyle::Overlay
+    } else {
+        tauri::TitleBarStyle::Visible
+    });
+    #[cfg(not(target_os = "macos"))]
+    let changed = window.set_decorations(!own);
+    changed.map_err(|e| e.to_string())
+}
+
 // What this window can do, for the dashboard to offer: setOnTop(on), and
 // seeThrough, whether its background can be see-through, which is up to the
 // page. macOS would need Apple's private API for that, and Linux is untried.
+// titleBar says how the page stands in for the title bar: "buttons", with the
+// window's buttons, which minimize(), toggleMaximize(), isMaximized() and
+// close() work, or "inset", leaving room for macOS's own in the top left.
+// Moving the window is Tauri's: dragging an element marked
+// data-tauri-drag-region, and double-clicking it to maximize.
 fn app_script() -> String {
+    let title_bar = if cfg!(target_os = "macos") {
+        "inset"
+    } else {
+        "buttons"
+    };
     format!(
-        "window.tabherdApp = {{ seeThrough: {}, setOnTop: (on) => window.__TAURI_INTERNALS__.invoke('set_on_top', {{ on }}) }};",
-        cfg!(windows)
+        r#"(() => {{
+  const invoke = (command, args) => window.__TAURI_INTERNALS__.invoke(command, args);
+  window.tabherdApp = {{
+    seeThrough: {see_through},
+    setOnTop: (on) => invoke('set_on_top', {{ on }}),
+    titleBar: '{title_bar}',
+    minimize: () => invoke('plugin:window|minimize'),
+    toggleMaximize: () => invoke('plugin:window|toggle_maximize'),
+    isMaximized: () => invoke('plugin:window|is_maximized'),
+    close: () => invoke('plugin:window|close'),
+  }};
+  addEventListener('DOMContentLoaded', () => {{
+    invoke('own_title_bar', {{ own: !!document.querySelector('meta[name="tabherd-title-bar"]') }});
+  }});
+}})();"#,
+        see_through = cfg!(windows),
     )
 }
 
@@ -228,6 +280,14 @@ fn build_window(app: &AppHandle, port: u16) -> tauri::Result<WebviewWindow> {
         .on_document_title_changed(|window, title| {
             let _ = window.set_title(&title);
         });
+    // The page's header is the title bar. macOS keeps its own window buttons,
+    // over the header's top left corner.
+    #[cfg(not(target_os = "macos"))]
+    let builder = builder.decorations(false);
+    #[cfg(target_os = "macos")]
+    let builder = builder
+        .title_bar_style(tauri::TitleBarStyle::Overlay)
+        .hidden_title(true);
     // Transparent, so the page's background decides how see-through it is:
     // opaque unless Settings says otherwise.
     #[cfg(windows)]
@@ -252,8 +312,14 @@ fn main() {
             show(app)
         }))
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_window_state::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![set_on_top])
+        // Not whether it has the system's title bar, which own_title_bar
+        // decides.
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(StateFlags::all() - StateFlags::DECORATIONS)
+                .build(),
+        )
+        .invoke_handler(tauri::generate_handler![set_on_top, own_title_bar])
         .setup(|app| {
             let port = port();
             app.manage(Server(Mutex::new(None)));

@@ -727,8 +727,69 @@ function actions(a) {
       await copy(resumeCommand(a));
       toast(tr('Resume command copied'));
     }),
-    inVsCode(a) ? null : btn(tr('Stop…'), () => confirmStop(a), 'btn-stop'),
+    // The two that end the session, together at the end, wrapping together.
+    inVsCode(a)
+      ? null
+      : el(
+          'span',
+          { class: 'actions-end' },
+          closable(a) && !snap?.closing?.includes(a.id)
+            ? btn(armedLabel(`complete:${a.id}`, tr('Complete')), (e) => completeSession(a, e.currentTarget), armedClass(`complete:${a.id}`), {
+                'data-armed': `complete:${a.id}`,
+                title: tr('Mark it complete and close it. A working session finishes its turn first.'),
+              })
+            : null,
+          btn(tr('Stop…'), () => confirmStop(a), 'btn-stop'),
+        ),
   );
+}
+
+// Buttons that ask for a second click: Complete, and a job's, model's or
+// download's Stop, Cancel and Unload. The first click is kept for three
+// seconds by what the button does, as `key`, not by the button, since a card
+// is drawn again whenever what it shows changes, which can be every update.
+// A button that may be armed is drawn with armedLabel, armedClass and
+// data-armed set to its key.
+const armed = new Map();
+const isArmed = (key) => (armed.get(key) || 0) > Date.now();
+const armedLabel = (key, label) => (isArmed(key) ? tr('{label}?', { label }) : label);
+const armedClass = (key) => (isArmed(key) ? 'btn-danger' : '');
+
+// True on the second click. The first arms the button, and any copy of it
+// drawn in the next three seconds, and says so on it.
+function secondClick(key, button, label) {
+  if (isArmed(key)) {
+    armed.delete(key);
+    return true;
+  }
+  const until = Date.now() + 3000;
+  armed.set(key, until);
+  button.classList.add('btn-danger');
+  button.textContent = tr('{label}?', { label });
+  setTimeout(() => {
+    if (armed.get(key) !== until) return;
+    armed.delete(key);
+    for (const shown of document.querySelectorAll(`[data-armed="${CSS.escape(key)}"]`)) {
+      shown.classList.remove('btn-danger');
+      shown.textContent = label;
+    }
+  }, 3000);
+  return false;
+}
+
+// Complete asks for a second click, like Unload, then closes the session,
+// once its turn ends if it's working. History keeps it, marked complete.
+async function completeSession(a, button) {
+  if (!secondClick(`complete:${a.id}`, button, tr('Complete'))) return;
+  button.disabled = true;
+  try {
+    const r = await post(a, 'complete');
+    toast(r.waiting ? tr('{name} will close when its turn ends', { name: displayName(a) }) : tr('Completed {name}', { name: displayName(a) }));
+  } catch (err) {
+    toast(err.message, true);
+    button.disabled = false;
+  }
+  refresh();
 }
 
 // A card for a ComfyUI job, or a LocalAI model, download or chat. The server
@@ -738,6 +799,11 @@ function itemCard(a) {
   const st = status(a);
   const can = (action) => (a.actions || []).includes(action);
   const btn = (label, onclick, cls = '', props = {}) => el('button', { type: 'button', class: `btn ${cls}`, onclick, ...props }, label);
+  // Stop, Cancel and Unload, which ask for a second click.
+  const twice = (action, label) => {
+    const key = `${action}:${a.id}`;
+    return btn(armedLabel(key, label), (e) => itemAction(a, action, label, e.currentTarget), `btn-stop ${armedClass(key)}`, { 'data-armed': key });
+  };
   const proc = [a.pid && !isItem(a) ? `PID ${a.pid}` : null, a.memBytes ? `${Math.round(a.memBytes / 1048576)} MB` : null].filter(Boolean);
   const pct = a.progress ? Math.max(0, Math.min(100, (a.progress.value / (a.progress.max || 100)) * 100)) : null;
   const fill = el('i');
@@ -780,9 +846,9 @@ function itemCard(a) {
       can('open') && a.url
         ? el('a', { class: 'btn btn-primary', href: a.url, target: '_blank', rel: 'noopener noreferrer' }, a.openLabel ? tr(a.openLabel) : tr('Open in {app}', { app: APPS[a.app] }))
         : null,
-      can('stop') ? btn(tr('Stop'), (e) => itemAction(a, 'stop', e.currentTarget), 'btn-stop') : null,
-      can('cancel') ? btn(tr('Cancel'), (e) => itemAction(a, 'cancel', e.currentTarget), 'btn-stop') : null,
-      can('unload') ? btn(tr('Unload'), (e) => itemAction(a, 'unload', e.currentTarget), 'btn-stop') : null,
+      can('stop') ? twice('stop', tr('Stop')) : null,
+      can('cancel') ? twice('cancel', tr('Cancel')) : null,
+      can('unload') ? twice('unload', tr('Unload')) : null,
       can('dismiss') ? btn(tr('Clear'), (e) => clearItem(a, e.currentTarget), '', { title: tr('Take this off the dashboard') }) : null,
     ),
   );
@@ -804,17 +870,8 @@ async function clearItem(a, button) {
 }
 
 // Stop, Cancel and Unload ask for a second click, like a to-do's Delete.
-async function itemAction(a, action, button) {
-  if (!button.classList.contains('btn-danger')) {
-    const label = button.textContent;
-    button.classList.add('btn-danger');
-    button.textContent = tr('{label}?', { label });
-    setTimeout(() => {
-      button.classList.remove('btn-danger');
-      button.textContent = label;
-    }, 3000);
-    return;
-  }
+async function itemAction(a, action, label, button) {
+  if (!secondClick(`${action}:${a.id}`, button, label)) return;
   button.disabled = true;
   try {
     if (a.leavesWhenDone) stoppedHere.add(a.id);
@@ -837,11 +894,17 @@ function card(a) {
   if (a.kind && a.kind !== 'interactive') tags.push(el('span', { class: 'tag', text: a.kind }));
   if (snap?.closing?.includes(a.id)) {
     tags.push(
-      el(
-        'button',
-        { type: 'button', class: 'tag closing', title: tr('Save and close will close it when this turn ends. Click to keep it open.'), onclick: () => keepOpen(a) },
-        `${tr('Closes when done')} ✕`,
-      ),
+      a.completedAt
+        ? el(
+            'button',
+            { type: 'button', class: 'tag closing', title: tr('Marked complete: it closes when this turn ends. Click to keep it open.'), onclick: () => keepOpen(a) },
+            `${tr('Completes when done')} ✕`,
+          )
+        : el(
+            'button',
+            { type: 'button', class: 'tag closing', title: tr('Save and close will close it when this turn ends. Click to keep it open.'), onclick: () => keepOpen(a) },
+            `${tr('Closes when done')} ✕`,
+          ),
     );
   }
   if (a.background) {
@@ -1167,11 +1230,12 @@ function memoryCard({ memory, models }) {
             'button',
             {
               type: 'button',
-              class: 'btn btn-stop',
+              class: `btn btn-stop ${armedClass(`unload:${m.id}`)}`,
+              'data-armed': `unload:${m.id}`,
               title: m.app === 'comfy' ? tr("Unloads all of {name}'s models: ComfyUI can't unload one alone", { name: m.host }) : null,
-              onclick: (e) => itemAction(m, 'unload', e.currentTarget),
+              onclick: (e) => itemAction(m, 'unload', tr('Unload'), e.currentTarget),
             },
-            tr('Unload'),
+            armedLabel(`unload:${m.id}`, tr('Unload')),
           )
         : null,
     ),
@@ -1302,6 +1366,7 @@ function render() {
   const needsYou = snap.agents.filter((a) => a.status === 'waiting').length;
   document.title = needsYou ? `(${needsYou}) Tabherd` : 'Tabherd';
   $('host').textContent = snap.host;
+  $('version').textContent = snap.version ? `v${snap.version}` : '';
 
   // To-do cards come first, under All and the filters that ask for them.
   const f = filterDef(filter);
@@ -1890,17 +1955,19 @@ function renderNotes() {
   $('notes-list').replaceChildren(
     ...rows.map(({ n, a, name, focus }) => {
       const what = [
-        n.kind === 'needs'
-          ? n.detail
-            ? tr('Needs you: {what}', { what: tr(n.detail) })
-            : tr('Needs you')
-          : n.label
-            ? tr(n.label)
-            : n.background
-              ? tr('Finished in the background')
-              : tr('Finished'),
+        n.kind === 'update'
+          ? tr('A new version is out')
+          : n.kind === 'needs'
+            ? n.detail
+              ? tr('Needs you: {what}', { what: tr(n.detail) })
+              : tr('Needs you')
+            : n.label
+              ? tr(n.label)
+              : n.background
+                ? tr('Finished in the background')
+                : tr('Finished'),
       ];
-      if (!a && !n.gone && !n.background) what.push(tr('session closed'));
+      if (!a && !n.gone && !n.background && n.kind !== 'update') what.push(tr('session closed'));
       return el(
         'li',
         { class: `note k-${n.kind}` },
@@ -1908,15 +1975,17 @@ function renderNotes() {
         el(
           'span',
           { class: 'note-text' },
-          focus
-            ? el('button', { type: 'button', class: 'name-link note-name', title: tr('Go to this session’s window'), onclick: (e) => goToWindow(a, e.currentTarget) }, name)
-            : !a && resumable(n)
-              ? el(
-                  'button',
-                  { type: 'button', class: 'name-link note-name', title: tr('Open a terminal tab in its folder and continue the conversation'), onclick: (e) => resumeNote(n, e.currentTarget) },
-                  name,
-                )
-              : el('span', { class: 'note-name', text: name }),
+          n.kind === 'update'
+            ? el('button', { type: 'button', class: 'name-link note-name', title: tr("See what's new, and how to update"), onclick: () => openUpdate() }, name)
+            : focus
+              ? el('button', { type: 'button', class: 'name-link note-name', title: tr('Go to this session’s window'), onclick: (e) => goToWindow(a, e.currentTarget) }, name)
+              : !a && resumable(n)
+                ? el(
+                    'button',
+                    { type: 'button', class: 'name-link note-name', title: tr('Open a terminal tab in its folder and continue the conversation'), onclick: (e) => resumeNote(n, e.currentTarget) },
+                    name,
+                  )
+                : el('span', { class: 'note-name', text: name }),
           el('span', { class: 'note-what', text: what.join(' · '), title: what.join(' · ') }),
           n.preview ? el('img', { class: 'note-preview', src: n.preview, alt: tr('Output of {name}', { name }), loading: 'lazy' }) : null,
         ),
@@ -1951,6 +2020,166 @@ async function resumeNote(n, button) {
   }
 }
 
+// ---- update alerts -------------------------------------------------------------
+
+// When a newer Tabherd is out, the header has an Update to button and the
+// notification list says so, once. Not now hides the button until the next
+// version, in this browser. The server only checks once Settings says yes,
+// which a bar above the cards asks once, after any first-run tour.
+const UPDATE_DISMISSED_KEY = 'tabherd:update-dismissed';
+const UPDATE_NOTED_KEY = 'tabherd:update-noted';
+let updateDismissed = null;
+let updateNoted = null;
+try {
+  updateDismissed = localStorage.getItem(UPDATE_DISMISSED_KEY);
+  updateNoted = localStorage.getItem(UPDATE_NOTED_KEY);
+} catch {}
+
+// How to update, for each way the server can tell Tabherd was installed.
+const HOW_TO_UPDATE = {
+  git: { text: tr('This copy runs from a clone of the repository. Pull the new version, then start the server again:'), command: 'git pull' },
+  homebrew: { text: tr('Installed with Homebrew:'), command: 'brew upgrade tabherd' },
+  winget: { text: tr('Installed with winget:'), command: 'winget upgrade tleeadams.Tabherd' },
+  'windows-installer': { text: tr('Download the new installer from the release and run it. It installs over this version.') },
+  'windows-zip': { text: tr("Download the new zip from the release, and put its folder in place of this one's.") },
+  'mac-app': { text: tr('Download the new disk image from the release, and drag Tabherd to Applications, replacing this version.') },
+  'linux-package': { text: tr('Download the new .deb or .rpm from the release, and install it as you did this one.') },
+  appimage: { text: tr('Download the new AppImage from the release, and use it in place of this one.') },
+  archive: { text: tr("Download the new archive for your system from the release, and unpack it in place of this one's folder.") },
+};
+
+function showUpdates() {
+  const u = snap.updates;
+  if (!u) return;
+  const latest = u.latest;
+  $('update-button').hidden = !latest || updateDismissed === latest.version;
+  if (latest) $('update-label').textContent = tr('Update to {version}', { version: latest.version });
+  // Asked once for every browser, as the server keeps the answer, but not
+  // over the first-run tour.
+  $('update-ask').hidden = u.check !== null || tourOn || tourPending;
+  if (latest && updateNoted !== latest.version) {
+    updateNoted = latest.version;
+    try {
+      localStorage.setItem(UPDATE_NOTED_KEY, updateNoted);
+    } catch {}
+    notes = [{ id: `update:${latest.version}`, kind: 'update', name: `Tabherd ${latest.version}`, detail: '', at: snap.now }, ...notes.filter((n) => n.kind !== 'update')];
+    saveNotes();
+    renderNotes();
+  }
+  if ($('settings').open) renderUpdateSetting();
+}
+
+// Settings → Help: whether to check, and what the last check found.
+function renderUpdateSetting() {
+  const u = snap?.updates;
+  $('update-check').checked = u?.check === true;
+  // A prerelease always hears of the next one, so the choice is made.
+  $('update-prereleases').checked = Boolean(u?.prereleases);
+  $('update-prereleases').disabled = Boolean(u?.onPrerelease);
+  $('update-prereleases-note').hidden = !u?.onPrerelease;
+  if (!u) return;
+  const said = [tr('This is Tabherd {version}.', { version: u.version })];
+  if (u.latest) said.push(tr('{version} is out.', { version: u.latest.version }));
+  else if (u.checkedAt) said.push(tr('It’s the latest: checked {time}.', { time: sinceText(u.checkedAt, true) }));
+  if (u.error) said.push(tr("The last check didn't reach GitHub: {error}", { error: u.error }));
+  $('update-status').textContent = said.join(' ');
+}
+
+// A release's notes, from GitHub's Markdown, as plain paragraphs and lists:
+// links, bold and code show as their text. The line every release starts
+// with, saying what Tabherd is, and the link to the signing policy are left out.
+function releaseNotes(markdown) {
+  const plain = (s) =>
+    s
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/\*\*|`/g, '')
+      .replace(/(^|\W)\*([^*]+)\*/g, '$1$2')
+      .trim();
+  const blocks = [];
+  let items = null;
+  for (const line of String(markdown || '').split(/\r?\n/)) {
+    const text = line.trim();
+    const item = /^[-*]\s+(.*)$/.exec(text);
+    if (!text || text.startsWith('**Tabherd** is a dashboard') || text.startsWith('[Code signing policy]')) items = null;
+    else if (item) {
+      if (!items) blocks.push((items = el('ul')));
+      items.append(el('li', { text: plain(item[1]) }));
+    } else {
+      items = null;
+      blocks.push(el('p', { text: plain(text) }));
+    }
+  }
+  return blocks;
+}
+
+// What's new in the newer version, and how to update this copy.
+async function openUpdate() {
+  let info = null;
+  try {
+    const res = await fetch('/api/updates', { cache: 'no-store' });
+    if (res.ok) info = await res.json();
+  } catch {}
+  const latest = info?.latest;
+  if (!latest) return toast(tr("There's no newer version."));
+  const dialog = $('update-dialog');
+  $('update-title').textContent = tr('Tabherd {version} is out', { version: latest.version });
+  $('update-current').textContent = [
+    tr('You have {version}.', { version: info.version }),
+    latest.prerelease ? tr('This one is a prerelease, to try before a release has it.') : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  $('update-notes').replaceChildren(...releaseNotes(latest.notes));
+  const how = HOW_TO_UPDATE[info.install] || HOW_TO_UPDATE.archive;
+  $('update-how').textContent = how.text;
+  $('update-command').hidden = !how.command;
+  $('update-command-text').textContent = how.command || '';
+  $('update-release').href = latest.url;
+  dialog.dataset.version = latest.version;
+  dialog.returnValue = '';
+  dialog.showModal();
+}
+
+async function answerUpdateCheck(yes) {
+  if (!(await saveServerSetting({ updateCheck: yes }))) return;
+  $('update-ask').hidden = true;
+  toast(yes ? tr('Tabherd will tell you when a new version is out.') : tr("It won't check. Settings → Help can turn it on."));
+  refresh();
+}
+
+$('update-button').addEventListener('click', () => openUpdate());
+$('update-ask-yes').addEventListener('click', () => answerUpdateCheck(true));
+$('update-ask-no').addEventListener('click', () => answerUpdateCheck(false));
+$('update-copy').addEventListener('click', async () => {
+  await copy($('update-command-text').textContent);
+  toast(tr('Command copied'));
+});
+$('update-dialog').addEventListener('close', (e) => {
+  const dialog = e.currentTarget;
+  if (dialog.returnValue !== 'later') return;
+  updateDismissed = dialog.dataset.version;
+  try {
+    localStorage.setItem(UPDATE_DISMISSED_KEY, updateDismissed);
+  } catch {}
+  $('update-button').hidden = true;
+});
+$('update-check').addEventListener('change', (e) => saveServerSetting({ updateCheck: e.currentTarget.checked }).then(() => refresh()));
+$('update-prereleases').addEventListener('change', (e) => saveServerSetting({ updatePrereleases: e.currentTarget.checked }).then(() => refresh()));
+// Check now asks whatever the setting is, as it's asked for.
+$('update-now').addEventListener('click', async (e) => {
+  const button = e.currentTarget;
+  button.disabled = true;
+  try {
+    const u = await api('/api/updates/check');
+    toast(u.latest ? tr('Tabherd {version} is out', { version: u.latest.version }) : tr('You have the latest version.'));
+    await refresh();
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    button.disabled = false;
+  }
+});
+
 function apply(next) {
   snap = next;
   clockSkew = snap.now - Date.now();
@@ -1962,6 +2191,7 @@ function apply(next) {
   if (!tourOn) render();
   announce(changes);
   updateNotes(snap.agents, changes);
+  showUpdates();
   if (tourPending) startTourWhenSettled();
 }
 
@@ -2283,7 +2513,15 @@ function pastItem(s) {
   return el(
     'li',
     { class: 'past' },
-    el('div', { class: 'past-head' }, el('span', { class: 'past-name', text: name, title: name }), groupTag(s), appTag(s), since(s.closedAt, true)),
+    el(
+      'div',
+      { class: 'past-head' },
+      el('span', { class: 'past-name', text: name, title: name }),
+      s.completedAt ? el('span', { class: 'tag complete', title: tr('Marked complete: {when}', { when: new Date(s.completedAt).toLocaleString(lang) }), text: `✓ ${tr('Completed')}` }) : null,
+      groupTag(s),
+      appTag(s),
+      since(s.closedAt, true),
+    ),
     subtitle ? el('p', { class: 'past-title', text: subtitle, title: subtitle }) : null,
     s.todo ? el('p', { class: 'past-title', title: todoText(s.todo) }, el('b', {}, `${tr('To-do')} · `), s.todo.title) : null,
     el(
@@ -2326,17 +2564,27 @@ function renderHistory() {
   if (!historyData) return;
   const terms = $('history-filter').value.toLowerCase().split(/\s+/).filter(Boolean);
   const background = $('history-background').checked;
+  const complete = $('history-complete').checked;
   const shown = historyData.filter((s) => {
     if (s.background && !background) return false;
+    if (s.completedAt && !complete) return false;
     const text = [pastName(s), s.title, s.name, s.cwd, s.gitBranch, s.firstPrompt?.text, s.lastPrompt?.text, s.todo?.title, s.todo?.notes]
       .join(' ')
       .toLowerCase();
     return terms.every((t) => text.includes(t));
   });
   const n = historyData.length;
-  $('history-sub').textContent = trn(n, '{n} closed session', '{n} closed sessions') + (shown.length < n ? ` · ${tr('{n} shown', { n: shown.length })}` : '');
-  // The switch for background runs only shows once there are some.
+  const done = historyData.filter((s) => s.completedAt).length;
+  $('history-sub').textContent = [
+    trn(n, '{n} closed session', '{n} closed sessions'),
+    done ? tr('Complete: {n}', { n: done }) : null,
+    shown.length < n ? tr('{n} shown', { n: shown.length }) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  // The switches for background runs and complete sessions only show once there are some.
   $('history-background-label').hidden = !historyData.some((s) => s.background);
+  $('history-complete-label').hidden = !done;
   const days = [];
   for (const s of shown) {
     const day = dayLabel(s.closedAt);
@@ -2376,6 +2624,17 @@ try {
 $('history-background').addEventListener('change', (e) => {
   try {
     localStorage.setItem(HISTORY_BACKGROUND_KEY, e.currentTarget.checked ? 'on' : 'off');
+  } catch {}
+  renderHistory();
+});
+// Whether History lists sessions marked complete. Kept in this browser.
+const HISTORY_COMPLETE_KEY = 'tabherd:history-complete';
+try {
+  $('history-complete').checked = localStorage.getItem(HISTORY_COMPLETE_KEY) !== 'off';
+} catch {}
+$('history-complete').addEventListener('change', (e) => {
+  try {
+    localStorage.setItem(HISTORY_COMPLETE_KEY, e.currentTarget.checked ? 'on' : 'off');
   } catch {}
   renderHistory();
 });
@@ -2491,6 +2750,31 @@ if (desktopApp) {
       showSeeThrough();
     });
     showSeeThrough();
+  }
+}
+
+// In the desktop app the header stands in for the window's title bar. On
+// Windows and Linux it has the window's buttons; on macOS it leaves room for
+// the system's, in its top left corner. The cards scroll below it, rather
+// than the whole page, so the scroll bar doesn't run up beside the buttons.
+const cardScroller = () => (desktopApp?.titleBar ? document.querySelector('main') : document.scrollingElement);
+if (desktopApp?.titleBar) {
+  document.documentElement.dataset.titleBar = desktopApp.titleBar;
+  if (desktopApp.titleBar === 'buttons') {
+    $('window-buttons').hidden = false;
+    $('window-minimize').addEventListener('click', () => desktopApp.minimize());
+    $('window-maximize').addEventListener('click', () => desktopApp.toggleMaximize());
+    $('window-close').addEventListener('click', () => desktopApp.close());
+    // Maximize turns into Restore while the window is maximized.
+    const showMaximized = async () => {
+      const maximized = await desktopApp.isMaximized().catch(() => false);
+      const label = maximized ? tr('Restore') : tr('Maximize');
+      $('window-maximize').classList.toggle('maximized', maximized);
+      $('window-maximize').title = label;
+      $('window-maximize').setAttribute('aria-label', label);
+    };
+    addEventListener('resize', showMaximized);
+    showMaximized();
   }
 }
 
@@ -3004,11 +3288,163 @@ $('settings-nav').addEventListener('keydown', (e) => {
 });
 
 // Opens Settings, at the section holding `elementId` if given.
+// ---- Settings → Tickets ------------------------------------------------------
+
+// The ticket trackers, without their tokens, and how secrets are kept on this
+// computer. Loaded each time Settings opens.
+let trackerData = null;
+// What each tracker's last Test said, by its ID.
+const trackerTests = new Map();
+let editingTracker = null;
+
+const TRACKER_TYPES = { jira: 'Jira', linear: 'Linear', github: 'GitHub Issues', zendesk: 'Zendesk' };
+// What each type needs, and where its token comes from.
+const TRACKER_HELP = {
+  jira: tr(
+    "Address: your Jira site. Token: an API token from id.atlassian.com → Security → API tokens, for the email you sign in with. Leave the email empty for a Jira Data Center personal access token. Key prefixes are your projects' keys, to look up only those here; leave them empty to try any key.",
+  ),
+  linear: tr("Token: a personal API key, from Linear → Settings → Security & access. Key prefixes are your teams' keys; leave them empty to try any key."),
+  github: tr("Uses gh's own sign-in, so no token is kept here. If Test says so, run gh auth login."),
+  zendesk: tr(
+    'Address: your Zendesk, such as https://example.zendesk.com. An API token is made in Admin Center → Apps and integrations → Zendesk API. Zendesk is replacing API tokens with OAuth access tokens, which work here too. A key prefix, such as ZD, finds ZD-1234 in branch names.',
+  ),
+};
+const TRACKER_ADDRESSES = { jira: 'https://example.atlassian.net', zendesk: 'https://example.zendesk.com' };
+const SECRETS_KEPT = {
+  dpapi: tr('Tokens and trackers are saved encrypted, with a key Windows keeps for your user.'),
+  keychain: tr('Tokens and trackers are saved encrypted, with a key kept in your login Keychain.'),
+  'secret-service': tr('Tokens and trackers are saved encrypted, with a key kept in your keyring.'),
+  file: tr('Tokens and trackers are saved encrypted, with a key in ~/.tabherd/secret.key that only you can read. A keyring, such as GNOME Keyring or KWallet, would keep it safer.'),
+};
+
+async function loadTrackers() {
+  try {
+    trackerData = await api('/api/tickets/trackers/list');
+    renderTrackers();
+  } catch (err) {
+    $('tracker-protection').textContent = err.message;
+  }
+}
+
+function renderTrackers() {
+  if (!trackerData) return;
+  $('tracker-list').replaceChildren(
+    ...trackerData.trackers.map((t) => {
+      const tested = trackerTests.get(t.id);
+      const about = [TRACKER_TYPES[t.type], t.url.replace(/^https?:\/\//, ''), t.prefixes.join(', ')].filter(Boolean).join(' · ');
+      let note = null;
+      if (tested?.pending) note = el('span', { text: tr('Testing…') });
+      else if (tested) note = el('span', { class: tested.ok ? 'tracker-ok' : 'tracker-error', text: tested.ok ? tr('Connected as {name}', { name: tested.as }) : tested.error });
+      else if (t.type !== 'github' && !t.tokenSet) note = el('span', { class: 'tracker-error', text: tr('No token yet') });
+      return el(
+        'li',
+        { class: 'filter-row tracker-row' },
+        el('div', { class: 'filter-row-text' }, el('b', { text: t.name }), el('span', { text: about, title: about }), note),
+        el('button', { type: 'button', class: 'btn', disabled: Boolean(tested?.pending), onclick: () => testTracker(t.id) }, tr('Test')),
+        el('button', { type: 'button', class: 'btn', onclick: () => openTrackerDialog(t) }, tr('Edit')),
+        el('button', { type: 'button', class: `btn btn-stop ${armedClass(`tracker:${t.id}`)}`, 'data-armed': `tracker:${t.id}`, onclick: (e) => removeTracker(t, e.currentTarget) }, armedLabel(`tracker:${t.id}`, tr('Remove'))),
+      );
+    }),
+  );
+  const s = trackerData.secrets;
+  const notes = [s.state === 'failed' ? tr("Secrets can't be saved on this computer: {problem}", { problem: tr(s.problem) }) : SECRETS_KEPT[s.protection] || tr('Tokens and trackers are saved encrypted.')];
+  if (s.unreadable?.length) notes.push(tr('Some were encrypted by another user or on another computer, so they count as unset here. Enter them again.'));
+  $('tracker-protection').textContent = notes.join(' ');
+}
+
+async function testTracker(id) {
+  trackerTests.set(id, { pending: true });
+  renderTrackers();
+  try {
+    const r = await api('/api/tickets/trackers/test', { id });
+    trackerTests.set(id, { ok: true, as: r.as });
+  } catch (err) {
+    trackerTests.set(id, { ok: false, error: err.message });
+  }
+  renderTrackers();
+}
+
+async function removeTracker(t, button) {
+  if (!secondClick(`tracker:${t.id}`, button, tr('Remove'))) return;
+  try {
+    trackerData = await api('/api/tickets/trackers/remove', { id: t.id });
+    trackerTests.delete(t.id);
+    renderTrackers();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+function openTrackerDialog(t = null) {
+  editingTracker = t;
+  $('tracker-dialog-title').textContent = t ? tr('Edit tracker') : tr('New tracker');
+  $('tracker-save').textContent = t ? tr('Save') : tr('Add tracker');
+  // A tracker's type is fixed once it's made.
+  $('tracker-type').value = t?.type || 'jira';
+  $('tracker-type').disabled = Boolean(t);
+  $('tracker-name').value = t?.name || '';
+  $('tracker-url').value = t?.url || '';
+  $('tracker-email').value = t?.email || '';
+  $('tracker-auth').value = t?.auth || 'token';
+  $('tracker-token').value = '';
+  $('tracker-prefixes').value = (t?.prefixes || []).join(', ');
+  showTrackerFields();
+  $('tracker-dialog').showModal();
+  $('tracker-name').focus();
+}
+
+// Only the fields the chosen type uses.
+function showTrackerFields() {
+  const type = $('tracker-type').value;
+  const signsIn = type === 'jira' || type === 'zendesk';
+  $('tracker-url-field').hidden = !signsIn;
+  $('tracker-url').placeholder = TRACKER_ADDRESSES[type] || '';
+  $('tracker-auth-field').hidden = type !== 'zendesk';
+  $('tracker-email-field').hidden = !(type === 'jira' || (type === 'zendesk' && $('tracker-auth').value === 'token'));
+  $('tracker-token-field').hidden = type === 'github';
+  $('tracker-token').placeholder = editingTracker?.tokenSet ? tr('Set. Type a new one to change it') : '';
+  $('tracker-prefixes-field').hidden = type === 'github';
+  $('tracker-help').textContent = TRACKER_HELP[type];
+}
+$('tracker-type').addEventListener('change', showTrackerFields);
+$('tracker-auth').addEventListener('change', showTrackerFields);
+$('tracker-add').addEventListener('click', () => openTrackerDialog());
+for (const id of ['tracker-cancel', 'tracker-close']) $(id).addEventListener('click', () => $('tracker-dialog').close());
+
+$('tracker-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const token = $('tracker-token').value.trim();
+  const tracker = {
+    id: editingTracker?.id,
+    type: $('tracker-type').value,
+    name: $('tracker-name').value,
+    url: $('tracker-url').value,
+    email: $('tracker-email').value,
+    auth: $('tracker-auth').value,
+    prefixes: $('tracker-prefixes').value.split(/[\s,]+/).filter(Boolean),
+    // Left empty while editing, the saved token is kept.
+    ...(token || !editingTracker ? { token } : {}),
+  };
+  const button = $('tracker-save');
+  button.disabled = true;
+  try {
+    trackerData = await api('/api/tickets/trackers/save', { tracker });
+    $('tracker-dialog').close();
+    // A new or changed sign-in is tried straight away.
+    testTracker(trackerData.id);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    button.disabled = false;
+  }
+});
+
 function openSettings(elementId) {
   $('settings').showModal();
   groupsDraft = null;
   renderGroupEditor();
   renderFilterSettings();
+  loadTrackers();
   let section = elementId ? $(elementId)?.closest('.settings-section')?.id : null;
   if (!section) {
     try {
@@ -3016,6 +3452,7 @@ function openSettings(elementId) {
     } catch {}
   }
   showSettingsSection(section, true);
+  renderUpdateSetting();
   loadServerSettings();
   loadRepos(false);
 }
@@ -3201,7 +3638,7 @@ function showTourStep(i) {
   if (first && !first.closest('.top')) {
     const r = first.getBoundingClientRect();
     const below = document.querySelector('.top').getBoundingClientRect().bottom + 12;
-    if (r.top < below || r.top > innerHeight / 2) scrollBy(0, r.top - below);
+    if (r.top < below || r.top > innerHeight / 2) cardScroller().scrollBy(0, r.top - below);
   }
   placeTour();
   $('tour-next').focus();
@@ -3213,7 +3650,9 @@ function startTour() {
   // Brought up to date, then frozen.
   render();
   tourOn = true;
-  window.scrollTo(0, 0);
+  // The update question waits, so the cards don't move under the tour.
+  $('update-ask').hidden = true;
+  cardScroller().scrollTo(0, 0);
   tourCard = tourSessionCard();
   tourSteps = TOUR_STEPS.filter((s) => !s.target || tourRect(s));
   $('tour').showModal();

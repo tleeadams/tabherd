@@ -4,6 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="agents-token" content="%%TOKEN%%">
+  <!-- Tells the desktop app this page's header stands in for the window's
+       title bar. Without it, the app gives the window the system's. -->
+  <meta name="tabherd-title-bar" content="header">
   <title>Tabherd</title>
   <!-- Not /favicon.svg: browsers keep a page's icon by its address, so a
        window opened before the logo changed would show the old one. -->
@@ -12,16 +15,22 @@
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <header class="top">
+  <!-- In the desktop app, dragging the header, but not its buttons, moves the
+       window, and double-clicking it maximizes the window. -->
+  <header class="top" data-tauri-drag-region="deep">
     <button type="button" id="menu-button" class="icon-btn menu-button" aria-label="Open the repository menu" aria-haspopup="dialog" aria-controls="repos">
       <span class="burger" aria-hidden="true"></span>
     </button>
     <div class="brand">
       <img src="/icons/tabherd-64.png" alt="" width="24" height="24">
       <h1>Tabherd</h1>
-      <span id="host" class="host"></span>
+      <span class="brand-host">
+        <span id="host" class="host"></span>
+        <span id="version" class="version" title="The version of Tabherd running"></span>
+      </span>
     </div>
-    <nav id="filters" class="filters" aria-label="Filters">
+    <!-- Its scroll bar scrolls the filters, rather than moving the window. -->
+    <nav id="filters" class="filters" aria-label="Filters" data-tauri-drag-region="false">
       <button type="button" data-filter="all" aria-pressed="true">All <b>0</b></button>
     </nav>
     <div class="view-filters">
@@ -38,6 +47,10 @@
         <path d="M4.5 7.5v7.25a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V7.5"/>
         <path d="M8.25 10.5h3.5"/>
       </svg>
+    </button>
+    <button type="button" id="update-button" class="update-button" title="A new version of Tabherd is out" aria-haspopup="dialog" aria-controls="update-dialog" hidden>
+      <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path d="M10 15.5v-11M5.5 9 10 4.5 14.5 9"/></svg>
+      <span id="update-label"></span>
     </button>
     <button type="button" id="history-button" class="icon-btn header-icon history-button" title="History of closed sessions" aria-label="History" aria-haspopup="dialog" aria-controls="history">
       <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
@@ -76,9 +89,32 @@
     <div id="conn" class="conn" role="status">
       <span class="conn-dot"></span><span id="updated">Connecting…</span>
     </div>
+    <!-- The desktop app's window buttons, on Windows and Linux. Not in a
+         browser, nor on macOS, which keeps its own. -->
+    <div id="window-buttons" class="window-buttons" hidden>
+      <button type="button" id="window-minimize" title="Minimize" aria-label="Minimize">
+        <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true"><path d="M0 5.5h10"/></svg>
+      </button>
+      <button type="button" id="window-maximize" title="Maximize" aria-label="Maximize">
+        <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true">
+          <rect class="maximize" x="0.5" y="0.5" width="9" height="9"/>
+          <path class="restore" d="M0.5 2.5h7v7h-7zM2.5 2.5v-2h7v7h-2"/>
+        </svg>
+      </button>
+      <button type="button" id="window-close" class="window-close" title="Close" aria-label="Close">
+        <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true"><path d="M0.5 0.5l9 9M9.5 0.5l-9 9"/></svg>
+      </button>
+    </div>
   </header>
 
   <main>
+    <div id="update-ask" class="update-ask" hidden>
+      <p data-i18n><b>Tell you when a new version of Tabherd is out?</b> Once a day, the server would ask GitHub for the latest release. Nothing about you or your sessions is sent, and Settings → Help can change your answer.</p>
+      <div class="update-ask-actions">
+        <button type="button" id="update-ask-no" class="btn">No thanks</button>
+        <button type="button" id="update-ask-yes" class="btn btn-primary">Yes, tell me</button>
+      </div>
+    </div>
     <div id="list" class="list"></div>
     <div id="empty" class="empty" hidden>
       <p class="empty-title">No Claude Code or Codex sessions are running.</p>
@@ -119,6 +155,7 @@
     <div class="drawer-search">
       <input id="history-filter" type="search" placeholder="Filter closed sessions" aria-label="Filter closed sessions" autocomplete="off" spellcheck="false">
       <label id="history-background-label" class="history-background" hidden><input type="checkbox" id="history-background" checked> Background runs</label>
+      <label id="history-complete-label" class="history-background" hidden><input type="checkbox" id="history-complete" checked> Complete sessions</label>
     </div>
     <div id="history-list" class="history-list"></div>
     <p class="drawer-foot">Sessions closed in the last 30 days. Resume opens a terminal tab in the session's folder and continues the conversation.</p>
@@ -276,7 +313,7 @@
                 <span>LocalAI API key</span>
                 <input id="localai-key" type="password" autocomplete="off" spellcheck="false">
               </label>
-              <p class="settings-help">Only if LocalAI has one set. It's kept on this computer and never shown again.</p>
+              <p class="settings-help">Only if LocalAI has one set. It's kept encrypted on this computer and never shown again.</p>
               <label class="field">
                 <span>Ollama address</span>
                 <input id="ollama-url" type="text" placeholder="http://127.0.0.1:11434" autocomplete="off" spellcheck="false">
@@ -294,6 +331,17 @@
                 <input id="llamacpp-url" type="text" placeholder="http://127.0.0.1:8080" autocomplete="off" spellcheck="false">
               </label>
               <p class="settings-help">Ollama's address defaults to OLLAMA_HOST; LM Studio's to the port its server last used; llama.cpp's to LLAMA_ARG_HOST and LLAMA_ARG_PORT. A token is only needed if LM Studio requires one.</p>
+            </fieldset>
+          </section>
+          <section class="settings-section" id="settings-tickets" data-title="Tickets">
+            <fieldset>
+              <legend>Tickets</legend>
+              <p class="settings-help">The ticket systems sessions can be linked to: Jira, Linear, GitHub Issues and Zendesk. Several can be connected at once. Each signs in with its own token.</p>
+              <ul id="tracker-list" class="filter-list"></ul>
+              <div class="filter-list-actions">
+                <button type="button" id="tracker-add" class="btn">Add a tracker</button>
+              </div>
+              <p id="tracker-protection" class="settings-help tracker-protection"></p>
             </fieldset>
           </section>
           <section class="settings-section" id="settings-to-dos" data-title="To-dos">
@@ -331,6 +379,20 @@
               <p class="settings-help">A quick look around the dashboard, as on the first visit. The page holds still while it runs, and your sessions carry on as usual.</p>
               <button type="button" id="tour-again" class="btn">Show the tour</button>
             </fieldset>
+            <fieldset>
+              <legend>Updates</legend>
+              <label class="choice">
+                <input type="checkbox" id="update-check">
+                <span class="choice-text"><b>Tell me when a new version is out</b><span>Once a day, the server asks GitHub for Tabherd's latest release. Nothing about you or your sessions is sent.</span></span>
+              </label>
+              <label class="choice">
+                <input type="checkbox" id="update-prereleases">
+                <span class="choice-text"><b>Tell me about betas and other prereleases too</b><span>Prereleases have new features before a release does, and may have more bugs.</span></span>
+              </label>
+              <p id="update-prereleases-note" class="settings-help" hidden>This copy is a prerelease, so newer prereleases are always included.</p>
+              <p id="update-status" class="settings-help"></p>
+              <button type="button" id="update-now" class="btn">Check now</button>
+            </fieldset>
           </section>
           <p class="settings-foot">Appearance, Notifications and Sections by group are saved in this browser. The rest are saved on this computer, for every browser.</p>
         </div>
@@ -365,6 +427,56 @@
       <div class="confirm-actions">
         <button type="button" id="todo-cancel" class="btn">Cancel</button>
         <button type="submit" id="todo-save" class="btn btn-primary">Add to-do</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="tracker-dialog" class="settings" aria-labelledby="tracker-dialog-title">
+    <form id="tracker-form">
+      <div class="settings-head">
+        <h2 id="tracker-dialog-title">New tracker</h2>
+        <button type="button" id="tracker-close" class="icon-btn" title="Close" aria-label="Close">✕</button>
+      </div>
+      <label class="field">
+        <span>Type</span>
+        <select id="tracker-type">
+          <option value="jira">Jira</option>
+          <option value="linear">Linear</option>
+          <option value="github">GitHub Issues</option>
+          <option value="zendesk">Zendesk</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Name</span>
+        <input id="tracker-name" type="text" required maxlength="60" autocomplete="off" placeholder="Work Jira">
+      </label>
+      <label class="field" id="tracker-url-field">
+        <span>Address</span>
+        <input id="tracker-url" type="text" autocomplete="off" spellcheck="false">
+      </label>
+      <label class="field" id="tracker-auth-field">
+        <span>Sign in with</span>
+        <select id="tracker-auth">
+          <option value="token">Email and API token</option>
+          <option value="oauth">OAuth access token</option>
+        </select>
+      </label>
+      <label class="field" id="tracker-email-field">
+        <span>Email</span>
+        <input id="tracker-email" type="email" autocomplete="off" spellcheck="false">
+      </label>
+      <label class="field" id="tracker-token-field">
+        <span>Token</span>
+        <input id="tracker-token" type="password" autocomplete="off" spellcheck="false">
+      </label>
+      <label class="field" id="tracker-prefixes-field">
+        <span>Key prefixes</span>
+        <input id="tracker-prefixes" type="text" autocomplete="off" spellcheck="false" placeholder="ABC, OPS">
+      </label>
+      <p id="tracker-help" class="settings-help tracker-help"></p>
+      <div class="confirm-actions">
+        <button type="button" id="tracker-cancel" class="btn">Cancel</button>
+        <button type="submit" id="tracker-save" class="btn btn-primary">Add tracker</button>
       </div>
     </form>
   </dialog>
@@ -423,6 +535,27 @@
       <div class="confirm-actions">
         <button value="cancel" class="btn" autofocus>Cancel</button>
         <button value="save" class="btn btn-danger">Save and close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="update-dialog" class="settings" aria-labelledby="update-title">
+    <form method="dialog">
+      <div class="settings-head">
+        <h2 id="update-title"></h2>
+        <button value="close" class="icon-btn" title="Close" aria-label="Close">✕</button>
+      </div>
+      <p id="update-current" class="settings-help"></p>
+      <div id="update-notes" class="update-notes"></div>
+      <h3 class="update-how-title">How to update</h3>
+      <p id="update-how" class="update-how"></p>
+      <div id="update-command" class="update-command" hidden>
+        <code id="update-command-text"></code>
+        <button type="button" id="update-copy" class="btn">Copy</button>
+      </div>
+      <div class="confirm-actions">
+        <button value="later" class="btn">Not now</button>
+        <a id="update-release" class="btn btn-primary" target="_blank" rel="noopener">See the release</a>
       </div>
     </form>
   </dialog>

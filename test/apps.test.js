@@ -224,6 +224,7 @@ test("LocalAI's loaded models, downloads, agent chats and agent jobs become card
     assert.deepEqual(model.facts, [['Graphics memory', '6.4 GB'], ['Memory', '900 MB'], ['CPU', '12%']]);
     assert.deepEqual(model.memory, { used: 6_400_000_000, graphics: 6_400_000_000 }, 'what it takes is its graphics memory');
     assert.deepEqual(model.actions, ['open', 'unload']);
+    assert.deepEqual(byKind('work'), [], 'a model using little of a processor is idle');
     const [download] = byKind('download');
     assert.deepEqual([download.status, download.statusLabel, download.progress], ['busy', 'Downloading', { value: 42, max: 100 }]);
     assert.ok(download.leavesWhenDone, 'its leaving counts as finishing');
@@ -254,6 +255,35 @@ test("LocalAI's loaded models, downloads, agent chats and agent jobs become card
     fake.server.close();
     localai.configure({});
   }
+});
+
+test('a LocalAI model keeping a processor busy gets a Working card until it stops', () => {
+  const t0 = Date.now();
+  const loaded = (cpu) => [{ id: 'qwen3-8b', backend: 'llama-cpp', process: { pid: 77, ...(cpu === undefined ? {} : { cpu_percent: cpu }) } }];
+  // One reading every two seconds, as the dashboard takes them.
+  const readings = [3, 97, undefined, 5, 90, 5, 4];
+  const seen = [];
+  let working = new Map();
+  readings.forEach((cpu, i) => {
+    working = localai.trackWork(working, loaded(cpu), t0 + i * 2000);
+    seen.push(working.get('qwen3-8b')?.since ?? null);
+  });
+  assert.deepEqual(
+    seen,
+    [null, t0 + 2000, t0 + 2000, t0 + 2000, t0 + 2000, t0 + 2000, null],
+    'it starts at the first busy reading, and one low or missing reading in a row is not the end',
+  );
+  assert.equal(localai.trackWork(new Map([['qwen3-8b', { since: t0, quiet: 0 }]]), [], t0).size, 0, 'an unloaded model stops');
+
+  const s = { version: 'v4.12.1', models: loaded(97), working: new Map([['qwen3-8b', { since: t0, quiet: 0 }]]), operations: [], chats: [], jobs: [] };
+  const work = localai.itemsFrom(s, { now: t0 + 5000 }).find((i) => i.kind === 'work');
+  assert.deepEqual(
+    [work.id, work.name, work.where, work.status, work.statusSince, work.facts, work.actions],
+    ['localai:work:qwen3-8b', 'qwen3-8b', 'llama-cpp', 'busy', t0, [['CPU', '97%']], ['open']],
+  );
+  assert.equal(work.leavesWhenDone, false, 'a short run leaves quietly');
+  assert.equal(localai.itemsFrom(s, { now: t0 + 30000 }).find((i) => i.kind === 'work').leavesWhenDone, true, 'a long one dings when it stops');
+  assert.equal(localai.itemsFrom(s, { now: t0 }).filter((i) => i.kind === 'model').length, 1, 'the model is still listed with the others');
 });
 
 test("nothing shows while LocalAI isn't running, and a refused key says so", async () => {

@@ -21,7 +21,7 @@ Neither is code-signed yet: signing through SignPath Foundation is waiting on th
 
 Tabherd starts the dashboard server in the background, with no console window, unless one is already running. It shows the dashboard in WebView2, the engine Edge uses, which comes with Windows. Nothing from your browser shows in its window, and sound plays without a click first. Links to pull requests and other sites open in your browser. Opening Tabherd while it's open brings its window to the front. Closing the window stops the server it started.
 
-The pin in the header keeps the window on top of other windows. Settings → Appearance → **Window** has the same, as *Keep on top*, and **Transparency**, which lets what's behind the window show through its background and cards, up to 80%. Text, buttons and dialogs stay solid. Both are only in the app, not in a browser.
+The header is the window's title bar: drag it to move the window, double-click it to maximize, and minimize, maximize and close are in its top right corner. The pin in the header keeps the window on top of other windows. Settings → Appearance → **Window** has the same, as *Keep on top*, and **Transparency**, which lets what's behind the window show through its background and cards, up to 80%. Text, buttons and dialogs stay solid. Both are only in the app, not in a browser.
 
 ### macOS and Linux
 
@@ -46,6 +46,8 @@ Or from a download:
 ### Updating and uninstalling
 
 On macOS and Linux, a server started by `tabherd` stops by itself 10 minutes after the last dashboard closes, and the next launch starts it again in a couple of seconds.
+
+The dashboard can tell you when a new version is out, and how to update; see [Update alerts](#update-alerts).
 
 To update on Windows, run the new release's installer, which installs over the old one. From the zip, replace the folder with the new release's. On macOS and Linux, replace the folder; its name doesn't change between releases, so the `tabherd` command and its entry in your applications keep working. Settings, history and to-dos are kept in `~/.tabherd`, outside the app.
 
@@ -114,6 +116,8 @@ Checked that way so far: Windows Terminal; tmux, kitty, WezTerm, GNOME Terminal 
 
 ## What it shows
 
+The header names the computer the dashboard runs on, with the version of Tabherd running under it.
+
 The first time a browser opens the dashboard, a short tour points out each part of it, with **Skip tour** on every step, or Esc. It starts once every running session is on the page, and the page holds still while it runs: the cards don't update and only the tour can be clicked, though dings and notifications carry on. With no sessions running, it shows an example card, marked as one, which goes when the tour ends. A browser that has used the dashboard before doesn't get it. Settings → **Help** shows it again.
 
 - **Status**: *Needs you* (blocked on a prompt or dialog), *Working*, *Shell running* (at the prompt while a background shell runs) or *Idle*, plus how long it has been in that state.
@@ -181,13 +185,14 @@ The models ComfyUI has loaded are listed on the Memory and models card, each wit
 **LocalAI.** It's found at Settings → Other apps → *LocalAI address*, `http://127.0.0.1:8080` unless you set another, with the API key there if LocalAI has one. It shows:
 
 - **Each loaded model**, on the Memory and models card, with the graphics memory, memory and CPU it's using, and **Unload** to free them.
+- **Each model that's working**, on a request from LocalAI's own chat or from another app, as a *Working* card of its own. LocalAI doesn't list the requests it's answering, so this goes by the processor its model's backend is using, which is near zero when it's idle: the card comes when it's busy and leaves a few seconds after it's quiet again. One that worked half a minute or more dings when it stops. A model on another computer, through LocalAI's distributed mode, gets no reading, so no card.
 - **Each download or install** in progress, with its progress and size, and **Cancel**. Finishing dings.
 - **Each agent chat** that's running (*Working*, with **Stop**) or paused at its step limit (*Needs you*). One that finishes leaves the dashboard and dings.
 - **Each agent job** running or queued, with **Cancel**. One that finishes leaves and dings.
 
 A chat, agent job or download that fails keeps its card, as needing you, until you **Clear** it. Cleared cards stay cleared, in every browser, in `~/.tabherd/dismissed.json`.
 
-**Open in LocalAI** opens LocalAI's own page. LocalAI keeps no list of plain API requests in progress, so a request from another app doesn't get a card.
+**Open in LocalAI** opens LocalAI's own page.
 
 **Ollama** and **LM Studio**: each loaded model is listed on the Memory and models card, marked with its app, with its size, context and, for Ollama, the graphics memory it holds and when Ollama will unload it, and **Unload**. Ollama is found at Settings → Other apps → *Ollama address*, else `OLLAMA_HOST`, else `http://127.0.0.1:11434`. LM Studio's local server must be on (its Developer tab, or `lms server start`); it's found at *LM Studio address*, else the port it last served on, else `http://127.0.0.1:1234`, with *LM Studio API token* if LM Studio requires one. Neither tells anyone but the caller about downloads or requests in progress, so those don't get cards.
 
@@ -240,13 +245,21 @@ The gear button in the header opens Settings, one section at a time, picked from
 
 **Groups**: each group's name, colour and folders, and *Sections by group*. See [Groups](#groups).
 
-**Other apps**: ComfyUI's, LocalAI's, Ollama's, LM Studio's and llama.cpp's addresses, and LocalAI's API key and LM Studio's token. The key is kept in `~/.tabherd/settings.json` and never sent back to the page. See [ComfyUI and LocalAI](#comfyui-and-localai).
+**Other apps**: ComfyUI's, LocalAI's, Ollama's, LM Studio's and llama.cpp's addresses, and LocalAI's API key and LM Studio's token. The key and token are kept encrypted (see [Secrets](#secrets)) and never sent back to the page. See [ComfyUI and LocalAI](#comfyui-and-localai).
+
+**Tickets**: the ticket systems, or trackers, that sessions will be linked to: Jira sites, Linear, GitHub Issues and Zendesk, as many as you use. **Add a tracker** asks for what its type needs:
+- **Jira:** the site's address, an email and API token, and optionally its projects' key prefixes. Leave the email empty for a Data Center personal access token.
+- **Linear:** a personal API key, and optionally team key prefixes.
+- **GitHub Issues:** nothing; it uses `gh`'s sign-in.
+- **Zendesk:** the address, and an email and API token, or an OAuth access token.
+
+**Test** signs in and says as whom, or what's wrong; a tracker is tested as it's saved. **Edit** keeps the saved token unless you type a new one, and **Remove** asks for a second click. Linking tickets to cards is next; see [the plan](docs/ticket-links.md).
 
 **To-dos**: where a to-do's folder is chosen from (the repo menu or any folder), and the folder that choice starts at. See [To-dos](#to-dos).
 
 **Repo menu**: every folder and repo under the repos folder, nested as in the ☰ menu, each with a tick box. Untick one to hide it, and everything inside it, from the menu. What's inside a hidden folder is greyed out but keeps its own setting, so ticking the folder again brings back exactly what was shown before. A folder with some repos hidden says how many, in amber. The filter box works like the menu's. A hidden path that's no longer in the repos folder is listed underneath, with ✕ to remove it.
 
-**Help**: *Show the tour* shows the first-run tour again. See [What it shows](#what-it-shows).
+**Help**: *Show the tour* shows the first-run tour again. See [What it shows](#what-it-shows). *Tell me when a new version is out* turns update alerts on or off, *Tell me about betas and other prereleases too* includes prereleases, and **Check now** checks at once. See [Update alerts](#update-alerts).
 
 Appearance, Notifications and Sections by group are saved in the browser, so each browser profile remembers its own choice. The rest are saved by the server, in `~/.tabherd/settings.json`, `~/.tabherd/filters.json` and `~/.tabherd/groups.json`, so every browser shares them.
 
@@ -275,6 +288,20 @@ Browsers only let a page play sound after you've clicked or typed in it, so afte
 
 The server pushes each update to open dashboards (`/api/stream`, server-sent events) instead of the page checking every few seconds. A browser slows timers in hidden or covered windows to as little as once a minute, which would make dings late. Pushed messages are handled right away.
 
+## Update alerts
+
+Tabherd can tell you when a new version is out. It's off until you say yes:
+- **Asking:** the dashboard asks once, above the cards, after the first-run tour. The answer is kept by the server, so no other browser asks again.
+- **Changing it:** Settings → Help turns it on or off.
+- **What it sends:** with it on, the server asks GitHub for Tabherd's list of releases when it starts, then once a day, or an hour after a check that failed. Nothing about you, your computer or your sessions is sent. GitHub sees a request from your address, as it does for any web page.
+- **Check now:** in Settings → Help, it asks straight away, on or off.
+
+When there's a newer version:
+- **The header** gets an **Update to <version>** button, and the notification list says so once.
+- **The button** shows what's new, from the release's notes on GitHub, which are in English. It also says how to update this copy: the command for Homebrew, winget or a clone of the repository, or which download to get. **See the release** opens its page.
+- **Not now** hides the button, in that browser, until the next version.
+- **Prereleases**, such as betas, are only mentioned if *Tell me about betas and other prereleases too* is on in Settings → Help. Someone already running a prerelease always hears of newer ones.
+
 ## Save and close
 
 The box button in the header saves every open session and closes it, so you can stop for the day, restart the computer or switch to other work, and later pick them all up again:
@@ -283,13 +310,19 @@ The box button in the header saves every open session and closes it, so you can 
 - Closing a session closes its terminal tab too. On Windows the session ends, then `exit` is typed into the tab's shell, so Windows Terminal closes the tab as it would if you'd typed it. Launchers in between, such as npm's wrappers and mise's or nvm's shims, end with it. On macOS and Linux the shell is hung up, and the terminal closes the tab or pane if its settings say to.
 - **Resume last session** opens each saved session again, one tab each, running `claude --resume <id>` or `codex resume <id>` in its folder, so each conversation carries on. Sessions already open, or whose folder has gone, are skipped.
 
-Only the last saved set is kept, in `~/.tabherd/saved-sessions.json`; the next Save and close replaces it. A session never asked anything has no conversation to resume, so it's closed but not saved. Sessions in a VS Code panel, background runs, and other apps' jobs and models are left alone. A Codex session's turn is interrupted before its window closes; one whose window isn't known is saved but stays open.
+Only the last saved set is kept, in `~/.tabherd/saved-sessions.json`; the next Save and close replaces it. A session never asked anything has no conversation to resume, and one marked complete is done, so they're closed but not saved. Sessions in a VS Code panel, background runs, and other apps' jobs and models are left alone. A Codex session's turn is interrupted before its window closes; one whose window isn't known is saved but stays open.
+
+## Complete
+
+**Complete**, beside **Stop…** on a Claude, Codex or Copilot CLI card, is for a session whose work is done. After a second click it closes the session and its tab, as Save and close does, and History marks it *Completed*, so it's told apart from work that was only closed. A session that's working finishes its turn first; until then its card says *Completes when done*, and clicking that keeps it open and takes the mark off.
+
+A completed session can still be resumed from History. It stays complete if you only look, and stops being complete once you ask it something new. Save and close doesn't save a completed session, so Resume last session doesn't bring it back. Sessions marked complete are kept in `~/.tabherd/completed.json`.
 
 ## History
 
 The clock button in the header lists sessions that have closed, newest first and grouped by day. Each entry has the session's name, folder, branch and last prompt, and a filter searches all of those. **Resume** opens Claude in the session's folder, in your terminal, running `claude --resume <id>`, so the conversation carries on where it stopped. **Copy resume command** copies a command that does the same, for running yourself.
 
-The server records a session when it drops off the dashboard, keeping its terminal tab's title and session name. Sessions that closed while the server wasn't running, or while no dashboard was open, are read from their transcripts in `~/.claude/projects`, going back 30 days. Those show Claude's title for the session, or its first prompt, rather than the tab's title. Each transcript is read once and again only if it changes, so after the first scan (about a second for 300 MB of transcripts) opening History is quick. Closed Codex sessions are read back the same way from `~/.codex/sessions`, named as Codex named them, apart from those Codex has compressed after a week. Sessions from a terminal are listed, and `claude -p` runs, tagged **Background** (see [Background runs](#background-runs)); `codex exec` and Agent SDK runs aren't. Nor are sessions closed before Claude was asked anything: Claude saves no conversation for those, so there's nothing to resume. A session that's running again, because it was resumed, leaves the list until it closes. The history keeps the latest 300 sessions, in `~/.tabherd/history.json`.
+The server records a session when it drops off the dashboard, keeping its terminal tab's title and session name. Sessions that closed while the server wasn't running, or while no dashboard was open, are read from their transcripts in `~/.claude/projects`, going back 30 days. Those show Claude's title for the session, or its first prompt, rather than the tab's title. Each transcript is read once and again only if it changes, so after the first scan (about a second for 300 MB of transcripts) opening History is quick. Closed Codex sessions are read back the same way from `~/.codex/sessions`, named as Codex named them, apart from those Codex has compressed after a week. Sessions from a terminal are listed, and `claude -p` runs, tagged **Background** (see [Background runs](#background-runs)); `codex exec` and Agent SDK runs aren't. Nor are sessions closed before Claude was asked anything: Claude saves no conversation for those, so there's nothing to resume. A session that's running again, because it was resumed, leaves the list until it closes. Sessions marked [complete](#complete) say *Completed*, and the header counts them; *Complete sessions* under the filter hides them, to leave the work you might come back to. The history keeps the latest 300 sessions, in `~/.tabherd/history.json`.
 
 ## Repo menu
 
@@ -337,15 +370,25 @@ All of it is read-only, from files Claude Code and Codex already write, and from
 | The `codex` processes and their tab titles | Which window each Codex session is in, and its memory use. |
 | Comfy Desktop's `comfy-procs/*.json` and `installations.json` | Which ComfyUIs are running, on which ports, and their names. |
 | ComfyUI's `/api/jobs`, `/queue`, `/api/userdata` and `/view` | Its jobs, their workflows' names and the models they load, and their output images. Its window's title gives the running job's progress. |
-| LocalAI's `/system`, `/api/operations`, `/api/chats` and `/api/agent/jobs` | Its loaded models, downloads, agent chats and agent jobs. |
+| LocalAI's `/system`, `/api/operations`, `/api/chats` and `/api/agent/jobs` | Its loaded models and which are working, downloads, agent chats and agent jobs. |
+| GitHub's list of Tabherd's releases (`api.github.com/repos/tleeadams/tabherd/releases`) | Whether a newer version is out. Only with [update alerts](#update-alerts) on, or after **Check now**. |
 
 A session file whose process has exited, or whose PID now belongs to another process, is ignored.
 
-The only files the server writes are its own, in `~/.tabherd`: `settings.json` holds the settings that aren't kept in the browser, `history.json` the closed sessions, `todos.json` the to-dos, `groups.json` the groups, with the sessions moved between them by hand, and `saved-sessions.json` the sessions Save and close saved last.
+The only files the server writes are its own, in `~/.tabherd`: `settings.json` holds the settings that aren't kept in the browser, with its secrets encrypted (see [Secrets](#secrets)), `secret.key` the key for them on Windows, `history.json` the closed sessions, `todos.json` the to-dos, `groups.json` the groups, with the sessions moved between them by hand, `saved-sessions.json` the sessions Save and close saved last, `completed.json` the sessions marked complete, and `updates.json` what the last check for a new version found.
 
 ## Safety
 
 The server listens on `127.0.0.1` only and rejects requests with any other `Host` header, so other web pages can't read your prompts through DNS rebinding. The session actions, opening a repo, resuming a closed session, the to-do actions and saving settings all need a per-run token that only the served page has. A to-do's title reaches the folder picker only as an environment variable, never as part of a command. The session actions also work only on a session that is currently verified as live. **Stop** ends the session and its child processes, after you confirm: `taskkill /T /F` on Windows; on macOS and Linux, SIGTERM and then SIGKILL two seconds later for any still running. For a Codex session, it first interrupts the session's turn through Codex's service. Sessions the dashboard opens ask before acting, as Claude Code does by default, unless you turn on *Skip permission prompts*.
+
+### Secrets
+
+Tokens, API keys and the ticket trackers are saved encrypted in `settings.json`, as `enc:v1:…` values (AES-256-GCM). That includes the trackers' addresses and emails, and LocalAI's key and LM Studio's token. The key is 32 random bytes that the operating system keeps for you:
+- **Windows:** protected with DPAPI for your user, in `~/.tabherd/secret.key`. Only you, on this computer, can unlock it.
+- **macOS:** your login Keychain, as *Tabherd settings key*.
+- **Linux:** your keyring (GNOME Keyring or KWallet), through `secret-tool`. Without one, the key is kept in `~/.tabherd/secret.key`, readable only by you, and Settings → Tickets says so.
+
+The key is made the first time a secret is saved, and keys saved by older versions are encrypted when the server next starts. A `settings.json` copied to another computer or user can't be decrypted there, so its secrets count as unset and Settings asks for them again. A secret is never sent to the page, which only learns whether one is set.
 
 To report a security problem, see [SECURITY.md](SECURITY.md).
 
@@ -374,7 +417,7 @@ Only the Windows app, `Tabherd.exe`, and its installer are signed. The [Release 
 - Committers and reviewers: the people in [`.github/CODEOWNERS`](.github/CODEOWNERS)
 - Approvers: [@tleeadams](https://github.com/tleeadams)
 
-Privacy: this program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
+Privacy: this program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. [Update alerts](#update-alerts), which ask GitHub for Tabherd's latest release, are off until you turn them on.
 
 ## License
 

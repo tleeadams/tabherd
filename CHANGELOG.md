@@ -2,6 +2,26 @@
 
 Notable changes in each release. Version numbers follow [Semantic Versioning](https://semver.org). The release build takes each release's notes from its section here.
 
+## 0.6.0-beta.3 - 2026-11-25
+
+A prerelease with everything since 0.6.0-beta.2, to try before 0.6.0: the app's own title bar, **Complete**, update alerts, a *Working* card for LocalAI, and the first part of linking tickets to cards.
+
+- **Windows:** run `tabherd-v0.6.0-beta.3-windows-x64-setup.exe`. It installs over the version you have. It isn't code-signed yet, so SmartScreen may warn the first time: choose **More info**, then **Run anyway**.
+- **macOS** (Apple silicon): open the disk image and drag Tabherd to Applications. The app isn't signed by Apple yet, so the first time you open it macOS says it can't check it: choose Done, then System Settings → Privacy & Security → *Open Anyway*.
+- **Linux:** install the .deb with `sudo apt install ./tabherd-v0.6.0-beta.3-linux-x64.deb`, or the .rpm with `sudo dnf install ./tabherd-v0.6.0-beta.3-linux-x64.rpm`, or make the AppImage executable (`chmod +x`) and run it. Use arm64 in place of x64 on an ARM computer.
+
+What's new:
+
+- The desktop app's window has no title bar of the system's: the dashboard's header stands in for it, with more room for the cards. Drag the header to move the window and double-click it to maximize. On Windows and Linux, minimize, maximize and close are in its top right corner; on macOS, the system's own buttons sit in its top left. The cards scroll below the header. See [docs/desktop-app.md](docs/desktop-app.md#the-window).
+- **Settings → Tickets**, the first step towards linking tickets to cards. Add your Jira sites, Linear, GitHub Issues and Zendesk, as many as you use, and **Test** each one's sign-in. See [the plan](docs/ticket-links.md).
+- **Secrets are encrypted** in `settings.json`: the trackers, with their addresses, emails and tokens, and LocalAI's key and LM Studio's token. The key is held by Windows (DPAPI), the macOS Keychain or your Linux keyring, so the file can't be read on another computer or by another user. Keys saved by older versions are encrypted on the first start. See [Secrets](README.md#secrets).
+- **Complete** on a session's card, beside Stop…, for work that's done: after a second click it closes the session, once its turn ends if it's working, and History marks it *Completed*, with a switch to hide completed sessions. Save and close doesn't save a completed session, and one resumed and asked something new is no longer complete. See [Complete](README.md#complete).
+- Stop, Cancel and Unload on a job's, model's or download's card, and Unload on the Memory and models card, kept their first click only until the card next changed, which for a busy model could be within two seconds. The first click now lasts its three seconds whatever the card does.
+- A LocalAI model that's working on a request, from LocalAI's chat or another app, gets a *Working* card. LocalAI doesn't list its requests, so the card goes by the processor the model's backend is using, and leaves a few seconds after it's quiet. One that worked half a minute or more dings when it stops.
+- With Card size set to Small, Medium or Large, the Memory and models card shrinks when its list of models is closed, instead of keeping a card's full height.
+- The version running shows under the computer's name in the header.
+- Update alerts: Tabherd can tell you when a new version is out. It's off until you say yes, when the dashboard asks once or in Settings → Help, which also has **Check now**. With it on, the server asks GitHub for the latest release once a day, sending nothing about you or your sessions. A newer version brings an **Update to <version>** button to the header and a note to the notification list. The button shows what's new and how to update this copy: the command for Homebrew, winget or a clone of the repository, or which download to get. **Not now** hides it until the next version. Prereleases, such as betas, are only mentioned if Settings → Help's *Tell me about betas and other prereleases too* is on, or to someone already running one. See [Update alerts](README.md#update-alerts).
+
 ## 0.6.0-beta.2 - 2026-11-24
 
 A prerelease, to try the desktop app on macOS and Linux before a release has it. On Windows it's the same as 0.5.0.

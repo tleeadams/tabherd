@@ -53,7 +53,7 @@ Tabherd (Tauri, Rust)
  └─ On quit: stops the server it started, never one it found running
 ```
 
-- **One Tauri call from the page.** The page is a remote URL as far as Tauri is concerned, so it gets no access to Tauri's APIs, except `set_on_top`, the app's one command. `capabilities/dashboard.json` allows it for `http://localhost:*` alone, and `build.rs` declares it, which makes Tauri check every app command against the capabilities. The app hands the page `window.tabherdApp` in an initialization script: `setOnTop(on)`, and `seeThrough`, whether the window can be see-through. Everything else the app does happens in Rust.
+- **A few Tauri calls from the page.** The page is a remote URL as far as Tauri is concerned, so it gets no access to Tauri's APIs, except what `capabilities/dashboard.json` allows, for `http://localhost:*` and the app's starting page alone: the app's two commands, `set_on_top` and `own_title_bar`, and moving, minimizing, maximizing and closing the window, for the title bar (see [The window](#the-window)). `build.rs` declares the app's commands, which makes Tauri check every one against the capabilities. The app hands the page `window.tabherdApp` in an initialization script: `setOnTop(on)`; `seeThrough`, whether the window can be see-through; and `titleBar`, with `minimize()`, `toggleMaximize()`, `isMaximized()` and `close()`. Everything else the app does happens in Rust.
 - **`--exit-when-idle` stays** as a safety net. If the app is killed without stopping its server, the server still stops itself 10 minutes after the last dashboard closes.
 - **Closing the window quits the app** in the first release, as closing the Edge window does now. A tray icon that keeps it running comes later (see [Later](#later)).
 
@@ -65,7 +65,7 @@ app/
     Cargo.toml
     tauri.conf.json
     build.rs
-    capabilities/dashboard.json  the one command the page may call
+    capabilities/dashboard.json  what the page may call
     icons/                      from the existing app icon
     src/main.rs                 server start and stop, window, link handling
     binaries/                   staged by the build, not committed:
@@ -77,6 +77,11 @@ The server's files go in as bundle resources: the same list `build-release.js` s
 ### The window
 
 - **Title.** It follows the page's title, which counts the sessions waiting on you ("(2) Tabherd"). *To check:* whether Tauri 2 passes on document-title changes for a remote URL. If it doesn't, the page needs one small call, and that adds an IPC permission for localhost.
+- **Title bar.** The window has none of the system's: the page's header stands in for it. Dragging the header, but not its buttons, moves the window (Tauri's `data-tauri-drag-region="deep"`), and double-clicking it maximizes the window. `tabherdApp.titleBar` tells the page which kind it is:
+  - `buttons`, on Windows and Linux: the window is made without decorations, and the header has minimize, maximize (restore while maximized) and close in its top right corner. On Windows the frame stays resizable, with the system's shadow and rounded corners, and dragging to a screen edge snaps it, but hovering over maximize doesn't show Windows 11's snap layouts (Win+Z still does).
+  - `inset`, on macOS: the title bar is Tauri's `Overlay` style with its title hidden, so the system's own buttons sit over the header's top left corner, and the header leaves room for them.
+
+  In the app the cards scroll below the header, rather than the whole page, so the scroll bar doesn't run up beside the window's buttons. The starting page has the same buttons and can be dragged too, so the window can be moved or closed if the server doesn't start. A page says it stands in for the title bar with `<meta name="tabherd-title-bar">`, and as each page loads, the app's initialization script tells `own_title_bar` whether it does. One that doesn't, such as the dashboard from an older server found running on the port, or the web view's own error page, gets the system's title bar back. The window-state plugin leaves decorations alone, so it can't bring back a title bar saved by an older version.
 - **Sound without a click.**
   - Windows: WebView2 is started with `--autoplay-policy=no-user-gesture-required`.
   - macOS and Linux: *to check* whether Web Audio still needs a click in WKWebView and WebKitGTK.
@@ -223,5 +228,6 @@ A short spike on Windows, before the rest:
 - **Building on Windows needs Rust's MSVC toolchain.** A machine whose default is the GNU one can add MSVC alongside and use `RUSTUP_TOOLCHAIN=stable-x86_64-pc-windows-msvc`.
 - **Checked by hand on Windows** (the owner, 2026-11-24): Go to window, Catch up and the folder picker bring their windows forward with Tabherd in front, and PR links open in the browser.
 - **Still to check:** the first signed release.
+- **The header as the title bar** (2026-11-25), checked on Windows with a debug build over the DevTools port: the window buttons, Restore while maximized, double-clicking the header, the starting page's buttons when the server can't start, and the system's title bar coming back for a page without the meta tag. Still to see: the overlay title bar on a Mac, and the buttons, dragging and resizing on a Linux desktop.
 - **Phase 2, macOS, is ready for its keys** (2026-11-24). `build-release.js --target macos-<arch> --app` builds the disk image; the Release workflow's `build-macos` job runs it for Apple silicon once `APPLE_SIGNING` is on, then checks the signature, Gatekeeper and the stapled ticket. CI builds the same image unsigned on every change. CONTRIBUTING has the setup. Still to see: the first signed, notarized build, and the app on a Mac.
 - **Phase 3, Linux, in releases** (2026-11-24). `build-release.js --target linux-<arch> --app` builds the .deb, .rpm and AppImage; the Release workflow's `build-linux` job runs it on Ubuntu 22.04 for x64 and arm64, and CI builds the x64 ones on every change. A prerelease has the macOS app signed ad hoc while Apple signing is off, so both can be tried before a release has them. Still to see: the app on a Linux desktop.
