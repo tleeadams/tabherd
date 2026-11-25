@@ -450,6 +450,55 @@
   'Appearance, Notifications and Sections by group are saved in this browser. The rest are saved on this computer, for every browser.':
     'Apariencia, Notificaciones y Secciones por grupo se guardan en este navegador. El resto se guarda en este ordenador, para todos los navegadores.',
 
+  // ---- update alerts
+  'A new version of Tabherd is out': 'Hay una versión nueva de Tabherd',
+  'Update to {version}': 'Actualizar a {version}',
+  'A new version is out': 'Hay una versión nueva',
+  "See what's new, and how to update": 'Ver qué hay de nuevo y cómo actualizar',
+  '<b>Tell you when a new version of Tabherd is out?</b> Once a day, the server would ask GitHub for the latest release. Nothing about you or your sessions is sent, and Settings → Help can change your answer.':
+    '<b>¿Te avisamos cuando haya una versión nueva de Tabherd?</b> Una vez al día, el servidor preguntaría a GitHub por la última versión publicada. No se envía nada sobre ti ni sobre tus sesiones, y puedes cambiar tu respuesta en Configuración → Ayuda.',
+  'No thanks': 'No, gracias',
+  'Yes, tell me': 'Sí, avísame',
+  'Tabherd will tell you when a new version is out.': 'Tabherd te avisará cuando haya una versión nueva.',
+  "It won't check. Settings → Help can turn it on.": 'No lo comprobará. Puedes activarlo en Configuración → Ayuda.',
+  Updates: 'Actualizaciones',
+  'Tell me when a new version is out': 'Avisarme cuando haya una versión nueva',
+  "Once a day, the server asks GitHub for Tabherd's latest release. Nothing about you or your sessions is sent.":
+    'Una vez al día, el servidor pregunta a GitHub por la última versión publicada de Tabherd. No se envía nada sobre ti ni sobre tus sesiones.',
+  'Tell me about betas and other prereleases too': 'Avisarme también de las betas y otras versiones preliminares',
+  'Prereleases have new features before a release does, and may have more bugs.':
+    'Las versiones preliminares traen funciones nuevas antes que una versión estable, y pueden tener más errores.',
+  'This copy is a prerelease, so newer prereleases are always included.':
+    'Esta copia es una versión preliminar, así que las versiones preliminares más nuevas siempre se incluyen.',
+  'Check now': 'Comprobar ahora',
+  'This is Tabherd {version}.': 'Esta es la versión {version} de Tabherd.',
+  '{version} is out.': 'Ya está disponible la {version}.',
+  'It’s the latest: checked {time}.': 'Es la más reciente: comprobado {time}.',
+  "The last check didn't reach GitHub: {error}": 'La última comprobación no llegó a GitHub: {error}',
+  'You have the latest version.': 'Tienes la versión más reciente.',
+  "There's no newer version.": 'No hay ninguna versión más reciente.',
+  'Tabherd {version} is out': 'Ya está disponible Tabherd {version}',
+  'You have {version}.': 'Tienes la {version}.',
+  'This one is a prerelease, to try before a release has it.': 'Es una versión preliminar, para probar antes de que llegue a una versión estable.',
+  'How to update': 'Cómo actualizar',
+  'This copy runs from a clone of the repository. Pull the new version, then start the server again:':
+    'Esta copia se ejecuta desde un clon del repositorio. Trae la versión nueva y vuelve a iniciar el servidor:',
+  'Installed with Homebrew:': 'Instalado con Homebrew:',
+  'Installed with winget:': 'Instalado con winget:',
+  'Download the new installer from the release and run it. It installs over this version.':
+    'Descarga el nuevo instalador desde la versión publicada y ejecútalo. Se instala sobre esta versión.',
+  "Download the new zip from the release, and put its folder in place of this one's.":
+    'Descarga el nuevo zip desde la versión publicada y pon su carpeta en lugar de la de esta.',
+  'Download the new disk image from the release, and drag Tabherd to Applications, replacing this version.':
+    'Descarga la nueva imagen de disco desde la versión publicada y arrastra Tabherd a Aplicaciones, reemplazando esta versión.',
+  'Download the new .deb or .rpm from the release, and install it as you did this one.':
+    'Descarga el nuevo .deb o .rpm desde la versión publicada e instálalo como instalaste este.',
+  'Download the new AppImage from the release, and use it in place of this one.': 'Descarga la nueva AppImage desde la versión publicada y úsala en lugar de esta.',
+  "Download the new archive for your system from the release, and unpack it in place of this one's folder.":
+    'Descarga el nuevo archivo para tu sistema desde la versión publicada y descomprímelo en lugar de la carpeta de este.',
+  'Command copied': 'Comando copiado',
+  'Not now': 'Ahora no',
+  'See the release': 'Ver la versión publicada',
   // ---- tour
   'Welcome to Tabherd': 'Te damos la bienvenida a Tabherd',
   'Every Claude Code, Codex and Copilot session on this computer gets a card here, and a ding when it needs you.':

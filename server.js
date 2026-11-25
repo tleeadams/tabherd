@@ -24,6 +24,7 @@ const lmstudio = require('./lib/lmstudio');
 const llamacpp = require('./lib/llamacpp');
 const saved = require('./lib/saved');
 const dismissed = require('./lib/dismissed');
+const updates = require('./lib/updates');
 
 const PORT = Number(process.env.PORT) || 4317;
 const HOST = '127.0.0.1';
@@ -113,6 +114,8 @@ function currentSnapshot() {
         snap.closing = [...closing.keys()];
         const last = saved.get();
         snap.saved = last ? { savedAt: last.savedAt, count: last.sessions.length } : null;
+        // This version, whether to check for a newer one, and any found.
+        snap.updates = updateSummary();
         cached = snap;
         cachedAt = Date.now();
         return snap;
@@ -183,6 +186,17 @@ function configureApps() {
   llamacpp.configure({ url: s.llamacppUrl });
 }
 configureApps();
+
+const updateSummary = () => updates.summary(settings.get().updateCheck, settings.get().updatePrereleases);
+
+// Checks GitHub for a newer Tabherd, if Settings says to and it's been a day,
+// or at once for Check now, and tells open dashboards what it found.
+async function checkForUpdates({ force = false } = {}) {
+  const result = await updates.check({ enabled: settings.get().updateCheck === true, force });
+  cached = null;
+  if (streams.size) pushSnapshot();
+  return result;
+}
 
 // Opens a tab running `command` in `dir`, in the terminal chosen in Settings.
 // The command is always built here, never sent by the page.
@@ -468,9 +482,31 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'GET') return send(res, 200, { ok: true, settings: forPage(settings.get()), terminals: terminals.terminals() });
       if (req.method !== 'POST') return send(res, 405, { error: 'Use GET or POST' });
       if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
-      const result = settings.update(await readJson(req));
+      const body = await readJson(req);
+      const result = settings.update(body);
       if (result.ok) configureApps();
+      // Every dashboard hears the answer to checking for updates, and a yes
+      // checks now. Prereleases on or off needs no new check.
+      if (result.ok && ('updateCheck' in body || 'updatePrereleases' in body)) {
+        cached = null;
+        pushSnapshot();
+        if (body.updateCheck) checkForUpdates().catch(() => {});
+      }
       return send(res, result.ok ? 200 : 400, result.ok ? { ...result, settings: forPage(result.settings) } : result);
+    }
+
+    // A newer Tabherd's notes, and how to update this copy, for the update dialog.
+    if (req.method === 'GET' && url.pathname === '/api/updates') {
+      return send(res, 200, { ok: true, ...updates.details(settings.get().updatePrereleases) });
+    }
+
+    // Check now: asks GitHub at once, whatever Settings says, as someone asked.
+    if (url.pathname === '/api/updates/check') {
+      if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
+      if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
+      const result = await checkForUpdates({ force: true });
+      if (result.failedAt > result.checkedAt) return send(res, 502, { ok: false, error: `Couldn't reach GitHub: ${result.error}` });
+      return send(res, 200, { ok: true, ...updateSummary() });
     }
 
     if (url.pathname === '/api/repos/open') {
@@ -642,6 +678,9 @@ async function main() {
     currentSnapshot()
       .then(() => history.backfill())
       .catch(() => {});
+    // Only once Settings says yes, and then once a day.
+    checkForUpdates().catch(() => {});
+    setInterval(() => checkForUpdates().catch(() => {}), 60 * 60 * 1000).unref();
     if (process.argv.includes('--exit-when-idle')) {
       setInterval(() => !streams.size && Date.now() - lastRequestAt > IDLE_EXIT_MS && process.exit(0), 30000).unref();
     }
