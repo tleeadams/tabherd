@@ -21,6 +21,7 @@ const comfy = require('./lib/comfy');
 const localai = require('./lib/localai');
 const ollama = require('./lib/ollama');
 const lmstudio = require('./lib/lmstudio');
+const llamacpp = require('./lib/llamacpp');
 const saved = require('./lib/saved');
 const dismissed = require('./lib/dismissed');
 
@@ -177,6 +178,7 @@ function configureApps() {
   localai.configure({ url: s.localaiUrl, key: s.localaiKey });
   ollama.configure({ url: s.ollamaUrl });
   lmstudio.configure({ url: s.lmstudioUrl, key: s.lmstudioKey });
+  llamacpp.configure({ url: s.llamacppUrl });
 }
 configureApps();
 
@@ -221,16 +223,17 @@ async function action(res, sessionId, name) {
     return send(res, 200, { ok: true });
   }
   // LocalAI: Unload a model, Stop a chat's turn, Cancel a download or agent
-  // job. Ollama and LM Studio: Unload a model.
-  const service = { localai, ollama, lmstudio }[agent.app];
+  // job. Ollama, LM Studio and llama.cpp: Unload a model.
+  const service = { localai, ollama, lmstudio, llamacpp }[agent.app];
   if (service && ['stop', 'cancel', 'unload'].includes(name)) {
     const result = await service.act(agent, name);
     return send(res, result.ok ? 200 : 500, result);
   }
   // A ComfyUI job: Stop and Cancel go to its ComfyUI, which ends a running
-  // job or takes a queued one out of the queue.
-  if (agent.app === 'comfy' && (name === 'stop' || name === 'cancel')) {
-    const result = await comfy.cancel(agent);
+  // job or takes a queued one out of the queue. A model's Unload frees all of
+  // its ComfyUI's models.
+  if (agent.app === 'comfy' && ['stop', 'cancel', 'unload'].includes(name)) {
+    const result = name === 'unload' ? await comfy.unload(agent) : await comfy.cancel(agent);
     return send(res, result.ok ? 200 : 500, result);
   }
   // A VS Code Copilot session runs in VS Code's agent host, with every other
