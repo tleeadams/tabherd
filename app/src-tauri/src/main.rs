@@ -75,7 +75,16 @@ fn plain(path: PathBuf) -> PathBuf {
 // resources.
 fn start_server(app: &AppHandle, port: u16) -> Result<(Child, PathBuf), String> {
     let exe = plain(tauri::utils::platform::current_exe().map_err(|e| e.to_string())?);
-    let bundled = exe.with_file_name(if cfg!(windows) { "node.exe" } else { "node" });
+    // On Linux it's tabherd-node, as the packages put it in /usr/bin, beside
+    // any node the system has.
+    let name = if cfg!(windows) {
+        "node.exe"
+    } else if cfg!(target_os = "linux") {
+        "tabherd-node"
+    } else {
+        "node"
+    };
+    let bundled = exe.with_file_name(name);
     let node = if bundled.exists() {
         bundled
     } else {

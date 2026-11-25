@@ -115,6 +115,7 @@ The server's files go in as bundle resources: the same list `build-release.js` s
 
 - Built on `ubuntu-22.04` (x64) and `ubuntu-22.04-arm` (arm64). The older glibc there means the build runs on more distributions.
 - **Output:** `.deb`, `.rpm` and AppImage. They need WebKitGTK 4.1.
+- The packages put the app and its Node in `/usr/bin`, so Node is `tabherd-node` there. As `node` it would clash with the system's own Node package, and the install would fail.
 - No signing.
 
 ### Apple signing, automatic on release
@@ -153,7 +154,7 @@ gh secret set APPLE_API_PRIVATE_KEY --env release < AuthKey_XXXXXXXXXX.p8
 
 - Tauri imports the certificate into a temporary keychain. It signs the app and the Node sidecar with the hardened runtime and the entitlements above, sends the app to Apple for notarization, and staples the ticket.
 - The job then checks the result with `codesign --verify --deep --strict`, `spctl --assess` and `xcrun stapler validate`. It fails rather than release an app that doesn't pass, as the Windows job does with SignPath's signature.
-- **The switch:** a variable, `APPLE_SIGNING`, turns this on, as `SIGNPATH_ORGANIZATION_ID` does for Windows. Until it's set, the macOS app is left out of releases and the current `tar.gz` ships instead (*decision 4*). An unsigned app downloaded from GitHub is blocked by Gatekeeper.
+- **The switch:** a variable, `APPLE_SIGNING`, turns this on, as `SIGNPATH_ORGANIZATION_ID` does for Windows. Until it's set, the macOS app is left out of releases and the current `tar.gz` ships instead (*decision 4*). An unsigned app downloaded from GitHub is blocked by Gatekeeper. A prerelease (a tag with a hyphen) has the app all the same, signed ad hoc with no identity, so it can be tried: Apple silicon won't open a downloaded app that isn't signed at all, and with an ad hoc signature macOS asks once, in System Settings → Privacy & Security → *Open Anyway*. With signing off, the build isn't given the Apple secrets.
 
 ## Testing
 
@@ -222,4 +223,5 @@ A short spike on Windows, before the rest:
 - **Building on Windows needs Rust's MSVC toolchain.** A machine whose default is the GNU one can add MSVC alongside and use `RUSTUP_TOOLCHAIN=stable-x86_64-pc-windows-msvc`.
 - **Checked by hand on Windows** (the owner, 2026-11-24): Go to window, Catch up and the folder picker bring their windows forward with Tabherd in front, and PR links open in the browser.
 - **Still to check:** the first signed release.
-- **Next:** phase 2, macOS. CI already lints and compiles the app on macOS and Linux.
+- **Phase 2, macOS, is ready for its keys** (2026-11-24). `build-release.js --target macos-<arch> --app` builds the disk image; the Release workflow's `build-macos` job runs it for Apple silicon and Intel once `APPLE_SIGNING` is on, then checks the signature, Gatekeeper and the stapled ticket. CI builds the same image unsigned on every change. CONTRIBUTING has the setup. Still to see: the first signed, notarized build, and the app on a Mac.
+- **Phase 3, Linux, in releases** (2026-11-24). `build-release.js --target linux-<arch> --app` builds the .deb, .rpm and AppImage; the Release workflow's `build-linux` job runs it on Ubuntu 22.04 for x64 and arm64, and CI builds the x64 ones on every change. A prerelease has the macOS app signed ad hoc while Apple signing is off, so both can be tried before a release has them. Still to see: the app on a Linux desktop.

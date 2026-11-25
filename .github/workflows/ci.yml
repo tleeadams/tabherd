@@ -85,19 +85,21 @@ jobs:
       - run: node ../../scripts/stage-app.js
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
-      # On macOS and Linux, the app unsigned, to try, kept for a week. The
+      # On macOS and Linux, the app to try, kept for a week, built as a
+      # release's is, by the release script: signed ad hoc on macOS. The
       # build job makes Windows' installer.
       - name: Build the app to try
         if: runner.os != 'Windows'
-        run: npx --yes @tauri-apps/cli@2 build --bundles ${{ runner.os == 'Linux' && 'deb,appimage' || 'dmg' }}
+        run: node ../../scripts/build-release.js --target ${{ runner.os == 'Linux' && 'linux-x64' || 'macos-arm64' }} --app
       - uses: actions/upload-artifact@v7
         if: runner.os != 'Windows'
         with:
           name: app-${{ matrix.os }}
           path: |
-            app/src-tauri/target/release/bundle/dmg/*.dmg
-            app/src-tauri/target/release/bundle/deb/*.deb
-            app/src-tauri/target/release/bundle/appimage/*.AppImage
+            dist/*.dmg
+            dist/*.deb
+            dist/*.rpm
+            dist/*.AppImage
           retention-days: 7
 
   build-unix:
