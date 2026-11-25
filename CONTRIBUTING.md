@@ -71,6 +71,15 @@ Then open a pull request into `develop` and ask for a review.
 
 Keep examples, tests and docs free of real names. Use made-up projects, folders and people (`work/acme/api`, "API - auth") rather than ones from your own computer or work.
 
+### Languages
+
+The page is written in English and shown in the language chosen in Settings. Each other language has a table in `public/lang/<code>.js`, from the English as the page has it to that language.
+
+- In `public/app.js`, every text the page shows goes through `tr()`, with `{name}` for what's filled in: `tr('Moved to {group}', { group: g.name })`. A count goes through `trn()`, with the English for one and for more: `trn(n, '{n} prompt', '{n} prompts')`. Keep each sentence whole in one text, so a language can put its words in its own order.
+- Text in `public/index.html` is translated as the page loads, piece by piece. Where words run either side of a `<b>` or `<code>`, mark the element `data-i18n` so it's translated whole, markup and all.
+- Add the Spanish for each new text to `public/lang/es.js`. `npm test` lists any the page uses that the table doesn't have, any the table has that nothing uses, and any whose `{name}` parts or markup don't match.
+- A new language: a table like `es.js`, its name in `LANGUAGES` in `app.js`, a `<script>` for it in `index.html`, and its path in `STATIC` in `server.js`.
+
 ## Releasing
 
 1. Start the release from `develop`: `git switch -c release/<version> develop`. Set the version in `package.json` and add a `## <version>` section to `CHANGELOG.md`; the release notes come from it. Commit, push, and open a pull request into `main`.

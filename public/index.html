@@ -82,7 +82,7 @@
     <div id="list" class="list"></div>
     <div id="empty" class="empty" hidden>
       <p class="empty-title">No Claude Code or Codex sessions are running.</p>
-      <p>Start one with <code>claude</code> or <code>codex</code> in any terminal and it will appear here within a few seconds.</p>
+      <p data-i18n>Start one with <code>claude</code> or <code>codex</code> in any terminal and it will appear here within a few seconds.</p>
     </div>
   </main>
 
@@ -104,7 +104,7 @@
       </div>
     </div>
     <nav id="repos-tree" class="tree" aria-label="Repositories"></nav>
-    <p id="repos-foot" class="drawer-foot">Click a repo to open a terminal tab there running <code id="repos-command">claude</code>.</p>
+    <p id="repos-foot" class="drawer-foot" data-i18n>Click a repo to open a terminal tab there running <code id="repos-command">claude</code>.</p>
     <p id="repos-pick-foot" class="drawer-foot" hidden></p>
   </dialog>
 
@@ -134,6 +134,13 @@
         <nav id="settings-nav" class="settings-nav" role="tablist" aria-label="Settings sections"></nav>
         <div class="settings-panels">
           <section class="settings-section" id="settings-appearance" data-title="Appearance">
+            <fieldset>
+              <legend>Language</legend>
+              <label class="field language-field">
+                <select id="language" aria-label="Language"></select>
+              </label>
+              <p class="settings-help">Changing it reloads the page.</p>
+            </fieldset>
             <fieldset>
               <legend>Theme</legend>
               <div class="segmented">
@@ -241,7 +248,7 @@
               </div>
               <label class="choice">
                 <input type="checkbox" id="skip-permissions">
-                <span class="choice-text"><b>Skip permission prompts</b><span>Sessions the dashboard opens run <code>claude --dangerously-skip-permissions</code>, or <code>codex --dangerously-bypass-approvals-and-sandbox</code>, so they edit files and run commands without asking. Only for folders you trust.</span></span>
+                <span class="choice-text"><b>Skip permission prompts</b><span data-i18n>Sessions the dashboard opens run <code>claude --dangerously-skip-permissions</code>, or <code>codex --dangerously-bypass-approvals-and-sandbox</code>, so they edit files and run commands without asking. Only for folders you trust.</span></span>
               </label>
               <div id="terminal-setting" hidden>
                 <label class="field">
@@ -292,7 +299,7 @@
           <section class="settings-section" id="settings-to-dos" data-title="To-dos">
             <fieldset>
               <legend>To-dos</legend>
-              <p class="settings-help">A to-do starts Claude in its folder. Without one, it starts in the folder below, where Claude can make a new project. <b>Choose folder</b> on a to-do picks one from:</p>
+              <p class="settings-help" data-i18n>A to-do starts Claude in its folder. Without one, it starts in the folder below, where Claude can make a new project. <b>Choose folder</b> on a to-do picks one from:</p>
               <div class="segmented">
                 <label><input type="radio" name="todo-source" value="repos">Repo menu</label>
                 <label><input type="radio" name="todo-source" value="picker">Any folder</label>
@@ -405,7 +412,7 @@
   <dialog id="save-close" class="confirm">
     <form method="dialog">
       <h2 id="save-close-title"></h2>
-      <p>Each one's tab closes too. <b>Resume last session</b>, in the same menu, opens them again, carrying on each conversation.</p>
+      <p data-i18n>Each one's tab closes too. <b>Resume last session</b>, in the same menu, opens them again, carrying on each conversation.</p>
       <ul id="save-close-list" class="save-close-list"></ul>
       <fieldset id="save-close-busy" class="save-close-busy">
         <legend id="save-close-busy-text"></legend>
@@ -422,7 +429,7 @@
 
   <dialog id="confirm" class="confirm">
     <form method="dialog">
-      <h2>Stop <span id="confirm-name"></span>?</h2>
+      <h2 data-i18n>Stop <span id="confirm-name"></span>?</h2>
       <p id="confirm-what"></p>
       <p>You can reopen the conversation later with:</p>
       <pre id="confirm-resume"></pre>
@@ -463,6 +470,8 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite" popover="manual"></div>
+  <!-- Each language's words, in LANGUAGES in app.js and STATIC in server.js. -->
+  <script src="/lang/es.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

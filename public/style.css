@@ -1015,6 +1015,13 @@ button:focus-visible, a:focus-visible, summary:focus-visible, .msg .text:focus-v
   background: var(--bg);
 }
 .list.memory-float .mem-models { max-height: 30dvh; overflow-y: auto; }
+/* In the desktop app's Transparency, it stays solid, so the cards passing
+   under it don't show through, and the gap above it is like the header. */
+:root.see-through .list.memory-float .memory-card { background: var(--panel); }
+:root.see-through .list.memory-float .memory-card::before {
+  background: color-mix(in srgb, var(--bg) calc(100% - var(--see-through)), transparent);
+  backdrop-filter: blur(8px);
+}
 .mem-title { margin: 0; font-size: 14px; font-weight: 650; }
 .mem-bars { display: grid; gap: 6px; margin-top: 10px; }
 .mem-row { display: grid; grid-template-columns: minmax(80px, 220px) minmax(120px, 420px) auto; align-items: center; gap: 12px; font-size: 12.5px; }

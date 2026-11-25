@@ -20,29 +20,78 @@ try {
   firstVisit = !Object.keys(localStorage).some((key) => key.startsWith('tabherd:'));
 } catch {}
 
+// ---- language ----------------------------------------------------------------
+
+// The page's words are written in English, and tr() gives each in the language
+// chosen in Settings → Appearance, from that language's table in public/lang,
+// or the English where the table has none. {name} in a text is filled from
+// vars. trn() picks the form for a count: a table gives one text for each of
+// the English forms, or, for a language with more forms than English, its
+// own forms (Intl.PluralRules' one, few, many, other) under the English plural.
+const LANGUAGES = { en: 'English', es: 'Español' };
+const LANGUAGE_KEY = 'tabherd:language';
+// Automatic follows the browser's languages, the first one there's a table for.
+const browserLanguage =
+  (navigator.languages || [navigator.language]).map((l) => String(l).toLowerCase().split('-')[0]).find((l) => l in LANGUAGES) || 'en';
+let languageChoice = 'auto';
+try {
+  languageChoice = localStorage.getItem(LANGUAGE_KEY) || 'auto';
+} catch {}
+const lang = languageChoice in LANGUAGES ? languageChoice : browserLanguage;
+// Each table is a script in public/lang, loaded before this one.
+const phrases = (lang !== 'en' && window.TABHERD_LANGUAGES?.[lang]) || {};
+const plurals = new Intl.PluralRules(lang);
+const fillIn = (text, vars) => (vars ? text.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m)) : text);
+const tr = (text, vars) => fillIn(typeof phrases[text] === 'string' ? phrases[text] : text, vars);
+function trn(n, one, other, vars) {
+  const forms = phrases[other];
+  if (forms && typeof forms === 'object') return fillIn(forms[plurals.select(n)] ?? forms.other, { n, ...vars });
+  return tr(n === 1 ? one : other, { n, ...vars });
+}
+
+// The page's own text, translated once as it loads. An element marked
+// data-i18n is translated whole, markup and all, where the words on either
+// side of a <b> or <code> need to move together; elsewhere each piece of text
+// is, leaving out code. So are titles, labels and placeholders.
+function translatePage() {
+  if (lang === 'en') return;
+  document.documentElement.lang = lang;
+  for (const node of document.querySelectorAll('[data-i18n]')) node.innerHTML = tr(node.innerHTML.replace(/\s+/g, ' ').trim());
+  const skip = (n) => n.parentElement.closest('[data-i18n], code, pre, script, style') || !n.nodeValue.trim();
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, { acceptNode: (n) => (skip(n) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT) });
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const text = n.nodeValue.trim();
+    n.nodeValue = n.nodeValue.replace(text, () => tr(text.replace(/\s+/g, ' ')));
+  }
+  for (const attr of ['title', 'aria-label', 'placeholder', 'data-title', 'alt']) {
+    for (const node of document.querySelectorAll(`[${attr}]`)) node.setAttribute(attr, tr(node.getAttribute(attr)));
+  }
+}
+translatePage();
+
 const STATUS = {
-  waiting: { label: 'Needs you', group: 'needs', rank: 0 },
-  busy: { label: 'Working', group: 'working', rank: 1 },
-  shell: { label: 'Shell running', group: 'working', rank: 2, hint: 'At the prompt while a background shell task runs' },
+  waiting: { label: tr('Needs you'), group: 'needs', rank: 0 },
+  busy: { label: tr('Working'), group: 'working', rank: 1 },
+  shell: { label: tr('Shell running'), group: 'working', rank: 2, hint: tr('At the prompt while a background shell task runs') },
   // A ComfyUI job or a download waiting its turn.
-  queued: { label: 'Queued', group: 'working', rank: 3, hint: 'Waiting for the ones before it' },
-  idle: { label: 'Idle', group: 'idle', rank: 4 },
-  unknown: { label: 'Starting', group: 'idle', rank: 5 },
+  queued: { label: tr('Queued'), group: 'working', rank: 3, hint: tr('Waiting for the ones before it') },
+  idle: { label: tr('Idle'), group: 'idle', rank: 4 },
+  unknown: { label: tr('Starting'), group: 'idle', rank: 5 },
   // A model loaded in LocalAI: not anyone's turn, so in no filter but All.
-  loaded: { label: 'Loaded', group: 'resource', rank: 6 },
+  loaded: { label: tr('Loaded'), group: 'resource', rank: 6 },
 };
 // The statuses a filter can pick: status groups, with Shell running apart
 // from the rest of Working.
-const FILTER_STATUSES = { needs: 'Needs you', working: 'Working', shell: 'Shell running', idle: 'Idle' };
+const FILTER_STATUSES = { needs: tr('Needs you'), working: tr('Working'), shell: tr('Shell running'), idle: tr('Idle') };
 const filterStatus = (x) => (x.status === 'shell' ? 'shell' : status(x).group);
 const MAX_FILTERS = 12;
 const PERMISSION_MODES = {
-  bypassPermissions: 'bypass',
-  acceptEdits: 'accept edits',
-  plan: 'plan mode',
-  auto: 'auto',
-  dontAsk: "don't ask",
-  'never-ask': 'never asks',
+  bypassPermissions: tr('bypass'),
+  acceptEdits: tr('accept edits'),
+  plan: tr('plan mode'),
+  auto: tr('auto'),
+  dontAsk: tr("don't ask"),
+  'never-ask': tr('never asks'),
 };
 // Which app each session is, on its card and in the history.
 const APPS = { claude: 'Claude', codex: 'Codex', copilot: 'Copilot', comfy: 'Comfy', localai: 'LocalAI', ollama: 'Ollama', lmstudio: 'LM Studio', llamacpp: 'llama.cpp' };
@@ -50,19 +99,28 @@ const APPS = { claude: 'Claude', codex: 'Codex', copilot: 'Copilot', comfy: 'Com
 // downloads and chats, and the other model servers' loaded models.
 const isItem = (a) => ['comfy', 'localai', 'ollama', 'lmstudio', 'llamacpp'].includes(a.app);
 const APP_HINTS = {
-  claude: 'A Claude Code session',
-  codex: 'A Codex session',
-  copilot: 'A GitHub Copilot session',
-  comfy: 'A ComfyUI job',
-  localai: 'From LocalAI',
-  ollama: 'From Ollama',
-  lmstudio: 'From LM Studio',
-  llamacpp: "From llama.cpp's server",
+  claude: tr('A Claude Code session'),
+  codex: tr('A Codex session'),
+  copilot: tr('A GitHub Copilot session'),
+  comfy: tr('A ComfyUI job'),
+  localai: tr('From LocalAI'),
+  ollama: tr('From Ollama'),
+  lmstudio: tr('From LM Studio'),
+  llamacpp: tr("From llama.cpp's server"),
 };
 const appTag = (x) => el('span', { class: `app app-${x.app || 'claude'}`, title: APP_HINTS[x.app] || APP_HINTS.claude }, APPS[x.app] || APPS.claude);
 // The colours a group can have, as the server knows them. Each is set for
 // light and dark in the stylesheet, as .g-<name>.
-const GROUP_COLORS = { rose: 'Rose', orange: 'Orange', olive: 'Olive', teal: 'Teal', indigo: 'Indigo', plum: 'Plum', brown: 'Brown', slate: 'Slate' };
+const GROUP_COLORS = {
+  rose: tr('Rose'),
+  orange: tr('Orange'),
+  olive: tr('Olive'),
+  teal: tr('Teal'),
+  indigo: tr('Indigo'),
+  plum: tr('Plum'),
+  brown: tr('Brown'),
+  slate: tr('Slate'),
+};
 
 const $ = (id) => document.getElementById(id);
 const list = $('list');
@@ -98,25 +156,32 @@ const noSubmit = (then) => (e) => {
 const now = () => Date.now() + clockSkew;
 const ms = (t) => (typeof t === 'number' ? t : t ? Date.parse(t) : NaN);
 
+// Seconds, minutes, hours and days, short.
+const UNITS = { s: tr('{n}s'), m: tr('{n}m'), h: tr('{n}h'), d: tr('{n}d') };
+const unit = (u, n) => fillIn(UNITS[u], { n });
+
 function dur(delta) {
   const s = Math.max(0, Math.floor(delta / 1000));
-  if (s < 60) return `${s}s`;
+  if (s < 60) return unit('s', s);
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m`;
+  if (m < 60) return unit('m', m);
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ${m % 60}m`;
-  return `${Math.floor(h / 24)}d ${h % 24}h`;
+  if (h < 24) return `${unit('h', h)} ${unit('m', m % 60)}`;
+  return `${unit('d', Math.floor(h / 24))} ${unit('h', h % 24)}`;
 }
 
-function since(t, suffix = '') {
+// How long since then, kept up to date by tick(), as "5m ago" with ago.
+const sinceText = (at, ago) => (ago ? tr('{time} ago', { time: dur(now() - at) }) : dur(now() - at));
+
+function since(t, ago = false) {
   const at = ms(t);
   if (!Number.isFinite(at)) return null;
-  return el('span', { class: 'since', 'data-since': at, 'data-suffix': suffix, title: new Date(at).toLocaleString() }, dur(now() - at) + suffix);
+  return el('span', { class: 'since', 'data-since': at, 'data-ago': ago, title: new Date(at).toLocaleString(lang) }, sinceText(at, ago));
 }
 
 function tick() {
   for (const node of document.querySelectorAll('[data-since]')) {
-    node.textContent = dur(now() - Number(node.dataset.since)) + node.dataset.suffix;
+    node.textContent = sinceText(Number(node.dataset.since), 'ago' in node.dataset);
   }
 }
 
@@ -187,7 +252,8 @@ async function api(url, body) {
   let res = await request();
   if (res.status === 403 && (await renewToken())) res = await request();
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  // The server's messages are English; the fixed ones are in the tables too.
+  if (!res.ok || !data.ok) throw new Error(data.error ? tr(data.error) : tr('Request failed ({status})', { status: res.status }));
   return data;
 }
 
@@ -222,9 +288,15 @@ async function goToWindow(a, button) {
   if (button) button.disabled = true;
   try {
     const r = await post(a, 'focus');
-    if (r.terminal && !r.tab) toast(`Opened ${r.window}, but couldn't tell which tab is ${displayName(a)}`, true);
-    else if (!r.raised) toast(`Found ${r.terminal ? 'the tab' : r.window}, but Windows kept it in the background. Check the taskbar.`, true);
-    else toast(r.terminal ? `Switched to ${displayName(a)}` : `Opened ${r.window}`);
+    if (r.terminal && !r.tab) toast(tr("Opened {window}, but couldn't tell which tab is {name}", { window: r.window, name: displayName(a) }), true);
+    else if (!r.raised)
+      toast(
+        r.terminal
+          ? tr('Found the tab, but Windows kept it in the background. Check the taskbar.')
+          : tr('Found {window}, but Windows kept it in the background. Check the taskbar.', { window: r.window }),
+        true,
+      );
+    else toast(r.terminal ? tr('Switched to {name}', { name: displayName(a) }) : tr('Opened {window}', { window: r.window }));
   } catch (err) {
     toast(err.message, true);
   } finally {
@@ -237,13 +309,15 @@ async function catchUp(a, button) {
   try {
     const r = await post(a, 'catch-up');
     // A Codex session's window may not be known, which isn't worth a mention.
-    const where = r.raised || (a.app === 'codex' && !a.pid) ? '' : ' Its window stayed in the background.';
-    const after = a.app === 'codex' ? 'turn' : 'step';
-    toast(
-      a.status === 'busy'
-        ? `Queued for ${displayName(a)}. It will answer after its current ${after}.${where}`
-        : `Asked ${displayName(a)} to catch you up.${where}`,
-    );
+    const where = r.raised || (a.app === 'codex' && !a.pid) ? '' : ` ${tr('Its window stayed in the background.')}`;
+    const name = displayName(a);
+    const asked =
+      a.status !== 'busy'
+        ? tr('Asked {name} to catch you up.', { name })
+        : a.app === 'codex'
+          ? tr('Queued for {name}. It will answer after its current turn.', { name })
+          : tr('Queued for {name}. It will answer after its current step.', { name });
+    toast(asked + where);
     refresh();
   } catch (err) {
     toast(err.message, true);
@@ -262,32 +336,38 @@ const groupDef = (id) => (id && (snap?.groups || []).find((g) => g.id === id)) |
 // shows while the card is pointed at or focused.
 function groupChip(x, cwd) {
   const g = groupDef(x.group);
-  const how = x.placed ? 'put there by hand' : 'by its folder';
+  const title = g
+    ? x.placed
+      ? tr('In {group}, put there by hand. Click to change.', { group: g.name })
+      : tr('In {group}, by its folder. Click to change.', { group: g.name })
+    : x.placed
+      ? tr('In no group, put there by hand. Click to choose one.')
+      : tr('In no group. Click to choose one.');
   return el(
     'button',
     {
       type: 'button',
       class: g ? `group-chip g-${g.color}` : 'group-chip none',
-      title: g ? `In ${g.name}, ${how}. Click to change.` : `In no group${x.placed ? ', put there by hand' : ''}. Click to choose one.`,
+      title,
       'aria-haspopup': 'menu',
       onclick: (e) => openGroupMenu(x, cwd, e.currentTarget),
     },
     el('span', { class: 'dot' }),
-    g ? g.name : 'No group',
+    g ? g.name : tr('No group'),
   );
 }
 
 // The group's name in its colour, where it can't be changed, as in History.
 function groupTag(x) {
   const g = groupDef(x.group);
-  return g ? el('span', { class: `group-chip static g-${g.color}`, title: `In ${g.name}` }, el('span', { class: 'dot' }), g.name) : null;
+  return g ? el('span', { class: `group-chip static g-${g.color}`, title: tr('In {group}', { group: g.name }) }, el('span', { class: 'dot' }), g.name) : null;
 }
 
 async function placeIn(x, group) {
   try {
     await api('/api/groups/place', { id: x.id, group });
     const g = groupDef(group);
-    toast(group === 'auto' ? 'Following its folder again' : g ? `Moved to ${g.name}` : 'Moved out of its group');
+    toast(group === 'auto' ? tr('Following its folder again') : g ? tr('Moved to {group}', { group: g.name }) : tr('Moved out of its group'));
   } catch (err) {
     toast(err.message, true);
   }
@@ -315,7 +395,7 @@ function openGroupMenu(x, cwd, button) {
     close();
     placeIn(x, group);
   };
-  const name = el('input', { type: 'text', value: baseName(cwd), maxlength: '40', 'aria-label': 'New group name', autocomplete: 'off', spellcheck: 'false' });
+  const name = el('input', { type: 'text', value: baseName(cwd), maxlength: '40', 'aria-label': tr('New group name'), autocomplete: 'off', spellcheck: 'false' });
   const create = async (e) => {
     e.preventDefault();
     const g = { id: crypto.randomUUID(), name: name.value.trim(), color: freeColor(groups), folders: [cwd] };
@@ -325,7 +405,7 @@ function openGroupMenu(x, cwd, button) {
       // Moved by hand before, it now follows its folder into the new group.
       if (x.placed) await api('/api/groups/place', { id: x.id, group: 'auto' });
       close();
-      toast(`Made ${g.name} for ${shortPath(cwd)}`);
+      toast(tr('Made {group} for {folder}', { group: g.name, folder: shortPath(cwd) }));
     } catch (err) {
       toast(err.message, true);
     }
@@ -333,18 +413,18 @@ function openGroupMenu(x, cwd, button) {
   };
   const items = [
     ...groups.map((g) => item([el('span', { class: `dot g-${g.color}` }), g.name], x.group === g.id, choose(g.id))),
-    item([el('span', { class: 'dot none' }), 'No group'], !x.group, choose(null)),
-    x.placed ? item('Follow its folder again', null, choose('auto'), { title: 'Go back to the group its folder is in' }) : null,
+    item([el('span', { class: 'dot none' }), tr('No group')], !x.group, choose(null)),
+    x.placed ? item(tr('Follow its folder again'), null, choose('auto'), { title: tr('Go back to the group its folder is in') }) : null,
     el('hr'),
     cwd
       ? el(
           'form',
           { class: 'menu-new', onsubmit: create },
-          el('label', { text: `New group for ${shortPath(cwd)}` }),
-          el('div', { class: 'menu-new-row' }, name, el('button', { type: 'submit', class: 'btn btn-primary' }, 'Make')),
+          el('label', { text: tr('New group for {folder}', { folder: shortPath(cwd) }) }),
+          el('div', { class: 'menu-new-row' }, name, el('button', { type: 'submit', class: 'btn btn-primary' }, tr('Make'))),
         )
       : null,
-    item('Edit groups…', null, () => {
+    item(tr('Edit groups…'), null, () => {
       close();
       openSettings('groups-setting');
     }),
@@ -398,11 +478,19 @@ function openSessionsMenu(button) {
   const last = snap?.saved;
   const item = (label, onclick, disabled) => el('button', { type: 'button', class: 'menu-item', role: 'menuitem', disabled: disabled || null, onclick }, label);
   menu.replaceChildren(
-    item(open.length ? `Save and close all (${open.length})` : 'No sessions to close', () => (menu.hidePopover(), confirmSaveClose()), !open.length),
+    item(open.length ? tr('Save and close all ({n})', { n: open.length }) : tr('No sessions to close'), () => (menu.hidePopover(), confirmSaveClose()), !open.length),
     last?.count
-      ? item([el('span', { text: 'Resume last session' }), el('span', { class: 'menu-meta', text: `${last.count} · saved ${dur(now() - last.savedAt)} ago` })], () => (menu.hidePopover(), resumeLast()))
-      : item('No saved session to resume', null, true),
-    snap?.closing?.length ? el('p', { class: 'menu-note', text: `${snap.closing.length} will close when ${snap.closing.length === 1 ? 'its turn ends' : 'their turns end'}` }) : null,
+      ? item(
+          [
+            el('span', { text: tr('Resume last session') }),
+            el('span', { class: 'menu-meta', text: tr('{n} · saved {time} ago', { n: last.count, time: dur(now() - last.savedAt) }) }),
+          ],
+          () => (menu.hidePopover(), resumeLast()),
+        )
+      : item(tr('No saved session to resume'), null, true),
+    snap?.closing?.length
+      ? el('p', { class: 'menu-note', text: trn(snap.closing.length, '{n} will close when its turn ends', '{n} will close when their turns end') })
+      : null,
   );
   showMenu(menu, button);
 }
@@ -411,14 +499,14 @@ function confirmSaveClose() {
   const open = (snap?.agents || []).filter(closable);
   const busy = open.filter(isWorking);
   const left = (snap?.agents || []).filter((a) => !closable(a) && !isItem(a) && !a.background);
-  $('save-close-title').textContent = `Save and close ${open.length} session${open.length === 1 ? '' : 's'}?`;
+  $('save-close-title').textContent = trn(open.length, 'Save and close {n} session?', 'Save and close {n} sessions?');
   $('save-close-list').replaceChildren(
     ...open.map((a) => el('li', {}, el('span', { class: 'save-close-name', text: displayName(a) }), el('span', { class: `badge s-${a.status}` }, el('span', { class: 'dot' }), status(a).label))),
   );
   $('save-close-busy').hidden = !busy.length;
-  $('save-close-busy-text').textContent = `${busy.length} ${busy.length === 1 ? 'is' : 'are'} still working:`;
+  $('save-close-busy-text').textContent = trn(busy.length, '{n} is still working:', '{n} are still working:');
   $('save-close-left').hidden = !left.length;
-  $('save-close-left').textContent = left.length ? `${left.length} in VS Code or another app ${left.length === 1 ? 'stays' : 'stay'} open.` : '';
+  $('save-close-left').textContent = left.length ? trn(left.length, '{n} in VS Code or another app stays open.', '{n} in VS Code or another app stay open.') : '';
   const dialog = $('save-close');
   dialog.returnValue = '';
   dialog.onclose = async () => {
@@ -426,9 +514,9 @@ function confirmSaveClose() {
     const wait = busy.length > 0 && document.querySelector('input[name="save-close-busy"]:checked')?.value === 'wait';
     try {
       const r = await api('/api/sessions/save-close', { wait });
-      const parts = [`Saved ${r.saved}, closed ${r.closed}`];
-      if (r.waiting) parts.push(`${r.waiting} closing when done`);
-      if (r.failed.length) parts.push(`couldn't close ${r.failed.map((f) => `${f.name} (${f.error})`).join(', ')}`);
+      const parts = [tr('Saved {saved}, closed {closed}', { saved: r.saved, closed: r.closed })];
+      if (r.waiting) parts.push(tr('{n} closing when done', { n: r.waiting }));
+      if (r.failed.length) parts.push(tr("couldn't close {list}", { list: r.failed.map((f) => `${f.name} (${tr(f.error)})`).join(', ') }));
       toast(parts.join('. '), r.failed.length > 0);
     } catch (err) {
       toast(err.message, true);
@@ -441,8 +529,8 @@ function confirmSaveClose() {
 async function resumeLast() {
   try {
     const r = await api('/api/sessions/resume-last');
-    const skipped = r.skipped.length ? `. Skipped ${r.skipped.map((s) => `${s.name || 'one'} (${s.why})`).join(', ')}` : '';
-    toast(`Opening ${r.opened} session${r.opened === 1 ? '' : 's'}${skipped}`, r.skipped.length > 0 && !r.opened);
+    const skipped = r.skipped.length ? `. ${tr('Skipped {list}', { list: r.skipped.map((s) => `${s.name || tr('one')} (${tr(s.why)})`).join(', ') })}` : '';
+    toast(trn(r.opened, 'Opening {n} session', 'Opening {n} sessions') + skipped, r.skipped.length > 0 && !r.opened);
   } catch (err) {
     toast(err.message, true);
   }
@@ -451,7 +539,7 @@ async function resumeLast() {
 async function keepOpen(a) {
   try {
     await api('/api/sessions/keep-open', { id: a.id });
-    toast(`${displayName(a)} stays open`);
+    toast(tr('{name} stays open', { name: displayName(a) }));
   } catch (err) {
     toast(err.message, true);
   }
@@ -468,7 +556,7 @@ function expandable(id, text) {
     class: 'text',
     text,
     tabindex: '0',
-    title: 'Click to expand',
+    title: tr('Click to expand'),
     onclick: (e) => {
       const box = e.currentTarget.parentElement;
       box.classList.toggle('expanded');
@@ -484,7 +572,7 @@ function message(a, key, label, m, cls) {
   return el(
     'div',
     { class: `msg ${cls || ''}${expanded.has(id) ? ' expanded' : ''}` },
-    el('span', { class: 'label' }, m.at ? [`${label} · `, since(m.at, ' ago')] : label),
+    el('span', { class: 'label' }, m.at ? [`${label} · `, since(m.at, true)] : label),
     expandable(id, m.text),
   );
 }
@@ -500,9 +588,9 @@ function todoNote(a) {
     el(
       'div',
       { class: 'todo-msg-head' },
-      el('span', { class: 'label', text: 'To-do' }),
+      el('span', { class: 'label', text: tr('To-do') }),
       el('b', { class: 'todo-msg-title', text: t.title, title: t.title }),
-      el('button', { type: 'button', class: 'link-btn', title: 'Copy the title and notes, to paste into Claude', onclick: () => copyTodo(t) }, 'Copy'),
+      el('button', { type: 'button', class: 'link-btn', title: tr('Copy the title and notes, to paste into Claude'), onclick: () => copyTodo(t) }, tr('Copy')),
     ),
     t.notes ? expandable(id, t.notes) : null,
   );
@@ -511,19 +599,21 @@ function todoNote(a) {
 function nowBlock(a) {
   const rows = [];
   if (a.status === 'waiting') {
-    rows.push(el('div', { class: 'now-row' }, el('span', { class: 'what', text: 'Waiting on you' }), el('span', { class: 'detail', text: a.waitingFor || '' })));
+    rows.push(el('div', { class: 'now-row' }, el('span', { class: 'what', text: tr('Waiting on you') }), el('span', { class: 'detail', text: tr(a.waitingFor || '') })));
   }
   for (const t of a.tools || []) {
     rows.push(el('div', { class: 'now-row' }, el('span', { class: 'what', text: t.name }), el('span', { class: 'detail', text: t.detail, title: t.detail }), since(t.at)));
   }
   const runningSubs = a.subagents?.running.length || 0;
   if (a.status === 'busy' && !a.tools?.length) {
-    const what = runningSubs ? 'Waiting on subagents' : 'Thinking';
-    const detail = runningSubs ? `${runningSubs} running` : '';
+    const what = runningSubs ? tr('Waiting on subagents') : tr('Thinking');
+    const detail = runningSubs ? tr('{n} running', { n: runningSubs }) : '';
     rows.push(el('div', { class: 'now-row' }, el('span', { class: 'what', text: what }), el('span', { class: 'detail', text: detail }), since(a.lastEventAt)));
   }
   if (a.status === 'shell' && !a.tools?.length) {
-    rows.push(el('div', { class: 'now-row' }, el('span', { class: 'what', text: 'Background shell' }), el('span', { class: 'detail', text: 'running while the session waits at the prompt' })));
+    rows.push(
+      el('div', { class: 'now-row' }, el('span', { class: 'what', text: tr('Background shell') }), el('span', { class: 'detail', text: tr('running while the session waits at the prompt') })),
+    );
   }
   if (a.detail) rows.push(el('div', { class: 'now-row' }, el('span', { class: 'detail', text: a.detail })));
   return rows.length ? el('div', { class: `now${a.status === 'waiting' ? ' waiting' : ''}` }, rows) : null;
@@ -534,9 +624,9 @@ function activity(a) {
   const parts = [todoNote(a), nowBlock(a)];
   const replyFresh = a.lastReply && ms(a.lastReply.at) >= promptAt;
   const recapFresh = a.recap && ms(a.recap.at) >= Math.max(promptAt, replyFresh ? ms(a.lastReply.at) : 0);
-  if (recapFresh && a.status !== 'busy') parts.push(message(a, 'recap', 'Recap', a.recap));
-  else if (replyFresh) parts.push(message(a, 'reply', a.status === 'busy' ? 'Latest update' : 'Last reply', a.lastReply));
-  if (a.lastPrompt) parts.push(message(a, 'prompt', 'Last prompt', a.lastPrompt, 'prompt'));
+  if (recapFresh && a.status !== 'busy') parts.push(message(a, 'recap', tr('Recap'), a.recap));
+  else if (replyFresh) parts.push(message(a, 'reply', a.status === 'busy' ? tr('Latest update') : tr('Last reply'), a.lastReply));
+  if (a.lastPrompt) parts.push(message(a, 'prompt', tr('Last prompt'), a.lastPrompt, 'prompt'));
   return el('div', { class: 'activity' }, parts);
 }
 
@@ -550,15 +640,15 @@ function stats(a) {
     items.push(
       el(
         'span',
-        { class: 'ctx', title: `Context: ${a.contextTokens.toLocaleString()} of ${a.contextLimit.toLocaleString()} tokens` },
+        { class: 'ctx', title: tr('Context: {used} of {limit} tokens', { used: a.contextTokens.toLocaleString(lang), limit: a.contextLimit.toLocaleString(lang) }) },
         el('span', { class: `bar${pct > 85 ? ' high' : pct > 60 ? ' mid' : ''}` }, fill),
-        `${tokens(a.contextTokens)} / ${tokens(a.contextLimit)} context`,
+        tr('{used} / {limit} context', { used: tokens(a.contextTokens), limit: tokens(a.contextLimit) }),
       ),
     );
   }
-  if (a.outputTokens) items.push(el('span', { title: 'Output tokens generated this session', text: `${tokens(a.outputTokens)} out` }));
-  if (a.prompts) items.push(el('span', { text: `${a.prompts} prompt${a.prompts === 1 ? '' : 's'}` }));
-  if (a.compactions) items.push(el('span', { text: `${a.compactions} compaction${a.compactions === 1 ? '' : 's'}` }));
+  if (a.outputTokens) items.push(el('span', { title: tr('Output tokens generated this session'), text: tr('{n} out', { n: tokens(a.outputTokens) }) }));
+  if (a.prompts) items.push(el('span', { text: trn(a.prompts, '{n} prompt', '{n} prompts') }));
+  if (a.compactions) items.push(el('span', { text: trn(a.compactions, '{n} compaction', '{n} compactions') }));
   return items.length ? el('div', { class: 'stats' }, items) : null;
 }
 
@@ -566,8 +656,8 @@ function subagents(a) {
   const s = a.subagents;
   if (!s || (!s.running.length && !s.finishedTotal)) return null;
   const open = subsOpen.has(a.id) ? subsOpen.get(a.id) : s.running.length > 0;
-  const summary = [`Subagents · ${s.running.length} running`];
-  if (s.finishedTotal) summary.push(` · ${s.finishedTotal} finished`);
+  const summary = [tr('Subagents · {n} running', { n: s.running.length })];
+  if (s.finishedTotal) summary.push(` · ${tr('{n} finished', { n: s.finishedTotal })}`);
   const rows = [
     ...s.running.map((sub) => {
       const tool = sub.tools[sub.tools.length - 1];
@@ -578,17 +668,17 @@ function subagents(a) {
         el('span', { class: 'type', text: sub.type }),
         el('span', { class: 'desc', text: sub.description, title: sub.description }),
         since(sub.startedAt),
-        el('span', { class: 'tool', text: tool ? `${tool.name} · ${tool.detail}` : sub.lastReply?.text || 'Thinking…' }),
+        el('span', { class: 'tool', text: tool ? `${tool.name} · ${tool.detail}` : sub.lastReply?.text || tr('Thinking…') }),
       );
     }),
     ...s.finished.map((sub) =>
       el(
         'li',
-        { class: `sub ${sub.status}`, title: sub.status === 'done' ? 'Finished' : 'Ended without finishing' },
+        { class: `sub ${sub.status}`, title: sub.status === 'done' ? tr('Finished') : tr('Ended without finishing') },
         el('span', { class: 'dot' }),
         el('span', { class: 'type', text: sub.type }),
         el('span', { class: 'desc', text: sub.description, title: sub.description }),
-        since(sub.updatedAt, ' ago'),
+        since(sub.updatedAt, true),
       ),
     ),
   ];
@@ -602,7 +692,7 @@ function subagents(a) {
     },
     el('summary', {}, summary.join('')),
     el('ul', {}, rows),
-    more > 0 ? el('p', { class: 'more', text: `and ${more} more finished` }) : null,
+    more > 0 ? el('p', { class: 'more', text: tr('and {n} more finished', { n: more }) }) : null,
   );
 }
 
@@ -612,32 +702,32 @@ function actions(a) {
   return el(
     'div',
     { class: 'actions' },
-    canFocus(a) ? btn('Go to window', (e) => goToWindow(a, e.currentTarget), 'btn-primary') : null,
+    canFocus(a) ? btn(tr('Go to window'), (e) => goToWindow(a, e.currentTarget), 'btn-primary') : null,
     canCatchUp(a)
-      ? btn('Catch up', (e) => catchUp(a, e.currentTarget), 'btn-accent', {
+      ? btn(tr('Catch up'), (e) => catchUp(a, e.currentTarget), 'btn-accent', {
           disabled: waiting,
           title: waiting
-            ? 'Waiting on a prompt or dialog. Answer it with Go to window first.'
-            : 'Go to the window and ask where things stand',
+            ? tr('Waiting on a prompt or dialog. Answer it with Go to window first.')
+            : tr('Go to the window and ask where things stand'),
         })
       : null,
-    btn('Open folder', async (e) => {
+    btn(tr('Open folder'), async (e) => {
       const b = e.currentTarget;
       b.disabled = true;
       try {
         await post(a, 'open-folder');
-        toast(`Opened ${shortPath(a.cwd)}`);
+        toast(tr('Opened {folder}', { folder: shortPath(a.cwd) }));
       } catch (err) {
         toast(err.message, true);
       } finally {
         b.disabled = false;
       }
     }),
-    btn('Copy resume command', async () => {
+    btn(tr('Copy resume command'), async () => {
       await copy(resumeCommand(a));
-      toast('Resume command copied');
+      toast(tr('Resume command copied'));
     }),
-    inVsCode(a) ? null : btn('Stop…', () => confirmStop(a), 'btn-stop'),
+    inVsCode(a) ? null : btn(tr('Stop…'), () => confirmStop(a), 'btn-stop'),
   );
 }
 
@@ -658,7 +748,7 @@ function itemCard(a) {
     el(
       'div',
       { class: 'card-head' },
-      el('span', { class: `badge s-${a.status}`, title: st.hint }, el('span', { class: 'dot' }), a.statusLabel || st.label),
+      el('span', { class: `badge s-${a.status}`, title: st.hint }, el('span', { class: 'dot' }), a.statusLabel ? tr(a.statusLabel) : st.label),
       since(a.statusSince),
       el('span', { class: 'spacer' }),
       appTag(a),
@@ -667,36 +757,38 @@ function itemCard(a) {
     el(
       'h2',
       { class: 'name' },
-      canFocus(a) ? el('button', { type: 'button', class: 'name-link', title: 'Go to its window', onclick: (e) => goToWindow(a, e.currentTarget) }, a.name) : a.name,
+      canFocus(a) ? el('button', { type: 'button', class: 'name-link', title: tr('Go to its window'), onclick: (e) => goToWindow(a, e.currentTarget) }, tr(a.name)) : tr(a.name),
     ),
     a.host || a.where ? el('div', { class: 'where' }, el('span', { class: 'path', text: [a.host, a.where].filter(Boolean).join(' · ') })) : null,
     el(
       'div',
       { class: 'card-body' },
       a.status === 'waiting' && a.waitingFor
-        ? el('div', { class: 'now waiting' }, el('div', { class: 'now-row' }, el('span', { class: 'detail', text: a.waitingFor, title: a.waitingFor })))
+        ? el('div', { class: 'now waiting' }, el('div', { class: 'now-row' }, el('span', { class: 'detail', text: tr(a.waitingFor), title: tr(a.waitingFor) })))
         : null,
       pct !== null
         ? el('div', { class: 'progress', title: `${Math.round(pct)}%` }, el('span', { class: 'bar' }, fill), el('span', { text: `${Math.round(pct)}%` }))
         : null,
-      a.preview ? el('img', { class: 'preview', src: a.preview, alt: `Output of ${a.name}`, loading: 'lazy' }) : null,
-      a.facts?.length ? el('dl', { class: 'facts' }, a.facts.flatMap(([k, v]) => [el('dt', { text: k }), el('dd', { text: v, title: v })])) : null,
-      a.lastReply ? message(a, 'reply', 'Last reply', a.lastReply) : null,
+      a.preview ? el('img', { class: 'preview', src: a.preview, alt: tr('Output of {name}', { name: tr(a.name) }), loading: 'lazy' }) : null,
+      a.facts?.length ? el('dl', { class: 'facts' }, a.facts.flatMap(([k, v]) => [el('dt', { text: tr(k) }), el('dd', { text: tr(v), title: tr(v) })])) : null,
+      a.lastReply ? message(a, 'reply', tr('Last reply'), a.lastReply) : null,
     ),
     el(
       'div',
       { class: 'actions' },
-      canFocus(a) ? btn('Go to window', (e) => goToWindow(a, e.currentTarget), 'btn-primary') : null,
-      can('open') && a.url ? el('a', { class: 'btn btn-primary', href: a.url, target: '_blank', rel: 'noopener noreferrer' }, a.openLabel || `Open in ${APPS[a.app]}`) : null,
-      can('stop') ? btn('Stop', (e) => itemAction(a, 'stop', e.currentTarget), 'btn-stop') : null,
-      can('cancel') ? btn('Cancel', (e) => itemAction(a, 'cancel', e.currentTarget), 'btn-stop') : null,
-      can('unload') ? btn('Unload', (e) => itemAction(a, 'unload', e.currentTarget), 'btn-stop') : null,
-      can('dismiss') ? btn('Clear', (e) => clearItem(a, e.currentTarget), '', { title: 'Take this off the dashboard' }) : null,
+      canFocus(a) ? btn(tr('Go to window'), (e) => goToWindow(a, e.currentTarget), 'btn-primary') : null,
+      can('open') && a.url
+        ? el('a', { class: 'btn btn-primary', href: a.url, target: '_blank', rel: 'noopener noreferrer' }, a.openLabel ? tr(a.openLabel) : tr('Open in {app}', { app: APPS[a.app] }))
+        : null,
+      can('stop') ? btn(tr('Stop'), (e) => itemAction(a, 'stop', e.currentTarget), 'btn-stop') : null,
+      can('cancel') ? btn(tr('Cancel'), (e) => itemAction(a, 'cancel', e.currentTarget), 'btn-stop') : null,
+      can('unload') ? btn(tr('Unload'), (e) => itemAction(a, 'unload', e.currentTarget), 'btn-stop') : null,
+      can('dismiss') ? btn(tr('Clear'), (e) => clearItem(a, e.currentTarget), '', { title: tr('Take this off the dashboard') }) : null,
     ),
   );
 }
 
-const ITEM_DONE = { stop: 'Stopped', cancel: 'Cancelled', unload: 'Unloaded' };
+const ITEM_DONE = { stop: tr('Stopped {name}'), cancel: tr('Cancelled {name}'), unload: tr('Unloaded {name}') };
 
 // A failed job, chat or download, off the dashboard. No second click: it has
 // already ended.
@@ -716,7 +808,7 @@ async function itemAction(a, action, button) {
   if (!button.classList.contains('btn-danger')) {
     const label = button.textContent;
     button.classList.add('btn-danger');
-    button.textContent = `${label}?`;
+    button.textContent = tr('{label}?', { label });
     setTimeout(() => {
       button.classList.remove('btn-danger');
       button.textContent = label;
@@ -728,7 +820,7 @@ async function itemAction(a, action, button) {
     if (a.leavesWhenDone) stoppedHere.add(a.id);
     const result = await post(a, action);
     // ComfyUI's Unload frees all its models, and says so.
-    toast(result?.done || `${ITEM_DONE[action]} ${a.name}`);
+    toast(result?.done ? tr(result.done) : fillIn(ITEM_DONE[action], { name: tr(a.name) }));
   } catch (err) {
     toast(err.message, true);
   } finally {
@@ -741,15 +833,23 @@ function card(a) {
   if (isItem(a)) return itemCard(a);
   const st = status(a);
   const tags = [];
-  if (a.gitBranch) tags.push(el('span', { class: 'tag branch', title: 'Git branch', text: `⎇ ${a.gitBranch}` }));
+  if (a.gitBranch) tags.push(el('span', { class: 'tag branch', title: tr('Git branch'), text: `⎇ ${a.gitBranch}` }));
   if (a.kind && a.kind !== 'interactive') tags.push(el('span', { class: 'tag', text: a.kind }));
   if (snap?.closing?.includes(a.id)) {
-    tags.push(el('button', { type: 'button', class: 'tag closing', title: 'Save and close will close it when this turn ends. Click to keep it open.', onclick: () => keepOpen(a) }, 'Closes when done ✕'));
+    tags.push(
+      el(
+        'button',
+        { type: 'button', class: 'tag closing', title: tr('Save and close will close it when this turn ends. Click to keep it open.'), onclick: () => keepOpen(a) },
+        `${tr('Closes when done')} ✕`,
+      ),
+    );
   }
-  if (a.background) tags.push(el('span', { class: 'tag background', title: `Running in the background (${a.entrypoint}), with no window`, text: 'Background' }));
+  if (a.background) {
+    tags.push(el('span', { class: 'tag background', title: tr('Running in the background ({how}), with no window', { how: a.entrypoint }), text: tr('Background') }));
+  }
   else if (a.entrypoint && a.entrypoint !== 'cli') tags.push(el('span', { class: 'tag', text: a.entrypoint }));
   const perm = PERMISSION_MODES[a.permissionMode];
-  if (perm) tags.push(el('span', { class: 'tag', title: `Permission mode: ${a.permissionMode}`, text: perm }));
+  if (perm) tags.push(el('span', { class: 'tag', title: tr('Permission mode: {mode}', { mode: a.permissionMode }), text: perm }));
   if (a.version) tags.push(el('span', { text: `v${a.version}` }));
 
   const heading = displayName(a);
@@ -771,13 +871,13 @@ function card(a) {
       el('span', { class: 'spacer' }),
       groupChip(a, a.cwd),
       appTag(a),
-      el('span', { class: 'proc', title: `Session ${a.id}\nStarted ${new Date(a.startedAt).toLocaleString()}`, text: proc.join(' · ') }),
+      el('span', { class: 'proc', title: tr('Session {id}\nStarted {time}', { id: a.id, time: new Date(a.startedAt).toLocaleString(lang) }), text: proc.join(' · ') }),
     ),
     el(
       'h2',
       { class: 'name' },
       canFocus(a)
-        ? el('button', { type: 'button', class: 'name-link', title: 'Go to this session’s window', onclick: (e) => goToWindow(a, e.currentTarget) }, heading)
+        ? el('button', { type: 'button', class: 'name-link', title: tr('Go to this session’s window'), onclick: (e) => goToWindow(a, e.currentTarget) }, heading)
         : heading,
     ),
     subtitle ? el('p', { class: 'title', text: subtitle }) : null,
@@ -812,20 +912,20 @@ const todoText = (t) => (t.notes ? `${t.title}\n\n${t.notes}` : t.title);
 
 async function copyTodo(t) {
   await copy(todoText(t));
-  toast('To-do copied');
+  toast(tr('To-do copied'));
 }
 
 function editTodo(t) {
   editingTodo = t;
-  $('todo-dialog-title').textContent = t ? 'Edit to-do' : 'New to-do';
-  $('todo-save').textContent = t ? 'Save' : 'Add to-do';
+  $('todo-dialog-title').textContent = t ? tr('Edit to-do') : tr('New to-do');
+  $('todo-save').textContent = t ? tr('Save') : tr('Add to-do');
   $('todo-title').value = t?.title || '';
   $('todo-notes').value = t?.notes || '';
   // Which app it starts in, once Codex is installed too.
   $('todo-app-field').hidden = !otherAppsInstalled();
   $('todo-app').querySelector('option[value="codex"]').hidden = !snap?.codexInstalled;
   $('todo-app').querySelector('option[value="copilot"]').hidden = !snap?.copilotInstalled;
-  $('todo-app-default').textContent = `As in Settings (${APPS[snap?.newSessionApp] || APPS.claude})`;
+  $('todo-app-default').textContent = tr('As in Settings ({app})', { app: APPS[snap?.newSessionApp] || APPS.claude });
   $('todo-app').value = t?.app || '';
   $('todo-dialog').showModal();
   $('todo-title').focus();
@@ -837,7 +937,7 @@ async function startTodo(t, button) {
   if (button) button.disabled = true;
   try {
     await api(`/api/todos/${t.id}/start`);
-    toast(`Starting ${APPS[todoApp(t)]} in ${shortPath(t.cwd || snap?.todoStartsIn || '')}`);
+    toast(tr('Starting {app} in {folder}', { app: APPS[todoApp(t)], folder: shortPath(t.cwd || snap?.todoStartsIn || '') }));
   } catch (err) {
     toast(err.message, true);
   } finally {
@@ -855,7 +955,7 @@ async function chooseTodoFolder(t, start, button) {
   }
   const label = button.textContent;
   button.disabled = true;
-  button.textContent = 'Choosing…';
+  button.textContent = tr('Choosing…');
   try {
     const r = await api(`/api/todos/${t.id}/folder`, { pick: true });
     if (r.cancelled) return;
@@ -873,10 +973,10 @@ async function chooseTodoFolder(t, start, button) {
 async function deleteTodo(t, button) {
   if (!button.classList.contains('btn-danger')) {
     button.classList.add('btn-danger');
-    button.textContent = 'Delete?';
+    button.textContent = tr('{label}?', { label: tr('Delete') });
     setTimeout(() => {
       button.classList.remove('btn-danger');
-      button.textContent = 'Delete';
+      button.textContent = tr('Delete');
     }, 3000);
     return;
   }
@@ -903,7 +1003,7 @@ function todoCard(t) {
     el(
       'div',
       { class: 'card-head' },
-      el('span', { class: `badge s-todo${t.starting ? ' starting' : ''}` }, el('span', { class: 'dot' }), t.starting ? 'Starting' : 'To-do'),
+      el('span', { class: `badge s-todo${t.starting ? ' starting' : ''}` }, el('span', { class: 'dot' }), t.starting ? tr('Starting') : tr('To-do')),
       since(t.starting ? t.startedAt : t.createdAt),
       el('span', { class: 'spacer' }),
       groupChip(t, t.cwd || snap?.todoStartsIn),
@@ -916,7 +1016,7 @@ function todoCard(t) {
       { class: 'where' },
       t.cwd
         ? el('span', { class: 'path', title: t.cwd, text: shortPath(t.cwd) })
-        : el('span', { class: 'no-folder', title: 'No folder chosen: it starts here, where Claude can make a new project', text: `Starts in ${startsIn}` }),
+        : el('span', { class: 'no-folder', title: tr('No folder chosen: it starts here, where Claude can make a new project'), text: tr('Starts in {folder}', { folder: startsIn }) }),
     ),
     el(
       'div',
@@ -925,31 +1025,35 @@ function todoCard(t) {
         'div',
         { class: 'activity' },
         t.starting
-          ? el('div', { class: 'now' }, el('div', { class: 'now-row' }, el('span', { class: 'what', text: `Opening ${APPS[todoApp(t)]}` }), el('span', { class: 'detail', text: 'in a new terminal tab' })))
+          ? el(
+              'div',
+              { class: 'now' },
+              el('div', { class: 'now-row' }, el('span', { class: 'what', text: tr('Opening {app}', { app: APPS[todoApp(t)] }) }), el('span', { class: 'detail', text: tr('in a new terminal tab') })),
+            )
           : null,
         stalled
           ? el(
               'div',
               { class: 'now waiting' },
-              el('div', { class: 'now-row' }, el('span', { class: 'what', text: 'No session yet' }), el('span', { class: 'detail', text: 'Check its terminal tab, or start it again' })),
+              el('div', { class: 'now-row' }, el('span', { class: 'what', text: tr('No session yet') }), el('span', { class: 'detail', text: tr('Check its terminal tab, or start it again') })),
             )
           : null,
-        t.notes ? message({ id: TODO_PREFIX + t.id }, 'notes', 'Notes', { text: t.notes }, 'todo-text') : null,
+        t.notes ? message({ id: TODO_PREFIX + t.id }, 'notes', tr('Notes'), { text: t.notes }, 'todo-text') : null,
       ),
     ),
     el(
       'div',
       { class: 'actions' },
       drivable
-        ? btn(stalled ? 'Start again' : 'Start', (e) => startTodo(t, e.currentTarget), 'btn-primary', {
+        ? btn(stalled ? tr('Start again') : tr('Start'), (e) => startTodo(t, e.currentTarget), 'btn-primary', {
             disabled: t.starting,
-            title: `Open a terminal tab in ${startsIn} running ${APPS[todoApp(t)]}`,
+            title: tr('Open a terminal tab in {folder} running {app}', { folder: startsIn, app: APPS[todoApp(t)] }),
           })
         : null,
-      drivable ? btn(t.cwd ? 'Change folder' : 'Choose folder', (e) => chooseTodoFolder(t, false, e.currentTarget), '', { disabled: t.starting }) : null,
-      btn('Copy', () => copyTodo(t), '', { title: 'Copy the title and notes, to paste into Claude' }),
-      btn('Edit', () => editTodo(t)),
-      btn('Delete', (e) => deleteTodo(t, e.currentTarget), 'btn-stop'),
+      drivable ? btn(t.cwd ? tr('Change folder') : tr('Choose folder'), (e) => chooseTodoFolder(t, false, e.currentTarget), '', { disabled: t.starting }) : null,
+      btn(tr('Copy'), () => copyTodo(t), '', { title: tr('Copy the title and notes, to paste into Claude') }),
+      btn(tr('Edit'), () => editTodo(t)),
+      btn(tr('Delete'), (e) => deleteTodo(t, e.currentTarget), 'btn-stop'),
     ),
   );
 }
@@ -984,7 +1088,9 @@ for (const id of ['todo-cancel', 'todo-close']) $(id).addEventListener('click', 
 // ---- memory and models ----------------------------------------------------------
 
 // In binary gigabytes, as Task Manager and nvidia-smi count memory.
-const gb = (n) => (n >= 2 ** 30 ? `${(n / 2 ** 30).toFixed(1)} GB` : `${Math.round(n / 2 ** 20)} MB`);
+// With the language's decimal point.
+const oneDecimal = new Intl.NumberFormat(lang, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const gb = (n) => (n >= 2 ** 30 ? `${oneDecimal.format(n / 2 ** 30)} GB` : `${Math.round(n / 2 ** 20)} MB`);
 
 // A bar for memory in use, of what there is: amber past three quarters, red
 // past nine tenths.
@@ -992,10 +1098,10 @@ function memoryBar(label, used, total, extra) {
   const pct = total ? Math.min(100, (used / total) * 100) : 0;
   const fill = el('i');
   fill.style.width = `${pct.toFixed(1)}%`;
-  const figure = `${gb(used)} of ${gb(total)}${extra ? ` · ${extra}` : ''}`;
+  const figure = tr('{used} of {total}', { used: gb(used), total: gb(total) }) + (extra ? ` · ${extra}` : '');
   return el(
     'div',
-    { class: 'mem-row', title: `${label}: ${figure}, ${Math.round(pct)}% used` },
+    { class: 'mem-row', title: tr('{label}: {figure}, {pct}% used', { label, figure, pct: Math.round(pct) }) },
     el('span', { class: 'mem-label', text: label }),
     el('span', { class: `bar${pct > 90 ? ' high' : pct > 75 ? ' mid' : ''}` }, fill),
     el('span', { class: 'mem-figure', text: figure }),
@@ -1007,19 +1113,24 @@ function memoryBar(label, used, total, extra) {
 // Studio, each with Unload.
 function memoryCard({ memory, models }) {
   const rows = [memoryBar('RAM', memory.ram.used, memory.ram.total)];
-  for (const g of memory.gpus || []) rows.push(memoryBar(g.name, g.used, g.total, Number.isFinite(g.busy) ? `${g.busy}% busy` : null));
+  for (const g of memory.gpus || []) rows.push(memoryBar(g.name, g.used, g.total, Number.isFinite(g.busy) ? tr('{pct}% busy', { pct: g.busy }) : null));
   const modelRows = models.map((m) =>
     el(
       'li',
       { class: 'mem-model' },
       appTag(m),
       el('span', { class: 'mem-model-name', text: m.name, title: [m.name, m.where].filter(Boolean).join(' · ') }),
-      el('span', { class: 'mem-model-facts', text: (m.facts || []).map(([k, v]) => `${k} ${v}`).join(' · ') }),
+      el('span', { class: 'mem-model-facts', text: (m.facts || []).map(([k, v]) => `${tr(k)} ${tr(v)}`).join(' · ') }),
       (m.actions || []).includes('unload')
         ? el(
             'button',
-            { type: 'button', class: 'btn btn-stop', title: m.app === 'comfy' ? `Unloads all of ${m.host}'s models: ComfyUI can't unload one alone` : null, onclick: (e) => itemAction(m, 'unload', e.currentTarget) },
-            'Unload',
+            {
+              type: 'button',
+              class: 'btn btn-stop',
+              title: m.app === 'comfy' ? tr("Unloads all of {name}'s models: ComfyUI can't unload one alone", { name: m.host }) : null,
+              onclick: (e) => itemAction(m, 'unload', e.currentTarget),
+            },
+            tr('Unload'),
           )
         : null,
     ),
@@ -1027,11 +1138,11 @@ function memoryCard({ memory, models }) {
   return el(
     'article',
     { class: 'card memory-card', 'data-id': 'memory' },
-    el('div', { class: 'card-head' }, el('h2', { class: 'mem-title', text: 'Memory and models' })),
+    el('div', { class: 'card-head' }, el('h2', { class: 'mem-title', text: tr('Memory and models') })),
     el('div', { class: 'mem-bars' }, rows),
     modelRows.length
       ? el('ul', { class: 'mem-models' }, modelRows)
-      : el('p', { class: 'mem-none', text: 'No models loaded in ComfyUI, LocalAI, Ollama, LM Studio or llama.cpp.' }),
+      : el('p', { class: 'mem-none', text: tr('No models loaded in ComfyUI, LocalAI, Ollama, LM Studio or llama.cpp.') }),
   );
 }
 
@@ -1116,7 +1227,7 @@ function render() {
       const inGroup = items.filter(([, d]) => (d.group || null) === id);
       if (!inGroup.length) continue;
       const g = groupDef(id);
-      shown.push([`section:${id}`, { name: g ? g.name : 'No group', color: g?.color || null, count: inGroup.length }, sectionHead], ...inGroup);
+      shown.push([`section:${id}`, { name: g ? g.name : tr('No group'), color: g?.color || null, count: inGroup.length }, sectionHead], ...inGroup);
     }
   }
   // The memory card comes first, whatever the filter.
@@ -1149,7 +1260,7 @@ function render() {
   }
   const nothing = !snap.agents.length && !snap.todos?.length;
   $('empty').hidden = !nothing && shown.length > 0;
-  $('empty').querySelector('.empty-title').textContent = nothing ? 'No Claude Code or Codex sessions are running.' : 'No sessions match this filter.';
+  $('empty').querySelector('.empty-title').textContent = nothing ? tr('No Claude Code or Codex sessions are running.') : tr('No sessions match this filter.');
 }
 
 // The app and group filters in the header. Each shows once there's a choice:
@@ -1178,7 +1289,7 @@ function renderViewFilters() {
   // Claude, and each other app with something on the dashboard.
   const apps = ['claude', ...Object.keys(APPS).filter((k) => k !== 'claude' && (k === appFilter || snap.agents.some((a) => a.app === k)))];
   app.hidden = appFilter === 'all' && apps.length < 2;
-  const appOptions = [['all', 'All apps'], ...apps.map((k) => [k, APPS[k]])];
+  const appOptions = [['all', tr('All apps')], ...apps.map((k) => [k, APPS[k]])];
   if (app.dataset.signature !== JSON.stringify(appOptions)) {
     app.replaceChildren(...appOptions.map(([value, text]) => el('option', { value, text })));
     app.dataset.signature = JSON.stringify(appOptions);
@@ -1186,7 +1297,7 @@ function renderViewFilters() {
   app.value = appFilter;
   const select = $('group-filter');
   select.hidden = !groups.length && groupFilter === 'all';
-  const options = [['all', 'All groups'], ...groups.map((g) => [g.id, g.name]), ['none', 'No group']];
+  const options = [['all', tr('All groups')], ...groups.map((g) => [g.id, g.name]), ['none', tr('No group')]];
   const signature = JSON.stringify(options);
   if (select.dataset.signature !== signature) {
     select.replaceChildren(...options.map(([value, text]) => el('option', { value, text })));
@@ -1230,14 +1341,16 @@ function matchesFilter(f, x, isTodo) {
 }
 
 // What a filter shows, in words, like "Needs you or Idle, and to-dos".
+const anyOf = new Intl.ListFormat(lang, { type: 'disjunction' });
+
 function describeFilter(f) {
-  const or = (ids, name) => ids.map(name).filter(Boolean).join(' or ');
+  const or = (ids, name) => anyOf.format(ids.map(name).filter(Boolean));
   return [
-    f.statuses.length ? or(f.statuses, (s) => FILTER_STATUSES[s]) : 'Any status',
+    f.statuses.length ? or(f.statuses, (s) => FILTER_STATUSES[s]) : tr('Any status'),
     f.apps.length ? or(f.apps, (a) => APPS[a]) : null,
-    f.groups.length ? `in ${or(f.groups, (g) => (g === 'none' ? 'no group' : groupDef(g)?.name))}` : null,
+    f.groups.length ? tr('in {groups}', { groups: or(f.groups, (g) => (g === 'none' ? tr('no group') : groupDef(g)?.name)) }) : null,
     f.text ? `“${f.text}”` : null,
-    f.todos ? 'and to-dos' : null,
+    f.todos ? tr('and to-dos') : null,
   ]
     .filter(Boolean)
     .join(', ');
@@ -1254,7 +1367,7 @@ function renderFilterTabs(agents, todos) {
   const filters = snap.filters || [];
   if (filter !== 'all' && !filterDef(filter)) filter = 'all';
   const nav = $('filters');
-  const tabs = [{ id: 'all', name: 'All' }, ...filters];
+  const tabs = [{ id: 'all', name: tr('All') }, ...filters];
   const signature = JSON.stringify([tabs, snap.groups]);
   if (nav.dataset.signature !== signature) {
     nav.replaceChildren(
@@ -1264,10 +1377,10 @@ function renderFilterTabs(agents, todos) {
           {
             type: 'button',
             'data-filter': f.id,
-            title: f.id === 'all' ? 'Everything' : describeFilter(f),
+            title: f.id === 'all' ? tr('Everything') : describeFilter(f),
             onclick: () => chooseFilter(f.id),
           },
-          `${f.name} `,
+          `${tr(f.name)} `,
           el('b', { text: '0' }),
         ),
       ),
@@ -1276,8 +1389,8 @@ function renderFilterTabs(agents, todos) {
         {
           type: 'button',
           class: 'filter-menu-button',
-          title: 'New filter, or change the filters',
-          'aria-label': 'Filter options',
+          title: tr('New filter, or change the filters'),
+          'aria-label': tr('Filter options'),
           'aria-haspopup': 'menu',
           onclick: (e) => openFilterMenu(e.currentTarget),
         },
@@ -1305,10 +1418,10 @@ function openFilterMenu(button) {
     el('button', { type: 'button', class: 'menu-item', role: 'menuitem', disabled: disabled || null, onclick: () => (menu.hidePopover(), onclick()) }, label);
   // All isn't a filter of its own, so with it shown there's none to change.
   const items = [
-    item(full ? `New filter (up to ${MAX_FILTERS})` : 'New filter…', () => editFilter(null), full),
-    shown ? item(`Edit “${shown.name}”…`, () => editFilter(shown)) : null,
+    item(full ? tr('New filter (up to {n})', { n: MAX_FILTERS }) : tr('New filter…'), () => editFilter(null), full),
+    shown ? item(tr('Edit “{name}”…', { name: tr(shown.name) }), () => editFilter(shown)) : null,
     el('hr'),
-    item('Edit filters…', () => openSettings('filters-setting')),
+    item(tr('Edit filters…'), () => openSettings('filters-setting')),
   ];
   menu.replaceChildren(...items.filter(Boolean));
   showMenu(menu, button);
@@ -1335,7 +1448,7 @@ function askTwice(button, then) {
   if (button.classList.contains('btn-danger')) return then();
   const label = button.textContent;
   button.classList.add('btn-danger');
-  button.textContent = `${label}?`;
+  button.textContent = tr('{label}?', { label });
   setTimeout(() => {
     button.classList.remove('btn-danger');
     button.textContent = label;
@@ -1355,9 +1468,11 @@ function filterChecks(box, options, chosen) {
 
 function filterFromForm() {
   const ticked = (id) => [...$(id).querySelectorAll('input:checked')].map((i) => i.value);
+  const name = $('filter-name').value;
   return {
     ...(editingFilter || {}),
-    name: $('filter-name').value,
+    // One of the usual filters, shown in another language, keeps its name.
+    name: editingFilter && name === tr(editingFilter.name) ? editingFilter.name : name,
     statuses: ticked('filter-statuses'),
     apps: ticked('filter-apps'),
     groups: ticked('filter-groups'),
@@ -1373,22 +1488,22 @@ function showFilterCount() {
   const n =
     snap.agents.filter((a) => !onMemoryCard(a) && inView(a) && matchesFilter(f, a, false)).length +
     (snap.todos || []).filter((t) => inView(t) && matchesFilter(f, t, true)).length;
-  $('filter-count').textContent = `Shows ${n} ${n === 1 ? 'card' : 'cards'} now.`;
+  $('filter-count').textContent = trn(n, 'Shows {n} card now.', 'Shows {n} cards now.');
 }
 
 // Opens the editor, for a new filter if `f` is null.
 function editFilter(f) {
   editingFilter = f;
-  $('filter-dialog-title').textContent = f ? 'Edit filter' : 'New filter';
-  $('filter-save').textContent = f ? 'Save' : 'Add filter';
+  $('filter-dialog-title').textContent = f ? tr('Edit filter') : tr('New filter');
+  $('filter-save').textContent = f ? tr('Save') : tr('Add filter');
   $('filter-delete').hidden = !f;
-  $('filter-name').value = f?.name || '';
+  $('filter-name').value = f ? tr(f.name) : '';
   filterChecks($('filter-statuses'), Object.entries(FILTER_STATUSES), f?.statuses || []);
   // Every app, so a filter can be made before an app has anything running.
   filterChecks($('filter-apps'), Object.entries(APPS), f?.apps || []);
   const groups = snap?.groups || [];
   $('filter-groups-field').hidden = !groups.length;
-  filterChecks($('filter-groups'), [...groups.map((g) => [g.id, g.name, g.color]), ['none', 'No group']], f?.groups || []);
+  filterChecks($('filter-groups'), [...groups.map((g) => [g.id, g.name, g.color]), ['none', tr('No group')]], f?.groups || []);
   $('filter-text').value = f?.text || '';
   $('filter-todos').checked = !!f?.todos;
   showFilterCount();
@@ -1444,10 +1559,26 @@ function renderFilterSettings(focusKey) {
       el(
         'li',
         { class: 'filter-row' },
-        el('div', { class: 'filter-row-text' }, el('b', { text: f.name }), el('span', { text: describeFilter(f) })),
-        el('button', { type: 'button', class: 'icon-btn', title: 'Move up', 'aria-label': `Move ${f.name} up`, 'data-focus': `up:${f.id}`, disabled: i === 0, onclick: () => move(i, -1, `up:${f.id}`) }, '↑'),
-        el('button', { type: 'button', class: 'icon-btn', title: 'Move down', 'aria-label': `Move ${f.name} down`, 'data-focus': `down:${f.id}`, disabled: i === filters.length - 1, onclick: () => move(i, 1, `down:${f.id}`) }, '↓'),
-        el('button', { type: 'button', class: 'btn', onclick: () => editFilter(f) }, 'Edit'),
+        el('div', { class: 'filter-row-text' }, el('b', { text: tr(f.name) }), el('span', { text: describeFilter(f) })),
+        el(
+          'button',
+          { type: 'button', class: 'icon-btn', title: tr('Move up'), 'aria-label': tr('Move {name} up', { name: tr(f.name) }), 'data-focus': `up:${f.id}`, disabled: i === 0, onclick: () => move(i, -1, `up:${f.id}`) },
+          '↑',
+        ),
+        el(
+          'button',
+          {
+            type: 'button',
+            class: 'icon-btn',
+            title: tr('Move down'),
+            'aria-label': tr('Move {name} down', { name: tr(f.name) }),
+            'data-focus': `down:${f.id}`,
+            disabled: i === filters.length - 1,
+            onclick: () => move(i, 1, `down:${f.id}`),
+          },
+          '↓',
+        ),
+        el('button', { type: 'button', class: 'btn', onclick: () => editFilter(f) }, tr('Edit')),
         el(
           'button',
           {
@@ -1455,12 +1586,12 @@ function renderFilterSettings(focusKey) {
             class: 'btn btn-stop',
             onclick: (e) => askTwice(e.currentTarget, () => saveFilters(filters.filter((x) => x.id !== f.id)).catch((err) => toast(err.message, true))),
           },
-          'Delete',
+          tr('Delete'),
         ),
       ),
     ),
   );
-  if (!filters.length) box.append(el('li', { class: 'filter-none', text: 'Only All, for now.' }));
+  if (!filters.length) box.append(el('li', { class: 'filter-none', text: tr('Only All, for now.') }));
   $('filter-add').disabled = filters.length >= MAX_FILTERS;
   if (focused) box.querySelector(`[data-focus="${CSS.escape(focused)}"]:not(:disabled)`)?.focus();
 }
@@ -1532,12 +1663,12 @@ function updateSoundButton() {
   button.classList.toggle('off', !soundOn);
   button.classList.toggle('blocked', blocked);
   button.setAttribute('aria-pressed', String(soundOn));
-  $('sound-label').textContent = blocked ? 'Click to enable sound' : '';
+  $('sound-label').textContent = blocked ? tr('Click to enable sound') : '';
   button.title = !soundOn
-    ? 'Sound is off. Click to ding when an agent needs you or finishes.'
+    ? tr('Sound is off. Click to ding when an agent needs you or finishes.')
     : blocked
-      ? 'The browser blocks sound until you click the page'
-      : 'Dings when an agent needs you or finishes. Click to mute.';
+      ? tr('The browser blocks sound until you click the page')
+      : tr('Dings when an agent needs you or finishes. Click to mute.');
 }
 
 // Browsers only let a page play sound after it has been clicked or typed in.
@@ -1581,9 +1712,11 @@ function announce({ needs, done }) {
     void node.offsetWidth;
     node.classList.add('flash');
   }
-  const names = (list) => (list.length === 1 ? displayName(list[0]) : `${list.length} agents`);
-  if (needs.length) toast(`${names(needs)} ${needs.length === 1 ? 'needs' : 'need'} you${needs.length === 1 && needs[0].waitingFor ? `: ${needs[0].waitingFor}` : ''}`);
-  else toast(`${names(done)} finished`);
+  const [one] = needs.length ? needs : done;
+  const name = displayName(one);
+  if (needs.length > 1) toast(tr('{n} agents need you', { n: needs.length }));
+  else if (needs.length) toast(one.waitingFor ? tr('{name} needs you: {what}', { name, what: tr(one.waitingFor) }) : tr('{name} needs you', { name }));
+  else toast(done.length > 1 ? tr('{n} agents finished', { n: done.length }) : tr('{name} finished', { name }));
   if (Date.now() - lastDingAt < DING_GAP_MS) return;
   lastDingAt = Date.now();
   ding(needs.length ? 'needs' : 'done');
@@ -1661,8 +1794,18 @@ function renderNotes() {
   notesKey = key;
   $('notes-list').replaceChildren(
     ...rows.map(({ n, a, name, focus }) => {
-      const what = [n.kind === 'needs' ? `Needs you${n.detail ? `: ${n.detail}` : ''}` : n.label || (n.background ? 'Finished in the background' : 'Finished')];
-      if (!a && !n.gone && !n.background) what.push('session closed');
+      const what = [
+        n.kind === 'needs'
+          ? n.detail
+            ? tr('Needs you: {what}', { what: tr(n.detail) })
+            : tr('Needs you')
+          : n.label
+            ? tr(n.label)
+            : n.background
+              ? tr('Finished in the background')
+              : tr('Finished'),
+      ];
+      if (!a && !n.gone && !n.background) what.push(tr('session closed'));
       return el(
         'li',
         { class: `note k-${n.kind}` },
@@ -1671,15 +1814,19 @@ function renderNotes() {
           'span',
           { class: 'note-text' },
           focus
-            ? el('button', { type: 'button', class: 'name-link note-name', title: 'Go to this session’s window', onclick: (e) => goToWindow(a, e.currentTarget) }, name)
+            ? el('button', { type: 'button', class: 'name-link note-name', title: tr('Go to this session’s window'), onclick: (e) => goToWindow(a, e.currentTarget) }, name)
             : !a && resumable(n)
-              ? el('button', { type: 'button', class: 'name-link note-name', title: 'Open a terminal tab in its folder and continue the conversation', onclick: (e) => resumeNote(n, e.currentTarget) }, name)
+              ? el(
+                  'button',
+                  { type: 'button', class: 'name-link note-name', title: tr('Open a terminal tab in its folder and continue the conversation'), onclick: (e) => resumeNote(n, e.currentTarget) },
+                  name,
+                )
               : el('span', { class: 'note-name', text: name }),
           el('span', { class: 'note-what', text: what.join(' · '), title: what.join(' · ') }),
-          n.preview ? el('img', { class: 'note-preview', src: n.preview, alt: `Output of ${name}`, loading: 'lazy' }) : null,
+          n.preview ? el('img', { class: 'note-preview', src: n.preview, alt: tr('Output of {name}', { name }), loading: 'lazy' }) : null,
         ),
-        since(n.at, ' ago'),
-        el('button', { type: 'button', class: 'icon-btn note-clear', title: 'Clear', 'aria-label': `Clear ${name}`, onclick: () => clearNotes(n) }, '✕'),
+        since(n.at, true),
+        el('button', { type: 'button', class: 'icon-btn note-clear', title: tr('Clear'), 'aria-label': tr('Clear {name}', { name }), onclick: () => clearNotes(n) }, '✕'),
       );
     }),
   );
@@ -1689,8 +1836,8 @@ function renderNotes() {
   const needCount = notes.filter((n) => n.kind === 'needs').length;
   $('notes-button').classList.toggle('has-needs', needCount > 0);
   $('notes-button').title = notes.length
-    ? `${notes.length} notification${notes.length === 1 ? '' : 's'}${needCount ? `, ${needCount} needing you` : ''}`
-    : 'Notifications';
+    ? trn(notes.length, '{n} notification', '{n} notifications') + (needCount ? `, ${tr('{n} needing you', { n: needCount })}` : '')
+    : tr('Notifications');
 }
 
 $('notes-clear').addEventListener('click', () => clearNotes());
@@ -1700,7 +1847,7 @@ async function resumeNote(n, button) {
   button.disabled = true;
   try {
     await api(`/api/history/${n.id}/resume`);
-    toast(`Resuming ${n.name}`);
+    toast(tr('Resuming {name}', { name: n.name }));
     clearNotes(n);
   } catch (err) {
     toast(err.message, true);
@@ -1713,7 +1860,7 @@ function apply(next) {
   snap = next;
   clockSkew = snap.now - Date.now();
   $('conn').className = 'conn live';
-  $('updated').textContent = `Live · ${new Date(snap.now).toLocaleTimeString()}`;
+  $('updated').textContent = tr('Live · {time}', { time: new Date(snap.now).toLocaleTimeString(lang) });
   list.classList.remove('stale');
   const changes = notableChanges(snap.agents);
   // The cards hold still while the tour runs; dings and notifications don't.
@@ -1725,7 +1872,7 @@ function apply(next) {
 
 function disconnected() {
   $('conn').className = 'conn down';
-  $('updated').textContent = 'Disconnected. Is the server running?';
+  $('updated').textContent = tr('Disconnected. Is the server running?');
   list.classList.add('stale');
 }
 
@@ -1750,9 +1897,11 @@ function confirmStop(a) {
   // Codex runs the session in its background service: Stop interrupts its
   // turn there, then ends the Codex in its window, if that's known.
   $('confirm-what').textContent =
-    a.app === 'codex'
-      ? `This interrupts its current turn${a.pid ? ` and ends Codex in its window, PID ${a.pid}` : ''}. What the turn hasn't finished is lost.${a.pid ? '' : " Its window isn't known, so close that yourself."}`
-      : `This force-ends PID ${a.pid} along with its shells and MCP servers. Anything the current turn hasn't saved is lost.`;
+    a.app !== 'codex'
+      ? tr("This force-ends PID {pid} along with its shells and MCP servers. Anything the current turn hasn't saved is lost.", { pid: a.pid })
+      : a.pid
+        ? tr("This interrupts its current turn and ends Codex in its window, PID {pid}. What the turn hasn't finished is lost.", { pid: a.pid })
+        : tr("This interrupts its current turn. What the turn hasn't finished is lost. Its window isn't known, so close that yourself.");
   $('confirm-resume').textContent = resumeCommand(a);
   dialog.returnValue = '';
   dialog.onclose = async () => {
@@ -1760,7 +1909,7 @@ function confirmStop(a) {
     try {
       if (a.background) stoppedHere.add(a.id);
       const r = await post(a, 'stop');
-      toast(r.windowLeft ? `Interrupted ${displayName(a)}. Close its window to end it.` : `Stopped ${displayName(a)}`);
+      toast(r.windowLeft ? tr('Interrupted {name}. Close its window to end it.', { name: displayName(a) }) : tr('Stopped {name}', { name: displayName(a) }));
     } catch (err) {
       toast(err.message, true);
     }
@@ -1813,7 +1962,7 @@ function folderGroupDot(node) {
   const sep = repoSep();
   const full = `${repoData.root}${sep}${node.path.split('/').join(sep)}`.toLowerCase();
   const g = (snap?.groups || []).find((x) => x.folders.some((f) => f.toLowerCase() === full));
-  return g ? el('span', { class: `group-dot g-${g.color}`, title: `Group: ${g.name}` }) : null;
+  return g ? el('span', { class: `group-dot g-${g.color}`, title: tr('Group: {group}', { group: g.name }) }) : null;
 }
 
 function repoItem(node, terms) {
@@ -1828,13 +1977,13 @@ function repoItem(node, terms) {
         type: 'button',
         class: 'repo',
         'data-path': node.path,
-        title: repoPick ? `Use ${node.path}` : `Open ${APPS[repoData.app] || APPS.claude} in ${node.path}`,
+        title: repoPick ? tr('Use {folder}', { folder: node.path }) : tr('Open {app} in {folder}', { app: APPS[repoData.app] || APPS.claude, folder: node.path }),
         onclick: (e) => (repoPick ? pickRepo(node, e.currentTarget) : openRepo(node, e.currentTarget)),
       },
       el('span', { class: 'repo-name', text: node.name }),
       folderGroupDot(node),
       live
-        ? el('span', { class: 'repo-live', title: `${live} session${live === 1 ? '' : 's'} running here` }, el('span', { class: 'dot' }), String(live))
+        ? el('span', { class: 'repo-live', title: trn(live, '{n} session running here', '{n} sessions running here') }, el('span', { class: 'dot' }), String(live))
         : null,
     ),
   );
@@ -1881,17 +2030,17 @@ function renderRepos() {
   if (!repoData) return;
   const terms = filterTerms();
   const list = treeList(repoData.tree, terms);
-  $('repos-tree').replaceChildren(list || el('p', { class: 'tree-empty', text: terms.length ? 'No repos match.' : 'No git repos found.' }));
+  $('repos-tree').replaceChildren(list || el('p', { class: 'tree-empty', text: terms.length ? tr('No repos match.') : tr('No git repos found.') }));
 }
 
 async function loadRepos(refresh) {
   try {
     const res = await fetch(`/api/repos${refresh ? '?refresh=1' : ''}`, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`Couldn't list repos (HTTP ${res.status})`);
+    if (!res.ok) throw new Error(tr("Couldn't list repos (HTTP {status})", { status: res.status }));
     repoData = await res.json();
-    const excluded = repoData.excluded ? ` · ${repoData.excluded} hidden` : '';
-    $('repos-root').textContent = `${shortPath(repoData.root)} · ${repoData.count} repos${excluded}`;
-    $('repos-root').title = excluded ? 'Change what is hidden in Settings' : '';
+    const excluded = repoData.excluded ? ` · ${tr('{n} hidden', { n: repoData.excluded })}` : '';
+    $('repos-root').textContent = `${shortPath(repoData.root)} · ${trn(repoData.count, '{n} repo', '{n} repos')}${excluded}`;
+    $('repos-root').title = excluded ? tr('Change what is hidden in Settings') : '';
     $('repos-command').textContent = repoData.command;
     // Claude or Codex, once Codex is installed; it's the setting in Settings.
     $('repos-app').hidden = !otherAppsInstalled();
@@ -1911,7 +2060,7 @@ async function openRepo(node, button) {
   try {
     await api('/api/repos/open', { path: node.path });
     $('repos').close();
-    toast(`Opening ${APPS[repoData.app] || APPS.claude} in ${node.name}`);
+    toast(tr('Opening {app} in {folder}', { app: APPS[repoData.app] || APPS.claude, folder: node.name }));
   } catch (err) {
     toast(err.message, true);
   } finally {
@@ -1925,10 +2074,10 @@ let repoPick = null;
 
 function openRepoPicker(todo, start) {
   repoPick = { todo, start };
-  $('repos-title').textContent = 'Choose a folder';
+  $('repos-title').textContent = tr('Choose a folder');
   $('repos-foot').hidden = true;
   $('repos-pick-foot').hidden = false;
-  $('repos-pick-foot').textContent = start ? `Click a repo to start “${todo.title}” there.` : `Click a repo to use it for “${todo.title}”.`;
+  $('repos-pick-foot').textContent = start ? tr('Click a repo to start “{title}” there.', { title: todo.title }) : tr('Click a repo to use it for “{title}”.', { title: todo.title });
   $('repos-filter').value = '';
   $('repos').showModal();
   $('repos-filter').focus();
@@ -1971,7 +2120,7 @@ async function pickRepo(node, button) {
 $('repos').addEventListener('close', () => {
   if (!repoPick) return;
   repoPick = null;
-  $('repos-title').textContent = 'Repositories';
+  $('repos-title').textContent = tr('Repositories');
   $('repos-foot').hidden = false;
   $('repos-pick-foot').hidden = true;
 });
@@ -2012,9 +2161,9 @@ function dayLabel(t) {
   const d = new Date(t);
   const midnight = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const days = Math.round((midnight(new Date(now())) - midnight(d)) / 86400000);
-  if (days === 0) return 'Today';
-  if (days === 1) return 'Yesterday';
-  return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+  if (days === 0) return tr('Today');
+  if (days === 1) return tr('Yesterday');
+  return d.toLocaleDateString(lang, { weekday: 'long', month: 'short', day: 'numeric' });
 }
 
 async function resumePast(s, button) {
@@ -2022,7 +2171,7 @@ async function resumePast(s, button) {
   try {
     await api(`/api/history/${s.id}/resume`);
     $('history').close();
-    toast(`Resuming ${pastName(s)}`);
+    toast(tr('Resuming {name}', { name: pastName(s) }));
   } catch (err) {
     toast(err.message, true);
   } finally {
@@ -2034,27 +2183,31 @@ function pastItem(s) {
   const name = pastName(s);
   const subtitle = s.title && s.title !== name ? s.title : null;
   const meta = [];
-  if (s.prompts) meta.push(`${s.prompts} prompt${s.prompts === 1 ? '' : 's'}`);
+  if (s.prompts) meta.push(trn(s.prompts, '{n} prompt', '{n} prompts'));
   if (s.model) meta.push(modelLabel(s));
   return el(
     'li',
     { class: 'past' },
-    el('div', { class: 'past-head' }, el('span', { class: 'past-name', text: name, title: name }), groupTag(s), appTag(s), since(s.closedAt, ' ago')),
+    el('div', { class: 'past-head' }, el('span', { class: 'past-name', text: name, title: name }), groupTag(s), appTag(s), since(s.closedAt, true)),
     subtitle ? el('p', { class: 'past-title', text: subtitle, title: subtitle }) : null,
-    s.todo ? el('p', { class: 'past-title', title: todoText(s.todo) }, el('b', {}, 'To-do · '), s.todo.title) : null,
+    s.todo ? el('p', { class: 'past-title', title: todoText(s.todo) }, el('b', {}, `${tr('To-do')} · `), s.todo.title) : null,
     el(
       'div',
       { class: 'where' },
       el('span', { class: 'path', text: shortPath(s.cwd), title: s.cwd }),
-      s.gitBranch ? el('span', { class: 'tag branch', title: 'Git branch', text: `⎇ ${s.gitBranch}` }) : null,
-      s.background ? el('span', { class: 'tag background', title: 'Ran in the background, with claude -p', text: 'Background' }) : null,
+      s.gitBranch ? el('span', { class: 'tag branch', title: tr('Git branch'), text: `⎇ ${s.gitBranch}` }) : null,
+      s.background ? el('span', { class: 'tag background', title: tr('Ran in the background, with claude -p'), text: tr('Background') }) : null,
     ),
-    s.lastPrompt ? el('p', { class: 'past-prompt', title: s.lastPrompt.text }, el('b', {}, 'Last prompt · '), s.lastPrompt.text) : null,
+    s.lastPrompt ? el('p', { class: 'past-prompt', title: s.lastPrompt.text }, el('b', {}, `${tr('Last prompt')} · `), s.lastPrompt.text) : null,
     el(
       'div',
       { class: 'past-actions' },
       snap?.terminals
-        ? el('button', { type: 'button', class: 'btn btn-primary', title: 'Open a terminal tab in its folder and continue the conversation', onclick: (e) => resumePast(s, e.currentTarget) }, 'Resume')
+        ? el(
+            'button',
+            { type: 'button', class: 'btn btn-primary', title: tr('Open a terminal tab in its folder and continue the conversation'), onclick: (e) => resumePast(s, e.currentTarget) },
+            tr('Resume'),
+          )
         : null,
       el(
         'button',
@@ -2063,10 +2216,10 @@ function pastItem(s) {
           class: 'btn',
           onclick: async () => {
             await copy(resumeCommand(s));
-            toast('Resume command copied');
+            toast(tr('Resume command copied'));
           },
         },
-        'Copy resume command',
+        tr('Copy resume command'),
       ),
       meta.length ? el('span', { class: 'past-meta', text: meta.join(' · ') }) : null,
     ),
@@ -2086,7 +2239,7 @@ function renderHistory() {
     return terms.every((t) => text.includes(t));
   });
   const n = historyData.length;
-  $('history-sub').textContent = `${n} closed session${n === 1 ? '' : 's'}${shown.length < n ? ` · ${shown.length} shown` : ''}`;
+  $('history-sub').textContent = trn(n, '{n} closed session', '{n} closed sessions') + (shown.length < n ? ` · ${tr('{n} shown', { n: shown.length })}` : '');
   // The switch for background runs only shows once there are some.
   $('history-background-label').hidden = !historyData.some((s) => s.background);
   const days = [];
@@ -2098,14 +2251,14 @@ function renderHistory() {
   $('history-list').replaceChildren(
     ...(days.length
       ? days.flatMap((d) => [el('h3', { class: 'history-day', text: d.day }), el('ul', {}, d.sessions.map(pastItem))])
-      : [el('p', { class: 'tree-empty', text: n ? 'No closed sessions match.' : 'No sessions have closed in the last 30 days.' })]),
+      : [el('p', { class: 'tree-empty', text: n ? tr('No closed sessions match.') : tr('No sessions have closed in the last 30 days.') })]),
   );
 }
 
 async function loadHistory() {
   try {
     const res = await fetch('/api/history', { cache: 'no-store' });
-    if (!res.ok) throw new Error(`Couldn't load the history (HTTP ${res.status})`);
+    if (!res.ok) throw new Error(tr("Couldn't load the history (HTTP {status})", { status: res.status }));
     historyData = (await res.json()).sessions;
     renderHistory();
   } catch (err) {
@@ -2167,6 +2320,23 @@ radioSetting('theme', ['system', 'light', 'dark'], (theme) => {
   else document.documentElement.dataset.theme = theme;
 });
 
+// The page's language, from those there's a table for. Automatic follows the
+// browser's. Changing it reloads the page, which is translated as it loads,
+// and opens Settings again.
+const languageSelect = $('language');
+languageSelect.replaceChildren(
+  el('option', { value: 'auto', text: tr('Automatic ({language})', { language: LANGUAGES[browserLanguage] }) }),
+  ...Object.entries(LANGUAGES).map(([value, text]) => el('option', { value, text, lang: value })),
+);
+languageSelect.value = languageChoice in LANGUAGES ? languageChoice : 'auto';
+languageSelect.addEventListener('change', (e) => {
+  try {
+    localStorage.setItem(LANGUAGE_KEY, e.currentTarget.value);
+    sessionStorage.setItem(LANGUAGE_KEY, 'changed');
+  } catch {}
+  location.reload();
+});
+
 // Fit lets each card grow to its content; the others make every card the same size.
 radioSetting('card-size', ['fit', 'small', 'medium', 'large'], (size) => {
   list.dataset.size = size;
@@ -2195,11 +2365,11 @@ async function keepOnTop(on) {
       localStorage.setItem(ON_TOP_KEY, on ? 'on' : 'off');
     } catch {}
   } catch (err) {
-    toast(`Couldn't change that: ${err}`, true);
+    toast(tr("Couldn't change that: {error}", { error: err }), true);
   }
   $('on-top').checked = onTop;
   $('pin-button').setAttribute('aria-pressed', String(onTop));
-  $('pin-button').title = onTop ? 'On top of other windows: click to stop' : 'Keep this window on top of other windows';
+  $('pin-button').title = onTop ? tr('On top of other windows: click to stop') : tr('Keep this window on top of other windows');
 }
 
 // A percentage of the background that lets what's behind show through; 0 is off.
@@ -2207,7 +2377,7 @@ function showSeeThrough() {
   document.documentElement.classList.toggle('see-through', seeThrough > 0);
   document.documentElement.style.setProperty('--see-through', `${seeThrough}%`);
   $('see-through').value = String(seeThrough);
-  $('see-through-value').textContent = seeThrough ? `${seeThrough}%` : 'Off';
+  $('see-through-value').textContent = seeThrough ? `${seeThrough}%` : tr('Off');
 }
 
 if (desktopApp) {
@@ -2282,8 +2452,8 @@ function excludedBox(node, excluded, hiddenBy) {
     'data-path': node.path,
     checked: !hiddenBy && !excluded.has(node.path.toLowerCase()),
     disabled: !!hiddenBy,
-    title: hiddenBy ? `Hidden along with ${showRepoPath(hiddenBy)}` : null,
-    'aria-label': `Show ${label} in the repo menu`,
+    title: hiddenBy ? tr('Hidden along with {folder}', { folder: showRepoPath(hiddenBy) }) : null,
+    'aria-label': tr('Show {folder} in the repo menu', { folder: label }),
     onchange: (e) => setExcluded(node, e.currentTarget.checked),
   });
 }
@@ -2304,7 +2474,7 @@ function excludedItem(node, terms, excluded, hiddenBy) {
   const list = excludedList(node.children, matches ? [] : terms, excluded, off);
   if (!list) return null;
   const { total, hidden } = repoTally(node, excluded);
-  const count = !hidden ? String(total) : hidden === total ? `${total} hidden` : `${hidden} of ${total} hidden`;
+  const count = !hidden ? String(total) : hidden === total ? tr('{n} hidden', { n: total }) : tr('{hidden} of {total} hidden', { hidden, total });
   // The filter opens folders with matches inside; those aren't remembered.
   const auto = terms.length > 0 && !matches;
   return el(
@@ -2341,7 +2511,7 @@ function excludedList(nodes, terms, excluded, hiddenBy) {
 function renderExcluded() {
   const tree = $('excluded-tree');
   if (!repoData?.all || !serverSettings) {
-    tree.replaceChildren(el('p', { class: 'tree-empty', text: 'Loading…' }));
+    tree.replaceChildren(el('p', { class: 'tree-empty', text: tr('Loading…') }));
     return;
   }
   const excluded = excludedSet();
@@ -2362,7 +2532,7 @@ function renderExcluded() {
   const terms = excludedFilter();
   tree.replaceChildren(
     excludedList(repoData.all, terms, excluded, null) ||
-      el('p', { class: 'tree-empty', text: terms.length ? 'No folders or repos match.' : 'No git repos found.' }),
+      el('p', { class: 'tree-empty', text: terms.length ? tr('No folders or repos match.') : tr('No git repos found.') }),
   );
   if (focused) tree.querySelector(`input[data-path="${CSS.escape(focused)}"]`)?.focus();
 
@@ -2381,8 +2551,8 @@ function renderExcluded() {
           {
             type: 'button',
             class: 'icon-btn',
-            title: 'Stop hiding it',
-            'aria-label': `Stop hiding ${showRepoPath(p)}`,
+            title: tr('Stop hiding it'),
+            'aria-label': tr('Stop hiding {folder}', { folder: showRepoPath(p) }),
             onclick: () => setExcluded({ path: p }, true),
           },
           '✕',
@@ -2395,7 +2565,7 @@ function renderExcluded() {
 async function loadServerSettings() {
   try {
     const res = await fetch('/api/settings', { cache: 'no-store' });
-    if (!res.ok) throw new Error(`Couldn't load settings (HTTP ${res.status})`);
+    if (!res.ok) throw new Error(tr("Couldn't load settings (HTTP {status})", { status: res.status }));
     const data = await res.json();
     serverSettings = data.settings;
     terminalChoices = data.terminals || [];
@@ -2413,9 +2583,9 @@ function renderTerminalChoice() {
   $('terminal-setting').hidden = terminalChoices.length < 2;
   const current = serverSettings?.terminal || 'auto';
   select.replaceChildren(
-    el('option', { value: 'auto', text: 'Automatic' }),
+    el('option', { value: 'auto', text: tr('Automatic') }),
     ...terminalChoices.map((t) =>
-      el('option', { value: t.id, text: t.available ? t.name : `${t.name} (not found)`, disabled: !t.available && t.id !== current }),
+      el('option', { value: t.id, text: t.available ? t.name : tr('{name} (not found)', { name: t.name }), disabled: !t.available && t.id !== current }),
     ),
   );
   select.value = current;
@@ -2427,9 +2597,9 @@ function renderServerSettings() {
   for (const [id, key] of APP_ADDRESSES) {
     if (document.activeElement !== $(id)) $(id).value = serverSettings?.[key] || '';
   }
-  $('lmstudio-key').placeholder = serverSettings?.lmstudioKeySet ? 'Set. Type a new one to change it' : 'None';
+  $('lmstudio-key').placeholder = serverSettings?.lmstudioKeySet ? tr('Set. Type a new one to change it') : tr('None');
   const key = $('localai-key');
-  key.placeholder = serverSettings?.localaiKeySet ? 'Set. Type a new one to change it' : 'None';
+  key.placeholder = serverSettings?.localaiKeySet ? tr('Set. Type a new one to change it') : tr('None');
   $('app-setting').hidden = !otherAppsInstalled();
   showInstalledChoices('new-app');
   const app = serverSettings?.newSessionApp || 'claude';
@@ -2581,10 +2751,10 @@ function addGroupFolder(g, input) {
 function deleteGroup(g, button) {
   if (!button.classList.contains('btn-danger')) {
     button.classList.add('btn-danger');
-    button.textContent = 'Delete?';
+    button.textContent = tr('{label}?', { label: tr('Delete') });
     setTimeout(() => {
       button.classList.remove('btn-danger');
-      button.textContent = 'Delete';
+      button.textContent = tr('Delete');
     }, 3000);
     return;
   }
@@ -2604,23 +2774,23 @@ function groupRow(g) {
         class: 'group-name',
         value: g.name,
         maxlength: '40',
-        'aria-label': 'Group name',
+        'aria-label': tr('Group name'),
         'data-focus': `name:${g.id}`,
         onchange: (e) => {
           const name = e.currentTarget.value.trim();
           if (name) changeGroup(g, { name });
           else {
             e.currentTarget.value = g.name;
-            toast('A group needs a name.', true);
+            toast(tr('A group needs a name.'), true);
           }
         },
         onkeydown: noSubmit((input) => input.blur()),
       }),
-      el('button', { type: 'button', class: 'btn btn-stop', onclick: (e) => deleteGroup(g, e.currentTarget) }, 'Delete'),
+      el('button', { type: 'button', class: 'btn btn-stop', onclick: (e) => deleteGroup(g, e.currentTarget) }, tr('Delete')),
     ),
     el(
       'div',
-      { class: 'swatches', role: 'radiogroup', 'aria-label': `${g.name}'s colour` },
+      { class: 'swatches', role: 'radiogroup', 'aria-label': tr("{group}'s colour", { group: g.name }) },
       Object.entries(GROUP_COLORS).map(([color, label]) =>
         el('button', {
           type: 'button',
@@ -2643,25 +2813,29 @@ function groupRow(g) {
               'li',
               {},
               el('span', { class: 'excluded-path', text: shortPath(f), title: f }),
-              el('button', { type: 'button', class: 'icon-btn', title: 'Remove', 'aria-label': `Remove ${shortPath(f)}`, onclick: () => changeGroup(g, { folders: g.folders.filter((x) => x !== f) }) }, '✕'),
+              el(
+                'button',
+                { type: 'button', class: 'icon-btn', title: tr('Remove'), 'aria-label': tr('Remove {folder}', { folder: shortPath(f) }), onclick: () => changeGroup(g, { folders: g.folders.filter((x) => x !== f) }) },
+                '✕',
+              ),
             ),
           ),
         )
-      : el('p', { class: 'settings-help', text: 'No folders yet, so only sessions moved here by hand are in it.' }),
+      : el('p', { class: 'settings-help', text: tr('No folders yet, so only sessions moved here by hand are in it.') }),
     el(
       'div',
       { class: 'group-add-folder' },
       el('input', {
         type: 'text',
         list: 'group-folders',
-        placeholder: 'Add a folder: a full path, or pick a repo',
-        'aria-label': `Add a folder to ${g.name}`,
+        placeholder: tr('Add a folder: a full path, or pick a repo'),
+        'aria-label': tr('Add a folder to {group}', { group: g.name }),
         autocomplete: 'off',
         spellcheck: 'false',
         'data-focus': `add:${g.id}`,
         onkeydown: noSubmit((input) => addGroupFolder(g, input)),
       }),
-      el('button', { type: 'button', class: 'btn', onclick: (e) => addGroupFolder(g, e.currentTarget.previousElementSibling) }, 'Add'),
+      el('button', { type: 'button', class: 'btn', onclick: (e) => addGroupFolder(g, e.currentTarget.previousElementSibling) }, tr('Add')),
     ),
   );
 }
@@ -2685,7 +2859,7 @@ function renderFolderSuggestions() {
 
 $('group-add').addEventListener('click', () => {
   const groups = editedGroups();
-  const g = { id: crypto.randomUUID(), name: `Group ${groups.length + 1}`, color: freeColor(groups), folders: [] };
+  const g = { id: crypto.randomUUID(), name: tr('Group {n}', { n: groups.length + 1 }), color: freeColor(groups), folders: [] };
   saveGroups([...groups, g], `name:${g.id}`);
   $('group-editor').querySelector(`[data-focus="name:${g.id}"]`)?.select();
 });
@@ -2771,58 +2945,66 @@ const tourAll = (selector) => () => [...document.querySelectorAll(selector)];
 
 const TOUR_STEPS = [
   {
-    title: 'Welcome to Tabherd',
+    title: tr('Welcome to Tabherd'),
     text: () => {
       const n = sessionCount();
-      const yours = n ? ` The ${n === 1 ? 'one' : `${n}`} running now ${n === 1 ? 'is' : 'are'} on the page.` : '';
-      return `Every Claude Code, Codex and Copilot session on this computer gets a card here, and a ding when it needs you.${yours} This is a quick look around: nothing on the page changes while it runs, and your sessions carry on as usual.`;
+      const yours = n ? ` ${trn(n, 'The one running now is on the page.', 'The {n} running now are on the page.')}` : '';
+      return `${tr('Every Claude Code, Codex and Copilot session on this computer gets a card here, and a ding when it needs you.')}${yours} ${tr(
+        'This is a quick look around: nothing on the page changes while it runs, and your sessions carry on as usual.',
+      )}`;
     },
   },
   {
     target: () => [tourCard],
-    title: 'A card for each session',
+    title: tr('A card for each session'),
     text: () =>
-      `Its status, Needs you, Working or Idle, and for how long; what it's doing; its last prompt and reply; and its model and tokens. Go to window brings up its terminal tab, and Catch up asks it where things stand.${tourSample ? ' This one is only an example, and goes when the tour ends.' : ''}`,
+      tr(
+        "Its status, Needs you, Working or Idle, and for how long; what it's doing; its last prompt and reply; and its model and tokens. Go to window brings up its terminal tab, and Catch up asks it where things stand.",
+      ) + (tourSample ? ` ${tr('This one is only an example, and goes when the tour ends.')}` : ''),
   },
   {
     target: tourAll('#list .memory-card'),
-    title: 'Memory and models',
-    text: 'Memory in use, on the computer and each graphics card, and the models loaded in ComfyUI, LocalAI, Ollama, LM Studio or llama.cpp, with Unload where it can. Settings → Appearance turns it off.',
+    title: tr('Memory and models'),
+    text: tr(
+      'Memory in use, on the computer and each graphics card, and the models loaded in ComfyUI, LocalAI, Ollama, LM Studio or llama.cpp, with Unload where it can. Settings → Appearance turns it off.',
+    ),
   },
   {
     target: tourAll('#filters'),
-    title: 'Filters',
-    text: 'All, then filters of your own. Each tab counts its cards, in amber when one needs you. The ⋯ at the end makes a new filter or changes the one shown.',
+    title: tr('Filters'),
+    text: tr('All, then filters of your own. Each tab counts its cards, in amber when one needs you. The ⋯ at the end makes a new filter or changes the one shown.'),
   },
   {
     target: tourAll('.view-filters > :not([hidden])'),
-    title: 'Apps and groups',
-    text: "Show only one app's sessions, or one group's. The counts on the tabs follow them.",
+    title: tr('Apps and groups'),
+    text: tr("Show only one app's sessions, or one group's. The counts on the tabs follow them."),
   },
   {
     target: tourAll('#menu-button'),
-    title: 'Your repos',
-    text: 'Every repo in your repos folder. Pick one to start a session in it, in a new terminal tab.',
+    title: tr('Your repos'),
+    text: tr('Every repo in your repos folder. Pick one to start a session in it, in a new terminal tab.'),
   },
   {
     target: tourAll('#todo-new'),
-    title: 'To-dos',
-    text: "Note a task to start later. Its card's Start opens a session for it in its folder, named after it.",
+    title: tr('To-dos'),
+    text: tr("Note a task to start later. Its card's Start opens a session for it in its folder, named after it."),
   },
   {
     target: tourAll('#sessions-button, #history-button'),
-    title: 'Save and close, and History',
-    text: 'Save and close every session at once, then resume them all later. History lists the sessions closed in the last 30 days, each with Resume.',
+    title: tr('Save and close, and History'),
+    text: tr('Save and close every session at once, then resume them all later. History lists the sessions closed in the last 30 days, each with Resume.'),
   },
   {
     target: tourAll('#notes-button, #sound'),
-    title: 'Notifications and sound',
-    text: "A ding when a session needs you or finishes, and a list of what happened while you were away. Browsers only play sound once you've clicked the page, so the bell may ask for a click.",
+    title: tr('Notifications and sound'),
+    text: tr(
+      "A ding when a session needs you or finishes, and a list of what happened while you were away. Browsers only play sound once you've clicked the page, so the bell may ask for a click.",
+    ),
   },
   {
     target: tourAll('#settings-button'),
-    title: 'Settings',
-    text: 'Theme, card size, groups, filters, the app and terminal new sessions open in, and more. This tour is in Settings → Help whenever you want it again.',
+    title: tr('Settings'),
+    text: tr('Theme, card size, groups, filters, the app and terminal new sessions open in, and more. This tour is in Settings → Help whenever you want it again.'),
   },
 ];
 
@@ -2839,15 +3021,15 @@ function tourSessionCard() {
     id: 'tour-example',
     pid: 18244,
     name: 'my-app',
-    title: 'Add a sign-up page',
+    title: tr('Add a sign-up page'),
     cwd: [snap?.home || '', 'projects', 'my-app'].join(sep),
     gitBranch: 'main',
     status: 'busy',
     statusSince: t - 95e3,
     startedAt: t - 42 * 60e3,
     tools: [{ name: 'Bash', detail: 'npm test', at: t - 8e3 }],
-    lastReply: { text: 'The form and its checks are in. Running the tests now.', at: t - 20e3 },
-    lastPrompt: { text: 'Add a sign-up page with email and password, and tests for it.', at: t - 6 * 60e3 },
+    lastReply: { text: tr('The form and its checks are in. Running the tests now.'), at: t - 20e3 },
+    lastPrompt: { text: tr('Add a sign-up page with email and password, and tests for it.'), at: t - 6 * 60e3 },
     model: 'claude-sonnet-5-5',
     contextTokens: 61000,
     contextLimit: 200000,
@@ -2913,11 +3095,11 @@ function showTourStep(i) {
   tourAt = i;
   const step = tourSteps[i];
   const last = i === tourSteps.length - 1;
-  $('tour-step').textContent = `${i + 1} of ${tourSteps.length}`;
+  $('tour-step').textContent = tr('{n} of {total}', { n: i + 1, total: tourSteps.length });
   $('tour-title').textContent = step.title;
   $('tour-text').textContent = typeof step.text === 'function' ? step.text() : step.text;
   $('tour-back').hidden = i === 0;
-  $('tour-next').textContent = i === 0 ? 'Show me around' : last ? 'Done' : 'Next';
+  $('tour-next').textContent = i === 0 ? tr('Show me around') : last ? tr('Done') : tr('Next');
   $('tour-skip').hidden = last;
   // A card it points at is brought into view below the header, which stays put.
   const first = step.target?.().find(Boolean);
@@ -2992,6 +3174,13 @@ $('settings').addEventListener('click', (e) => e.target === e.currentTarget && e
 renderNotes();
 // Starting a to-do needs the folder setting before Settings is ever opened.
 loadServerSettings();
+// Back from choosing a language, Settings opens again where it was.
+try {
+  if (sessionStorage.getItem(LANGUAGE_KEY)) {
+    sessionStorage.removeItem(LANGUAGE_KEY);
+    openSettings('language');
+  }
+} catch {}
 
 $('sound').addEventListener('click', () => {
   const ctx = audioContext();

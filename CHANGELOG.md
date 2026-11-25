@@ -4,6 +4,7 @@ Notable changes in each release. Version numbers follow [Semantic Versioning](ht
 
 ## Unreleased
 
+- The dashboard speaks Spanish: Settings → Appearance → **Language** chooses English or Español, or *Automatic*, the default, which follows the browser. Changing it reloads the page. Durations, dates and sizes follow the language too. It's a first translation, and corrections are welcome. A few of the server's messages, those with details in them, stay English. See [Settings](README.md#settings).
 - ComfyUI's loaded models join the Memory and models card, each with what it is and the workflow that loaded it, and Unload, which frees all of them, as ComfyUI does. They're the models its latest job's workflow names, since ComfyUI keeps those in memory for the next job. See [ComfyUI and LocalAI](README.md#comfyui-and-localai).
 - The Memory and models card can stay in view: Settings → Appearance → *Keep it in view* holds it under the header while the cards below it scroll. It's off unless chosen, and kept in the browser.
 - llama.cpp's server joins the Memory and models card: the model it has loaded, with its size, context and requests in progress, or in router mode each model loaded or loading, with Unload. Its address is in Settings → Other apps, else LLAMA_ARG_HOST and LLAMA_ARG_PORT, else port 8080. See [ComfyUI and LocalAI](README.md#comfyui-and-localai).
