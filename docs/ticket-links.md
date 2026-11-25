@@ -1,6 +1,6 @@
 # Ticket links
 
-*Spec, 2026-11-25, revised with the owner's answers. Nothing is built yet; see [Phases](#phases).*
+*Spec, 2026-11-25, revised with the owner's answers. Phase 1, trackers and encrypted settings, is built; see [Phases](#phases).*
 
 A session's card shows the tickets it's working on, from Jira, Linear, GitHub Issues and Zendesk, as chips with each ticket's status that open it. Several systems can be connected at once. Completing a session can then comment on its tickets and move them to done, after asking.
 

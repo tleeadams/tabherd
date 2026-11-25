@@ -245,7 +245,15 @@ The gear button in the header opens Settings, one section at a time, picked from
 
 **Groups**: each group's name, colour and folders, and *Sections by group*. See [Groups](#groups).
 
-**Other apps**: ComfyUI's, LocalAI's, Ollama's, LM Studio's and llama.cpp's addresses, and LocalAI's API key and LM Studio's token. The key is kept in `~/.tabherd/settings.json` and never sent back to the page. See [ComfyUI and LocalAI](#comfyui-and-localai).
+**Other apps**: ComfyUI's, LocalAI's, Ollama's, LM Studio's and llama.cpp's addresses, and LocalAI's API key and LM Studio's token. The key and token are kept encrypted (see [Secrets](#secrets)) and never sent back to the page. See [ComfyUI and LocalAI](#comfyui-and-localai).
+
+**Tickets**: the ticket systems, or trackers, that sessions will be linked to: Jira sites, Linear, GitHub Issues and Zendesk, as many as you use. **Add a tracker** asks for what its type needs:
+- **Jira:** the site's address, an email and API token, and optionally its projects' key prefixes. Leave the email empty for a Data Center personal access token.
+- **Linear:** a personal API key, and optionally team key prefixes.
+- **GitHub Issues:** nothing; it uses `gh`'s sign-in.
+- **Zendesk:** the address, and an email and API token, or an OAuth access token.
+
+**Test** signs in and says as whom, or what's wrong; a tracker is tested as it's saved. **Edit** keeps the saved token unless you type a new one, and **Remove** asks for a second click. Linking tickets to cards is next; see [the plan](docs/ticket-links.md).
 
 **To-dos**: where a to-do's folder is chosen from (the repo menu or any folder), and the folder that choice starts at. See [To-dos](#to-dos).
 
@@ -367,11 +375,20 @@ All of it is read-only, from files Claude Code and Codex already write, and from
 
 A session file whose process has exited, or whose PID now belongs to another process, is ignored.
 
-The only files the server writes are its own, in `~/.tabherd`: `settings.json` holds the settings that aren't kept in the browser, `history.json` the closed sessions, `todos.json` the to-dos, `groups.json` the groups, with the sessions moved between them by hand, `saved-sessions.json` the sessions Save and close saved last, `completed.json` the sessions marked complete, and `updates.json` what the last check for a new version found.
+The only files the server writes are its own, in `~/.tabherd`: `settings.json` holds the settings that aren't kept in the browser, with its secrets encrypted (see [Secrets](#secrets)), `secret.key` the key for them on Windows, `history.json` the closed sessions, `todos.json` the to-dos, `groups.json` the groups, with the sessions moved between them by hand, `saved-sessions.json` the sessions Save and close saved last, `completed.json` the sessions marked complete, and `updates.json` what the last check for a new version found.
 
 ## Safety
 
 The server listens on `127.0.0.1` only and rejects requests with any other `Host` header, so other web pages can't read your prompts through DNS rebinding. The session actions, opening a repo, resuming a closed session, the to-do actions and saving settings all need a per-run token that only the served page has. A to-do's title reaches the folder picker only as an environment variable, never as part of a command. The session actions also work only on a session that is currently verified as live. **Stop** ends the session and its child processes, after you confirm: `taskkill /T /F` on Windows; on macOS and Linux, SIGTERM and then SIGKILL two seconds later for any still running. For a Codex session, it first interrupts the session's turn through Codex's service. Sessions the dashboard opens ask before acting, as Claude Code does by default, unless you turn on *Skip permission prompts*.
+
+### Secrets
+
+Tokens, API keys and the ticket trackers are saved encrypted in `settings.json`, as `enc:v1:…` values (AES-256-GCM). That includes the trackers' addresses and emails, and LocalAI's key and LM Studio's token. The key is 32 random bytes that the operating system keeps for you:
+- **Windows:** protected with DPAPI for your user, in `~/.tabherd/secret.key`. Only you, on this computer, can unlock it.
+- **macOS:** your login Keychain, as *Tabherd settings key*.
+- **Linux:** your keyring (GNOME Keyring or KWallet), through `secret-tool`. Without one, the key is kept in `~/.tabherd/secret.key`, readable only by you, and Settings → Tickets says so.
+
+The key is made the first time a secret is saved, and keys saved by older versions are encrypted when the server next starts. A `settings.json` copied to another computer or user can't be decrypted there, so its secrets count as unset and Settings asks for them again. A secret is never sent to the page, which only learns whether one is set.
 
 To report a security problem, see [SECURITY.md](SECURITY.md).
 

@@ -291,7 +291,7 @@
                 <span>LocalAI API key</span>
                 <input id="localai-key" type="password" autocomplete="off" spellcheck="false">
               </label>
-              <p class="settings-help">Only if LocalAI has one set. It's kept on this computer and never shown again.</p>
+              <p class="settings-help">Only if LocalAI has one set. It's kept encrypted on this computer and never shown again.</p>
               <label class="field">
                 <span>Ollama address</span>
                 <input id="ollama-url" type="text" placeholder="http://127.0.0.1:11434" autocomplete="off" spellcheck="false">
@@ -309,6 +309,17 @@
                 <input id="llamacpp-url" type="text" placeholder="http://127.0.0.1:8080" autocomplete="off" spellcheck="false">
               </label>
               <p class="settings-help">Ollama's address defaults to OLLAMA_HOST; LM Studio's to the port its server last used; llama.cpp's to LLAMA_ARG_HOST and LLAMA_ARG_PORT. A token is only needed if LM Studio requires one.</p>
+            </fieldset>
+          </section>
+          <section class="settings-section" id="settings-tickets" data-title="Tickets">
+            <fieldset>
+              <legend>Tickets</legend>
+              <p class="settings-help">The ticket systems sessions can be linked to: Jira, Linear, GitHub Issues and Zendesk. Several can be connected at once. Each signs in with its own token.</p>
+              <ul id="tracker-list" class="filter-list"></ul>
+              <div class="filter-list-actions">
+                <button type="button" id="tracker-add" class="btn">Add a tracker</button>
+              </div>
+              <p id="tracker-protection" class="settings-help tracker-protection"></p>
             </fieldset>
           </section>
           <section class="settings-section" id="settings-to-dos" data-title="To-dos">
@@ -394,6 +405,56 @@
       <div class="confirm-actions">
         <button type="button" id="todo-cancel" class="btn">Cancel</button>
         <button type="submit" id="todo-save" class="btn btn-primary">Add to-do</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="tracker-dialog" class="settings" aria-labelledby="tracker-dialog-title">
+    <form id="tracker-form">
+      <div class="settings-head">
+        <h2 id="tracker-dialog-title">New tracker</h2>
+        <button type="button" id="tracker-close" class="icon-btn" title="Close" aria-label="Close">✕</button>
+      </div>
+      <label class="field">
+        <span>Type</span>
+        <select id="tracker-type">
+          <option value="jira">Jira</option>
+          <option value="linear">Linear</option>
+          <option value="github">GitHub Issues</option>
+          <option value="zendesk">Zendesk</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Name</span>
+        <input id="tracker-name" type="text" required maxlength="60" autocomplete="off" placeholder="Work Jira">
+      </label>
+      <label class="field" id="tracker-url-field">
+        <span>Address</span>
+        <input id="tracker-url" type="text" autocomplete="off" spellcheck="false">
+      </label>
+      <label class="field" id="tracker-auth-field">
+        <span>Sign in with</span>
+        <select id="tracker-auth">
+          <option value="token">Email and API token</option>
+          <option value="oauth">OAuth access token</option>
+        </select>
+      </label>
+      <label class="field" id="tracker-email-field">
+        <span>Email</span>
+        <input id="tracker-email" type="email" autocomplete="off" spellcheck="false">
+      </label>
+      <label class="field" id="tracker-token-field">
+        <span>Token</span>
+        <input id="tracker-token" type="password" autocomplete="off" spellcheck="false">
+      </label>
+      <label class="field" id="tracker-prefixes-field">
+        <span>Key prefixes</span>
+        <input id="tracker-prefixes" type="text" autocomplete="off" spellcheck="false" placeholder="ABC, OPS">
+      </label>
+      <p id="tracker-help" class="settings-help tracker-help"></p>
+      <div class="confirm-actions">
+        <button type="button" id="tracker-cancel" class="btn">Cancel</button>
+        <button type="submit" id="tracker-save" class="btn btn-primary">Add tracker</button>
       </div>
     </form>
   </dialog>
