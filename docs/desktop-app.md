@@ -115,6 +115,7 @@ The server's files go in as bundle resources: the same list `build-release.js` s
 
 - Built on `ubuntu-22.04` (x64) and `ubuntu-22.04-arm` (arm64). The older glibc there means the build runs on more distributions.
 - **Output:** `.deb`, `.rpm` and AppImage. They need WebKitGTK 4.1.
+- The packages put the app and its Node in `/usr/bin`, so Node is `tabherd-node` there. As `node` it would clash with the system's own Node package, and the install would fail.
 - No signing.
 
 ### Apple signing, automatic on release

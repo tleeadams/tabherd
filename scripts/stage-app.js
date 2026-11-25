@@ -43,7 +43,10 @@ function stageApp({ target = TARGETS[`${process.platform}-${process.arch}`], nod
   const exe = target.includes('windows') ? '.exe' : '';
   const binaries = path.join(APP_DIR, 'binaries');
   fs.mkdirSync(binaries, { recursive: true });
-  const sidecar = path.join(binaries, `node-${target}${exe}`);
+  // Linux's packages put it in /usr/bin, where the system's own Node may be
+  // as node, so it has a name of its own there.
+  const name = target.includes('linux') ? 'tabherd-node' : 'node';
+  const sidecar = path.join(binaries, `${name}-${target}${exe}`);
   fs.copyFileSync(node, sidecar);
   if (!exe) fs.chmodSync(sidecar, 0o755);
   const license = nodeLicense(node);
