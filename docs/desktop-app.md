@@ -53,7 +53,7 @@ Tabherd (Tauri, Rust)
  └─ On quit: stops the server it started, never one it found running
 ```
 
-- **No Tauri calls from the page** in the first release. The page is a remote URL as far as Tauri is concerned, so it gets no access to Tauri's APIs. Everything the app does happens in Rust.
+- **One Tauri call from the page.** The page is a remote URL as far as Tauri is concerned, so it gets no access to Tauri's APIs, except `set_on_top`, the app's one command. `capabilities/dashboard.json` allows it for `http://localhost:*` alone, and `build.rs` declares it, which makes Tauri check every app command against the capabilities. The app hands the page `window.tabherdApp` in an initialization script: `setOnTop(on)`, and `seeThrough`, whether the window can be see-through. Everything else the app does happens in Rust.
 - **`--exit-when-idle` stays** as a safety net. If the app is killed without stopping its server, the server still stops itself 10 minutes after the last dashboard closes.
 - **Closing the window quits the app** in the first release, as closing the Edge window does now. A tray icon that keeps it running comes later (see [Later](#later)).
 
@@ -65,7 +65,7 @@ app/
     Cargo.toml
     tauri.conf.json
     build.rs
-    capabilities/default.json
+    capabilities/dashboard.json  the one command the page may call
     icons/                      from the existing app icon
     src/main.rs                 server start and stop, window, link handling
     binaries/                   staged by the build, not committed:
@@ -80,6 +80,8 @@ The server's files go in as bundle resources: the same list `build-release.js` s
 - **Sound without a click.**
   - Windows: WebView2 is started with `--autoplay-policy=no-user-gesture-required`.
   - macOS and Linux: *to check* whether Web Audio still needs a click in WKWebView and WebKitGTK.
+- **On top.** Settings → Appearance → Window → *Keep on top*, or the pin in the header, which only show in the app, keep the window above other windows. The page calls `set_on_top`, which calls Tauri's `set_always_on_top`. It's kept in the page's storage and set again as the page loads, so the window isn't on top for the moment before that.
+- **Transparency.** On Windows the window is created transparent, and the page's backgrounds decide how much shows through: opaque, unless Settings → Appearance → Window → *Transparency* says otherwise (up to 80%). The page and the header let that much through, and the cards a little less. Text, buttons and dialogs stay solid. macOS would need Apple's private API (`macOSPrivateApi`) for a transparent window, and Linux hasn't been tried, so neither offers it.
 - **Browser storage.** The web view keeps its own, in the app's data folder. The settings kept in the browser (Appearance, Notifications, Sections by group, the chosen filter) start fresh once. The first-run tour shows once too, since the new window counts as a new browser.
 - **Developer tools** are in debug builds only. On Windows, a debug build also turns on WebView2's remote debugging port, so the headless checks in `dist/e2e` can run against the app.
 

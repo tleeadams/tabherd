@@ -2,7 +2,8 @@
 // Node running server.js, unless a Tabherd server already answers on the
 // port, and shows the dashboard in the system's web view. Links that would
 // open a new window open in the default browser. Quitting stops the server
-// this app started, never one it found running.
+// this app started, never one it found running. The dashboard's Settings can
+// keep the window on top of others and, on Windows, make it see-through.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -16,7 +17,9 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use tauri::webview::NewWindowResponse;
-use tauri::{AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{
+    AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Window,
+};
 use tauri_plugin_opener::OpenerExt;
 
 const DEFAULT_PORT: u16 = 4317;
@@ -173,6 +176,25 @@ fn browser_args() -> String {
     args
 }
 
+// Keeps the window above other windows, or not. The dashboard calls it from
+// Settings and its pin button, and again as it loads, since the setting is
+// kept in its own storage. The only command the page may call; see
+// capabilities/dashboard.json.
+#[tauri::command]
+fn set_on_top(window: Window, on: bool) -> Result<(), String> {
+    window.set_always_on_top(on).map_err(|e| e.to_string())
+}
+
+// What this window can do, for the dashboard to offer: setOnTop(on), and
+// seeThrough, whether its background can be see-through, which is up to the
+// page. macOS would need Apple's private API for that, and Linux is untried.
+fn app_script() -> String {
+    format!(
+        "window.tabherdApp = {{ seeThrough: {}, setOnTop: (on) => window.__TAURI_INTERNALS__.invoke('set_on_top', {{ on }}) }};",
+        cfg!(windows)
+    )
+}
+
 fn build_window(app: &AppHandle, port: u16) -> tauri::Result<WebviewWindow> {
     let links = app.clone();
     let popups = app.clone();
@@ -180,6 +202,7 @@ fn build_window(app: &AppHandle, port: u16) -> tauri::Result<WebviewWindow> {
         .title("Tabherd")
         .inner_size(1280.0, 860.0)
         .min_inner_size(420.0, 320.0)
+        .initialization_script(app_script())
         .on_navigation(move |url| {
             if is_local(url, port) {
                 return true;
@@ -196,8 +219,12 @@ fn build_window(app: &AppHandle, port: u16) -> tauri::Result<WebviewWindow> {
         .on_document_title_changed(|window, title| {
             let _ = window.set_title(&title);
         });
+    // Transparent, so the page's background decides how see-through it is:
+    // opaque unless Settings says otherwise.
     #[cfg(windows)]
-    let builder = builder.additional_browser_args(&browser_args());
+    let builder = builder
+        .additional_browser_args(&browser_args())
+        .transparent(true);
     builder.build()
 }
 
@@ -217,6 +244,7 @@ fn main() {
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
+        .invoke_handler(tauri::generate_handler![set_on_top])
         .setup(|app| {
             let port = port();
             app.manage(Server(Mutex::new(None)));
