@@ -198,7 +198,7 @@ Groups gather sessions by project, client or anything else, each with a name and
 - **By folder.** A group has folders, and a session or to-do in one of them, or in a folder inside it, is in that group. If several groups' folders hold it, the nearest folder wins. New sessions there join with nothing to do. A to-do without a folder goes by the folder it will start in.
 - **By hand.** The group button on a card moves that session or to-do to another group, or to none. It stays there, kept by its session ID so it's still there when resumed, until **Follow its folder again**. A to-do moved by hand passes its group on to the session it starts.
 - **On the card.** The group's colour runs along the top of the card, and its name is on the button. The left edge still shows the status. History shows each session's group, and the repo menu marks a group's folders with a dot in its colour.
-- **Sections.** Settings → Groups → **Sections by group** puts each group's cards under its name, in the order the groups are listed, with the sessions in no group last.
+- **Sections.** Settings → Groups → **Sections by group** puts each group's cards under its name, in the order the groups are listed, with the sessions in no group last. Clicking a section's name closes it, hiding its cards, and clicking again opens it. A closed section still shows how many cards it has, and how many of its sessions need you. The browser remembers which are closed.
 
 The colours are a set of eight, each tuned for light and dark and kept apart from the status colours. In Settings, a group's folder box suggests the folders and repos from the repo menu, and takes any full path, with `~` for your home folder. Groups are saved in `~/.tabherd/groups.json`, for every browser.
 
