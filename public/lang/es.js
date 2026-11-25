@@ -451,6 +451,7 @@
     'Apariencia, Notificaciones y Secciones por grupo se guardan en este navegador. El resto se guarda en este ordenador, para todos los navegadores.',
 
   // ---- update alerts
+  'The version of Tabherd running': 'La versión de Tabherd en ejecución',
   'A new version of Tabherd is out': 'Hay una versión nueva de Tabherd',
   'Update to {version}': 'Actualizar a {version}',
   'A new version is out': 'Hay una versión nueva',

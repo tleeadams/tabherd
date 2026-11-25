@@ -4,6 +4,7 @@ Notable changes in each release. Version numbers follow [Semantic Versioning](ht
 
 ## Unreleased
 
+- The version running shows under the computer's name in the header.
 - Update alerts: Tabherd can tell you when a new version is out. It's off until you say yes, when the dashboard asks once or in Settings → Help, which also has **Check now**. With it on, the server asks GitHub for the latest release once a day, sending nothing about you or your sessions. A newer version brings an **Update to <version>** button to the header and a note to the notification list. The button shows what's new and how to update this copy: the command for Homebrew, winget or a clone of the repository, or which download to get. **Not now** hides it until the next version. Prereleases, such as betas, are only mentioned if Settings → Help's *Tell me about betas and other prereleases too* is on, or to someone already running one. See [Update alerts](README.md#update-alerts).
 
 ## 0.6.0-beta.2 - 2026-11-24
