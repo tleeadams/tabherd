@@ -12,6 +12,7 @@ A prerelease, to try the desktop app on macOS and Linux before a release has it.
 What's new:
 
 - The desktop app comes to Linux: a .deb, an .rpm and an AppImage, for x64 and arm64, built on Ubuntu 22.04. They need WebKitGTK 4.1. Prereleases have the macOS app too, for Apple silicon Macs, signed ad hoc until it can be signed and notarized: macOS asks before opening it the first time. See [docs/desktop-app.md](docs/desktop-app.md).
+- Intel Macs: the macOS desktop app is for Apple silicon only. The `macos-x64` download stays, but it won't be supported forever. We'll try to keep it updated until the official cutoff in 2029, but support may end sooner if it becomes too much for the team to keep up. See [Install](README.md#macos-and-linux).
 
 ## 0.5.0 - 2026-11-24
 
