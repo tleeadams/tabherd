@@ -17,6 +17,7 @@ const groups = require('./lib/groups');
 const filters = require('./lib/filters');
 const codex = require('./lib/codex');
 const copilot = require('./lib/copilot');
+const opencode = require('./lib/opencode');
 const comfy = require('./lib/comfy');
 const localai = require('./lib/localai');
 const ollama = require('./lib/ollama');
@@ -45,6 +46,7 @@ const claudeCommand = () => (settings.get().skipPermissions ? 'claude --dangerou
 function sessionCommand(app, resume = null) {
   if (app === 'codex') return codex.command({ skipPermissions: settings.get().skipPermissions, resume });
   if (app === 'copilot') return copilot.command({ skipPermissions: settings.get().skipPermissions, resume });
+  if (app === 'opencode') return opencode.command({ skipPermissions: settings.get().skipPermissions, resume });
   return resume ? `${claudeCommand()} --resume ${resume}` : claudeCommand();
 }
 // The app new sessions start in, from Settings: Claude unless Codex is chosen
@@ -318,17 +320,18 @@ async function action(res, sessionId, name) {
     const label = agent.terminalTitle || agent.title || agent.name;
     return send(res, 409, { ok: false, error: `${label} is waiting on a prompt or dialog. Use Go to window and answer it first.` });
   }
-  // Codex takes Catch up's prompt through its service, so nothing is typed
-  // into its window, which comes forward if it's known. Stop interrupts the
-  // turn it's running, then ends the Codex in its window.
-  if (agent.app === 'codex' && name === 'catch-up') {
-    const queued = await codex.queuePrompt(agent.id, CATCH_UP_PROMPT);
+  // Codex and OpenCode take Catch up's prompt through their services, so
+  // nothing is typed into the window, which comes forward if it's known. Stop
+  // interrupts the turn it's running, then ends the app in its window.
+  const sessions = { codex, opencode }[agent.app];
+  if (sessions && name === 'catch-up') {
+    const queued = await sessions.queuePrompt(agent.id, CATCH_UP_PROMPT);
     if (!queued.ok) return send(res, 500, queued);
     const shown = agent.pid ? await terminals.focus(agent.pid) : null;
     return send(res, 200, { ok: true, queued: true, raised: Boolean(shown?.raised), window: shown?.window || null });
   }
-  if (agent.app === 'codex' && name === 'stop') {
-    const stopped = await codex.interrupt(agent.id);
+  if (sessions && name === 'stop') {
+    const stopped = await sessions.interrupt(agent.id);
     if (!stopped.ok) return send(res, 500, stopped);
     if (!agent.pid) return send(res, 200, { ok: true, interrupted: stopped.interrupted, windowLeft: true });
     const result = await terminals.stop(agent.pid);
@@ -356,16 +359,17 @@ async function action(res, sessionId, name) {
 const closable = (a) =>
   (a.app === 'claude' && !a.background && (!a.kind || a.kind === 'interactive') && (!a.entrypoint || a.entrypoint === 'cli')) ||
   a.app === 'codex' ||
+  a.app === 'opencode' ||
   (a.app === 'copilot' && a.entrypoint === 'cli');
 const working = (a) => a.status === 'busy' || a.status === 'shell';
 // Waiting to close once they're done: session ID -> its name.
 const closing = new Map();
 
-// Ends a session and its tab. A Codex session's turn is interrupted first,
-// and one whose window isn't known can't be closed from here.
+// Ends a session and its tab. A Codex or OpenCode session's turn is
+// interrupted first, and one whose window isn't known can't be closed from here.
 async function closeSession(a) {
-  if (a.app === 'codex') {
-    await codex.interrupt(a.id);
+  if (a.app === 'codex' || a.app === 'opencode') {
+    await { codex, opencode }[a.app].interrupt(a.id);
     if (!a.pid) return { ok: false, error: "its window isn't known" };
   }
   return terminals.close(a.pid);
@@ -425,7 +429,8 @@ async function resumeLast(res) {
     if (open.has(s.id)) skipped.push({ name: s.name, why: 'already open' });
     else if (!fs.existsSync(s.cwd)) skipped.push({ name: s.name, why: 'its folder is gone' });
     else {
-      // The ID comes from the saved set, which only holds UUIDs.
+      // The ID comes from the saved set, which only holds session IDs, each
+      // safe in a command line (session-id.js).
       const result = await openTab(s.cwd, sessionCommand(s.app, s.id));
       if (result.ok) opened++;
       else skipped.push({ name: s.name, why: result.error });
@@ -667,7 +672,8 @@ const server = http.createServer(async (req, res) => {
       return await todoAction(res, t[1], t[2] || 'edit', await readJson(req));
     }
 
-    // Sessions have UUIDs; jobs and models have IDs such as comfy:<install>:<job>.
+    // Sessions have UUIDs, or OpenCode's ses_ IDs; jobs and models have IDs
+    // such as comfy:<install>:<job>.
     // Either way it must be on the dashboard now.
     const m = url.pathname.match(/^\/api\/agents\/([^/]{1,300})\/(focus|catch-up|open-folder|stop|complete|cancel|unload|dismiss)$/i);
     if (m) {

@@ -94,7 +94,7 @@ const PERMISSION_MODES = {
   'never-ask': tr('never asks'),
 };
 // Which app each session is, on its card and in the history.
-const APPS = { claude: 'Claude', codex: 'Codex', copilot: 'Copilot', comfy: 'Comfy', localai: 'LocalAI', ollama: 'Ollama', lmstudio: 'LM Studio', llamacpp: 'llama.cpp' };
+const APPS = { claude: 'Claude', codex: 'Codex', copilot: 'Copilot', opencode: 'OpenCode', comfy: 'Comfy', localai: 'LocalAI', ollama: 'Ollama', lmstudio: 'LM Studio', llamacpp: 'llama.cpp' };
 // Cards for things other than sessions: ComfyUI's jobs, LocalAI's models,
 // downloads and chats, and the other model servers' loaded models.
 const isItem = (a) => ['comfy', 'localai', 'ollama', 'lmstudio', 'llamacpp'].includes(a.app);
@@ -102,6 +102,7 @@ const APP_HINTS = {
   claude: tr('A Claude Code session'),
   codex: tr('A Codex session'),
   copilot: tr('A GitHub Copilot session'),
+  opencode: tr('An OpenCode session'),
   comfy: tr('A ComfyUI job'),
   localai: tr('From LocalAI'),
   ollama: tr('From Ollama'),
@@ -207,7 +208,12 @@ function shortPath(p) {
 const status = (a) => STATUS[a.status] || STATUS.unknown;
 // What the terminal tab shows, falling back to Claude's own names.
 const displayName = (a) => a.terminalTitle || a.title || a.name;
-const RESUME = { codex: (id) => `codex resume ${id}`, copilot: (id) => `copilot --resume=${id}`, claude: (id) => `claude --resume ${id}` };
+const RESUME = {
+  codex: (id) => `codex resume ${id}`,
+  copilot: (id) => `copilot --resume=${id}`,
+  opencode: (id) => `opencode --session ${id}`,
+  claude: (id) => `claude --resume ${id}`,
+};
 const resumeCommand = (a) => `cd "${a.cwd}"; ${(RESUME[a.app] || RESUME.claude)(a.id)}`;
 // A Copilot session inside VS Code can only be gone to: VS Code runs it.
 const inVsCode = (a) => a.app === 'copilot' && a.entrypoint === 'vscode';
@@ -278,9 +284,9 @@ const post = (agent, action) => api(`/api/agents/${encodeURIComponent(agent.id)}
 // Other apps' cards say which buttons they have.
 const canFocus = (a) =>
   Boolean(snap?.terminals) && !a.background && Boolean(a.pid) && (a.actions ? a.actions.includes('focus') : !a.kind || a.kind === 'interactive');
-// Codex takes Catch up's prompt through its own service, so it doesn't need
-// the window; Claude's is typed into the window.
-const canCatchUp = (a) => !inVsCode(a) && (a.app === 'codex' ? !a.kind || a.kind === 'interactive' : canFocus(a));
+// Codex and OpenCode take Catch up's prompt through their own services, so
+// they don't need the window; Claude's is typed into the window.
+const canCatchUp = (a) => !inVsCode(a) && (a.app === 'codex' || a.app === 'opencode' ? !a.kind || a.kind === 'interactive' : canFocus(a));
 // The app a to-do starts: its own choice, or the one Settings names.
 const todoApp = (t) => t.app || snap?.newSessionApp || 'claude';
 
@@ -469,6 +475,7 @@ function showInstalledChoices(name) {
 const closable = (a) =>
   (a.app === 'claude' && !a.background && (!a.kind || a.kind === 'interactive') && (!a.entrypoint || a.entrypoint === 'cli')) ||
   a.app === 'codex' ||
+  a.app === 'opencode' ||
   (a.app === 'copilot' && a.entrypoint === 'cli');
 const isWorking = (a) => a.status === 'busy' || a.status === 'shell';
 
@@ -2219,13 +2226,15 @@ function connect() {
 function confirmStop(a) {
   const dialog = $('confirm');
   $('confirm-name').textContent = displayName(a);
-  // Codex runs the session in its background service: Stop interrupts its
-  // turn there, then ends the Codex in its window, if that's known.
+  // Codex and OpenCode run the session in a background service: Stop
+  // interrupts its turn there, then ends the app in its window, if that's known.
   $('confirm-what').textContent =
-    a.app !== 'codex'
+    a.app !== 'codex' && a.app !== 'opencode'
       ? tr("This force-ends PID {pid} along with its shells and MCP servers. Anything the current turn hasn't saved is lost.", { pid: a.pid })
       : a.pid
-        ? tr("This interrupts its current turn and ends Codex in its window, PID {pid}. What the turn hasn't finished is lost.", { pid: a.pid })
+        ? a.app === 'codex'
+          ? tr("This interrupts its current turn and ends Codex in its window, PID {pid}. What the turn hasn't finished is lost.", { pid: a.pid })
+          : tr("This interrupts its current turn and ends OpenCode in its window, PID {pid}. What the turn hasn't finished is lost.", { pid: a.pid })
         : tr("This interrupts its current turn. What the turn hasn't finished is lost. Its window isn't known, so close that yourself.");
   $('confirm-resume').textContent = resumeCommand(a);
   dialog.returnValue = '';
