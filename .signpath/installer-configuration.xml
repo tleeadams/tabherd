@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The artifact configuration for the Windows installer, kept here so changes
+  to it are reviewed like code. On signpath.io, add it to the project as a
+  second artifact configuration with the slug "installer" (or set the
+  SIGNPATH_INSTALLER_CONFIGURATION_SLUG variable to the slug it has).
+
+  The Release workflow uploads only the installer, after the app inside it
+  has been signed under artifact-configuration.xml, so the artifact GitHub
+  makes is a zip holding that one file. Its name has the version in it.
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file path="tabherd-v*-windows-x64-setup.exe">
+      <authenticode-sign />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

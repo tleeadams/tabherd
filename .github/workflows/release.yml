@@ -1,8 +1,8 @@
 name: Release
 
-# Pushing a version tag, such as v0.1.0, on main builds the releases (a zip
-# for Windows, archives for macOS and Linux) and creates a draft GitHub
-# release with them. Check the draft, then publish it.
+# Pushing a version tag, such as v0.1.0, on main builds the releases (an
+# installer and a zip for Windows, archives for macOS and Linux) and creates a
+# draft GitHub release with them. Check the draft, then publish it.
 # A tag with a hyphen (v0.2.0-beta.1) makes a prerelease.
 on:
   push:
@@ -13,14 +13,15 @@ permissions:
 
 jobs:
   build:
-    # The Windows release, built on Windows for the launcher's C# compiler.
+    # The Windows release: the desktop app in app/src-tauri, as an installer
+    # and a zip, built on Windows with Rust and Tauri.
     strategy:
       matrix:
         os: [windows-latest]
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
-      # For SignPath to fetch the unsigned launcher from this run.
+      # For SignPath to fetch the unsigned app and installer from this run.
       actions: read
     steps:
       - uses: actions/checkout@v7
@@ -30,6 +31,10 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: app/src-tauri
       - name: Check the tag is on main and matches package.json
         shell: bash
         run: |
@@ -44,20 +49,20 @@ jobs:
           fi
       - run: npm test
       - run: node scripts/build-release.js --stage
-      # The launcher is signed through SignPath Foundation once the
+      # The app is signed through SignPath Foundation once the
       # SIGNPATH_ORGANIZATION_ID variable and SIGNPATH_API_TOKEN secret are
-      # set (see CONTRIBUTING.md); until then it ships unsigned. Only the
-      # launcher is sent: the bundled node.exe has the Node.js project's own
-      # signature. Each request waits for an approver on signpath.io.
-      - name: Upload the launcher for signing
+      # set (see CONTRIBUTING.md); until then it ships unsigned. Only the app
+      # is sent: the bundled node.exe has the Node.js project's own signature.
+      # Each request waits for an approver on signpath.io.
+      - name: Upload the app for signing
         id: unsigned
         if: vars.SIGNPATH_ORGANIZATION_ID != '' && runner.os == 'Windows'
         uses: actions/upload-artifact@v7
         with:
-          name: unsigned-launcher-${{ matrix.os }}
+          name: unsigned-app-${{ matrix.os }}
           path: dist/*/Tabherd.exe
           if-no-files-found: error
-      - name: Sign the launcher
+      - name: Sign the app
         if: steps.unsigned.outcome == 'success'
         uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
         with:
@@ -69,23 +74,58 @@ jobs:
           # Time for an approver to approve the request.
           wait-for-completion-timeout-in-seconds: 3600
           output-artifact-directory: dist/signed
-      - name: Check the signature and put the signed launcher in the release
+      - name: Check the signature and put the signed app in the release
         if: steps.unsigned.outcome == 'success'
         shell: pwsh
         run: |
           $signed = Get-Item 'dist/signed/Tabherd.exe'
           $signature = Get-AuthenticodeSignature $signed.FullName
-          if ($signature.Status -ne 'Valid') { throw "The signed launcher's signature is $($signature.Status): $($signature.StatusMessage)" }
+          if ($signature.Status -ne 'Valid') { throw "The signed app's signature is $($signature.Status): $($signature.StatusMessage)" }
           "Signed by $($signature.SignerCertificate.Subject)"
           Copy-Item $signed.FullName (Get-Item 'dist/tabherd-*/Tabherd.exe').FullName -Force
           Remove-Item dist/signed -Recurse
+      # The zip, and the installer around the app as it now is.
       - run: node scripts/build-release.js --pack
+      # Then the installer is signed too: a second request, under the
+      # project's artifact configuration for it.
+      - name: Upload the installer for signing
+        id: unsigned-installer
+        if: steps.unsigned.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-installer-${{ matrix.os }}
+          path: dist/*-setup.exe
+          if-no-files-found: error
+      - name: Sign the installer
+        if: steps.unsigned-installer.outcome == 'success'
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'tabherd' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_INSTALLER_CONFIGURATION_SLUG || 'installer' }}
+          github-artifact-id: ${{ steps.unsigned-installer.outputs.artifact-id }}
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: dist/signed
+      - name: Check the installer's signature and put it in the release
+        if: steps.unsigned-installer.outcome == 'success'
+        shell: pwsh
+        run: |
+          $signed = Get-Item 'dist/signed/*-setup.exe'
+          $signature = Get-AuthenticodeSignature $signed.FullName
+          if ($signature.Status -ne 'Valid') { throw "The signed installer's signature is $($signature.Status): $($signature.StatusMessage)" }
+          "Signed by $($signature.SignerCertificate.Subject)"
+          Copy-Item $signed.FullName (Get-Item 'dist/tabherd-*-setup.exe').FullName -Force
+          Remove-Item dist/signed -Recurse
+          node scripts/build-release.js --checksums
       - uses: actions/upload-artifact@v7
         with:
           name: release-${{ matrix.os }}
           path: |
             dist/*.zip
-            dist/*.zip.sha256
+            dist/*.exe
+            dist/*.sha256
             dist/RELEASE_NOTES.md
 
   build-unix:
@@ -135,6 +175,6 @@ jobs:
             printf '\n[Code signing policy](%s#code-signing-policy)\n' "$repo"
           } > dist/notes.md
           mv dist/notes.md dist/RELEASE_NOTES.md
-          gh release create "$GITHUB_REF_NAME" dist/*.zip dist/*.tar.gz dist/*.sha256 \
+          gh release create "$GITHUB_REF_NAME" dist/*.exe dist/*.zip dist/*.tar.gz dist/*.sha256 \
             --repo "$GITHUB_REPOSITORY" --draft $prerelease \
             --title "Tabherd $GITHUB_REF_NAME" --notes-file dist/RELEASE_NOTES.md

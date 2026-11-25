@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  What the app may do under the hardened runtime, which notarization requires.
+  Signing applies these to the app and to the Node beside it.
+-->
+<plist version="1.0">
+<dict>
+  <!-- V8, in the bundled Node, compiles JavaScript as it runs. -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+  <!-- Tabherd drives Terminal, iTerm2 and Ghostty with osascript. -->
+  <key>com.apple.security.automation.apple-events</key>
+  <true/>
+</dict>
+</plist>
