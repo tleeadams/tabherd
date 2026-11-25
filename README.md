@@ -185,13 +185,14 @@ The models ComfyUI has loaded are listed on the Memory and models card, each wit
 **LocalAI.** It's found at Settings → Other apps → *LocalAI address*, `http://127.0.0.1:8080` unless you set another, with the API key there if LocalAI has one. It shows:
 
 - **Each loaded model**, on the Memory and models card, with the graphics memory, memory and CPU it's using, and **Unload** to free them.
+- **Each model that's working**, on a request from LocalAI's own chat or from another app, as a *Working* card of its own. LocalAI doesn't list the requests it's answering, so this goes by the processor its model's backend is using, which is near zero when it's idle: the card comes when it's busy and leaves a few seconds after it's quiet again. One that worked half a minute or more dings when it stops. A model on another computer, through LocalAI's distributed mode, gets no reading, so no card.
 - **Each download or install** in progress, with its progress and size, and **Cancel**. Finishing dings.
 - **Each agent chat** that's running (*Working*, with **Stop**) or paused at its step limit (*Needs you*). One that finishes leaves the dashboard and dings.
 - **Each agent job** running or queued, with **Cancel**. One that finishes leaves and dings.
 
 A chat, agent job or download that fails keeps its card, as needing you, until you **Clear** it. Cleared cards stay cleared, in every browser, in `~/.tabherd/dismissed.json`.
 
-**Open in LocalAI** opens LocalAI's own page. LocalAI keeps no list of plain API requests in progress, so a request from another app doesn't get a card.
+**Open in LocalAI** opens LocalAI's own page.
 
 **Ollama** and **LM Studio**: each loaded model is listed on the Memory and models card, marked with its app, with its size, context and, for Ollama, the graphics memory it holds and when Ollama will unload it, and **Unload**. Ollama is found at Settings → Other apps → *Ollama address*, else `OLLAMA_HOST`, else `http://127.0.0.1:11434`. LM Studio's local server must be on (its Developer tab, or `lms server start`); it's found at *LM Studio address*, else the port it last served on, else `http://127.0.0.1:1234`, with *LM Studio API token* if LM Studio requires one. Neither tells anyone but the caller about downloads or requests in progress, so those don't get cards.
 
@@ -355,7 +356,7 @@ All of it is read-only, from files Claude Code and Codex already write, and from
 | The `codex` processes and their tab titles | Which window each Codex session is in, and its memory use. |
 | Comfy Desktop's `comfy-procs/*.json` and `installations.json` | Which ComfyUIs are running, on which ports, and their names. |
 | ComfyUI's `/api/jobs`, `/queue`, `/api/userdata` and `/view` | Its jobs, their workflows' names and the models they load, and their output images. Its window's title gives the running job's progress. |
-| LocalAI's `/system`, `/api/operations`, `/api/chats` and `/api/agent/jobs` | Its loaded models, downloads, agent chats and agent jobs. |
+| LocalAI's `/system`, `/api/operations`, `/api/chats` and `/api/agent/jobs` | Its loaded models and which are working, downloads, agent chats and agent jobs. |
 | GitHub's list of Tabherd's releases (`api.github.com/repos/tleeadams/tabherd/releases`) | Whether a newer version is out. Only with [update alerts](#update-alerts) on, or after **Check now**. |
 
 A session file whose process has exited, or whose PID now belongs to another process, is ignored.
