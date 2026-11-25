@@ -727,8 +727,57 @@ function actions(a) {
       await copy(resumeCommand(a));
       toast(tr('Resume command copied'));
     }),
-    inVsCode(a) ? null : btn(tr('Stop…'), () => confirmStop(a), 'btn-stop'),
+    // The two that end the session, together at the end, wrapping together.
+    inVsCode(a)
+      ? null
+      : el(
+          'span',
+          { class: 'actions-end' },
+          closable(a) && !snap?.closing?.includes(a.id)
+            ? btn(isArmed(a) ? tr('{label}?', { label: tr('Complete') }) : tr('Complete'), (e) => completeSession(a, e.currentTarget), isArmed(a) ? 'btn-danger' : '', {
+                'data-complete': a.id,
+                title: tr('Mark it complete and close it. A working session finishes its turn first.'),
+              })
+            : null,
+          btn(tr('Stop…'), () => confirmStop(a), 'btn-stop'),
+        ),
   );
+}
+
+// Complete asks for a second click, like Unload, then closes the session,
+// once its turn ends if it's working. History keeps it, marked complete. The
+// first click is kept by session for three seconds, as a session's card is
+// drawn again whenever it changes, which can be every update.
+const armedComplete = new Map();
+const isArmed = (a) => (armedComplete.get(a.id) || 0) > Date.now();
+
+async function completeSession(a, button) {
+  if (!isArmed(a)) {
+    const until = Date.now() + 3000;
+    armedComplete.set(a.id, until);
+    button.classList.add('btn-danger');
+    button.textContent = tr('{label}?', { label: tr('Complete') });
+    setTimeout(() => {
+      if (armedComplete.get(a.id) !== until) return;
+      armedComplete.delete(a.id);
+      const shown = document.querySelector(`[data-complete="${CSS.escape(a.id)}"]`);
+      if (shown) {
+        shown.classList.remove('btn-danger');
+        shown.textContent = tr('Complete');
+      }
+    }, 3000);
+    return;
+  }
+  armedComplete.delete(a.id);
+  button.disabled = true;
+  try {
+    const r = await post(a, 'complete');
+    toast(r.waiting ? tr('{name} will close when its turn ends', { name: displayName(a) }) : tr('Completed {name}', { name: displayName(a) }));
+  } catch (err) {
+    toast(err.message, true);
+    button.disabled = false;
+  }
+  refresh();
 }
 
 // A card for a ComfyUI job, or a LocalAI model, download or chat. The server
@@ -837,11 +886,17 @@ function card(a) {
   if (a.kind && a.kind !== 'interactive') tags.push(el('span', { class: 'tag', text: a.kind }));
   if (snap?.closing?.includes(a.id)) {
     tags.push(
-      el(
-        'button',
-        { type: 'button', class: 'tag closing', title: tr('Save and close will close it when this turn ends. Click to keep it open.'), onclick: () => keepOpen(a) },
-        `${tr('Closes when done')} ✕`,
-      ),
+      a.completedAt
+        ? el(
+            'button',
+            { type: 'button', class: 'tag closing', title: tr('Marked complete: it closes when this turn ends. Click to keep it open.'), onclick: () => keepOpen(a) },
+            `${tr('Completes when done')} ✕`,
+          )
+        : el(
+            'button',
+            { type: 'button', class: 'tag closing', title: tr('Save and close will close it when this turn ends. Click to keep it open.'), onclick: () => keepOpen(a) },
+            `${tr('Closes when done')} ✕`,
+          ),
     );
   }
   if (a.background) {
@@ -2449,7 +2504,15 @@ function pastItem(s) {
   return el(
     'li',
     { class: 'past' },
-    el('div', { class: 'past-head' }, el('span', { class: 'past-name', text: name, title: name }), groupTag(s), appTag(s), since(s.closedAt, true)),
+    el(
+      'div',
+      { class: 'past-head' },
+      el('span', { class: 'past-name', text: name, title: name }),
+      s.completedAt ? el('span', { class: 'tag complete', title: tr('Marked complete: {when}', { when: new Date(s.completedAt).toLocaleString(lang) }), text: `✓ ${tr('Completed')}` }) : null,
+      groupTag(s),
+      appTag(s),
+      since(s.closedAt, true),
+    ),
     subtitle ? el('p', { class: 'past-title', text: subtitle, title: subtitle }) : null,
     s.todo ? el('p', { class: 'past-title', title: todoText(s.todo) }, el('b', {}, `${tr('To-do')} · `), s.todo.title) : null,
     el(
@@ -2492,17 +2555,27 @@ function renderHistory() {
   if (!historyData) return;
   const terms = $('history-filter').value.toLowerCase().split(/\s+/).filter(Boolean);
   const background = $('history-background').checked;
+  const complete = $('history-complete').checked;
   const shown = historyData.filter((s) => {
     if (s.background && !background) return false;
+    if (s.completedAt && !complete) return false;
     const text = [pastName(s), s.title, s.name, s.cwd, s.gitBranch, s.firstPrompt?.text, s.lastPrompt?.text, s.todo?.title, s.todo?.notes]
       .join(' ')
       .toLowerCase();
     return terms.every((t) => text.includes(t));
   });
   const n = historyData.length;
-  $('history-sub').textContent = trn(n, '{n} closed session', '{n} closed sessions') + (shown.length < n ? ` · ${tr('{n} shown', { n: shown.length })}` : '');
-  // The switch for background runs only shows once there are some.
+  const done = historyData.filter((s) => s.completedAt).length;
+  $('history-sub').textContent = [
+    trn(n, '{n} closed session', '{n} closed sessions'),
+    done ? tr('Complete: {n}', { n: done }) : null,
+    shown.length < n ? tr('{n} shown', { n: shown.length }) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  // The switches for background runs and complete sessions only show once there are some.
   $('history-background-label').hidden = !historyData.some((s) => s.background);
+  $('history-complete-label').hidden = !done;
   const days = [];
   for (const s of shown) {
     const day = dayLabel(s.closedAt);
@@ -2542,6 +2615,17 @@ try {
 $('history-background').addEventListener('change', (e) => {
   try {
     localStorage.setItem(HISTORY_BACKGROUND_KEY, e.currentTarget.checked ? 'on' : 'off');
+  } catch {}
+  renderHistory();
+});
+// Whether History lists sessions marked complete. Kept in this browser.
+const HISTORY_COMPLETE_KEY = 'tabherd:history-complete';
+try {
+  $('history-complete').checked = localStorage.getItem(HISTORY_COMPLETE_KEY) !== 'off';
+} catch {}
+$('history-complete').addEventListener('change', (e) => {
+  try {
+    localStorage.setItem(HISTORY_COMPLETE_KEY, e.currentTarget.checked ? 'on' : 'off');
   } catch {}
   renderHistory();
 });
