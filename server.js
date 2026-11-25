@@ -24,6 +24,7 @@ const lmstudio = require('./lib/lmstudio');
 const llamacpp = require('./lib/llamacpp');
 const saved = require('./lib/saved');
 const dismissed = require('./lib/dismissed');
+const completed = require('./lib/completed');
 const updates = require('./lib/updates');
 
 const PORT = Number(process.env.PORT) || 4317;
@@ -109,7 +110,15 @@ function currentSnapshot() {
         snap.copilotInstalled = copilot.installed();
         snap.newSessionApp = newSessionApp();
         history.observe(snap.agents, snap.now);
-        // Sessions Save and close is waiting on: each closes once it's done.
+        // Sessions marked complete, which a session asked more once resumed
+        // no longer is.
+        completed.observe(snap.agents);
+        for (const a of snap.agents) {
+          const at = completed.at(a.id);
+          if (at) a.completedAt = at;
+        }
+        // Sessions Save and close or Complete is waiting on: each closes once
+        // it's done.
         closeFinished(snap.agents);
         snap.closing = [...closing.keys()];
         const last = saved.get();
@@ -238,6 +247,21 @@ async function action(res, sessionId, name) {
     pushSnapshot();
     return send(res, 200, { ok: true });
   }
+  // A session marked complete, then closed as Save and close closes it: a
+  // working one once its turn ends. One that can't be closed isn't marked.
+  if (name === 'complete') {
+    if (!closable(agent)) return send(res, 400, { ok: false, error: "That session can't be closed from here." });
+    completed.add(agent.id, agent.prompts);
+    if (working(agent)) {
+      closing.set(agent.id, agent.name);
+      pushSnapshot();
+      return send(res, 200, { ok: true, waiting: true });
+    }
+    const result = await closeSession(agent).catch((err) => ({ ok: false, error: err.message }));
+    if (!result.ok) completed.remove(agent.id);
+    pushSnapshot();
+    return send(res, result.ok ? 200 : 500, result);
+  }
   // LocalAI: Unload a model, Stop a chat's turn, Cancel a download or agent
   // job. Ollama, LM Studio and llama.cpp: Unload a model.
   const service = { localai, ollama, lmstudio, llamacpp }[agent.app];
@@ -331,14 +355,14 @@ function closeFinished(agents) {
 
 // Saves every open session, replacing the last saved set, then closes them.
 // Working ones close now, or with `wait` once they finish their turn. A
-// session that was never asked anything has nothing to resume, so it's
-// closed but not saved.
+// session that was never asked anything has nothing to resume, and one
+// marked complete is done, so they're closed but not saved.
 async function saveAndClose(res, body) {
   cached = null;
   const snap = await currentSnapshot();
   const open = snap.agents.filter(closable);
   const set = saved.save(
-    open.filter((a) => a.prompts > 0).map((a) => ({ app: a.app, id: a.id, cwd: a.cwd, name: a.terminalTitle || a.title || a.name })),
+    open.filter((a) => a.prompts > 0 && !a.completedAt).map((a) => ({ app: a.app, id: a.id, cwd: a.cwd, name: a.terminalTitle || a.title || a.name })),
     snap.now,
   );
   const failed = [];
@@ -522,7 +546,11 @@ const server = http.createServer(async (req, res) => {
       // A fresh snapshot first, so running sessions aren't mistaken for closed ones.
       await currentSnapshot();
       await history.backfill();
-      return send(res, 200, { ok: true, sessions: history.list().map((s) => ({ ...s, ...groups.groupOf(s) })), groups: groups.list() });
+      return send(res, 200, {
+        ok: true,
+        sessions: history.list().map((s) => ({ ...s, ...groups.groupOf(s), completedAt: completed.at(s.id) })),
+        groups: groups.list(),
+      });
     }
 
     const resume = url.pathname.match(/^\/api\/history\/([0-9a-f-]{36})\/resume$/i);
@@ -547,7 +575,9 @@ const server = http.createServer(async (req, res) => {
       const body = await readJson(req);
       if (sessionsAction[1] === 'save-close') return await saveAndClose(res, body);
       if (sessionsAction[1] === 'resume-last') return await resumeLast(res);
+      // Kept open, it's not complete either.
       closing.delete(String(body.id));
+      completed.remove(String(body.id));
       cached = null;
       pushSnapshot();
       return send(res, 200, { ok: true });
@@ -601,7 +631,7 @@ const server = http.createServer(async (req, res) => {
 
     // Sessions have UUIDs; jobs and models have IDs such as comfy:<install>:<job>.
     // Either way it must be on the dashboard now.
-    const m = url.pathname.match(/^\/api\/agents\/([^/]{1,300})\/(focus|catch-up|open-folder|stop|cancel|unload|dismiss)$/i);
+    const m = url.pathname.match(/^\/api\/agents\/([^/]{1,300})\/(focus|catch-up|open-folder|stop|complete|cancel|unload|dismiss)$/i);
     if (m) {
       if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
       if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });

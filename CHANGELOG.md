@@ -4,6 +4,8 @@ Notable changes in each release. Version numbers follow [Semantic Versioning](ht
 
 ## Unreleased
 
+- **Complete** on a session's card, beside Stop…, for work that's done: after a second click it closes the session, once its turn ends if it's working, and History marks it *Completed*, with a switch to hide completed sessions. Save and close doesn't save a completed session, and one resumed and asked something new is no longer complete. See [Complete](README.md#complete).
+- Stop, Cancel and Unload on a job's, model's or download's card, and Unload on the Memory and models card, kept their first click only until the card next changed, which for a busy model could be within two seconds. The first click now lasts its three seconds whatever the card does.
 - A LocalAI model that's working on a request, from LocalAI's chat or another app, gets a *Working* card. LocalAI doesn't list its requests, so the card goes by the processor the model's backend is using, and leaves a few seconds after it's quiet. One that worked half a minute or more dings when it stops.
 - With Card size set to Small, Medium or Large, the Memory and models card shrinks when its list of models is closed, instead of keeping a card's full height.
 - The version running shows under the computer's name in the header.
