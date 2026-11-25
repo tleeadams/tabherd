@@ -4,6 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="agents-token" content="%%TOKEN%%">
+  <!-- Tells the desktop app this page's header stands in for the window's
+       title bar. Without it, the app gives the window the system's. -->
+  <meta name="tabherd-title-bar" content="header">
   <title>Tabherd</title>
   <!-- Not /favicon.svg: browsers keep a page's icon by its address, so a
        window opened before the logo changed would show the old one. -->
@@ -12,7 +15,9 @@
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <header class="top">
+  <!-- In the desktop app, dragging the header, but not its buttons, moves the
+       window, and double-clicking it maximizes the window. -->
+  <header class="top" data-tauri-drag-region="deep">
     <button type="button" id="menu-button" class="icon-btn menu-button" aria-label="Open the repository menu" aria-haspopup="dialog" aria-controls="repos">
       <span class="burger" aria-hidden="true"></span>
     </button>
@@ -21,7 +26,8 @@
       <h1>Tabherd</h1>
       <span id="host" class="host"></span>
     </div>
-    <nav id="filters" class="filters" aria-label="Filters">
+    <!-- Its scroll bar scrolls the filters, rather than moving the window. -->
+    <nav id="filters" class="filters" aria-label="Filters" data-tauri-drag-region="false">
       <button type="button" data-filter="all" aria-pressed="true">All <b>0</b></button>
     </nav>
     <div class="view-filters">
@@ -75,6 +81,22 @@
     </button>
     <div id="conn" class="conn" role="status">
       <span class="conn-dot"></span><span id="updated">Connecting…</span>
+    </div>
+    <!-- The desktop app's window buttons, on Windows and Linux. Not in a
+         browser, nor on macOS, which keeps its own. -->
+    <div id="window-buttons" class="window-buttons" hidden>
+      <button type="button" id="window-minimize" title="Minimize" aria-label="Minimize">
+        <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true"><path d="M0 5.5h10"/></svg>
+      </button>
+      <button type="button" id="window-maximize" title="Maximize" aria-label="Maximize">
+        <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true">
+          <rect class="maximize" x="0.5" y="0.5" width="9" height="9"/>
+          <path class="restore" d="M0.5 2.5h7v7h-7zM2.5 2.5v-2h7v7h-2"/>
+        </svg>
+      </button>
+      <button type="button" id="window-close" class="window-close" title="Close" aria-label="Close">
+        <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true"><path d="M0.5 0.5l9 9M9.5 0.5l-9 9"/></svg>
+      </button>
     </div>
   </header>
 

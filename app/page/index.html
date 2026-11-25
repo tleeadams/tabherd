@@ -5,7 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tabherd</title>
   <!-- What the window shows while the app starts the dashboard server, or if
-       the server can't start. The app calls showError() with the reason. -->
+       the server can't start. The app calls showError() with the reason. Like
+       the dashboard, it stands in for the window's title bar: dragging it
+       moves the window, and on Windows and Linux it has the window's buttons.
+       See the dashboard's header. -->
+  <meta name="tabherd-title-bar" content="page">
   <style>
     :root {
       color-scheme: light dark;
@@ -39,15 +43,53 @@
     p { margin: 8px 0 0; color: var(--muted); overflow-wrap: anywhere; }
     .failed .spinner { display: none; }
     .failed h1 { color: var(--danger); }
+    .window-buttons { position: fixed; top: 0; right: 0; display: flex; }
+    .window-buttons[hidden] { display: none; }
+    .window-buttons button {
+      display: grid;
+      place-items: center;
+      width: 46px;
+      height: 32px;
+      padding: 0;
+      border: 0;
+      background: none;
+      color: var(--text);
+    }
+    .window-buttons button:hover { background: color-mix(in srgb, var(--text) 9%, transparent); }
+    .window-buttons button:active { background: color-mix(in srgb, var(--text) 15%, transparent); }
+    .window-buttons button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .window-buttons .window-close:hover { background: #c42b1c; color: #fff; }
+    .window-buttons .window-close:active { background: #b62d1f; color: #fff; }
+    .window-buttons svg { fill: none; stroke: currentColor; stroke-width: 1; }
   </style>
 </head>
-<body>
+<body data-tauri-drag-region="deep">
+  <div id="window-buttons" class="window-buttons" hidden>
+    <button type="button" id="window-minimize" title="Minimize" aria-label="Minimize">
+      <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true"><path d="M0 5.5h10"/></svg>
+    </button>
+    <button type="button" id="window-maximize" title="Maximize" aria-label="Maximize">
+      <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true"><rect x="0.5" y="0.5" width="9" height="9"/></svg>
+    </button>
+    <button type="button" id="window-close" class="window-close" title="Close" aria-label="Close">
+      <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true"><path d="M0.5 0.5l9 9M9.5 0.5l-9 9"/></svg>
+    </button>
+  </div>
   <main>
     <div class="spinner" aria-hidden="true"></div>
     <h1 id="title">Starting Tabherd…</h1>
-    <p id="detail"></p>
+    <!-- The reason it couldn't start can be selected and copied. -->
+    <p id="detail" data-tauri-drag-region="false"></p>
   </main>
   <script>
+    const app = window.tabherdApp;
+    if (app?.titleBar === 'buttons') {
+      document.getElementById('window-buttons').hidden = false;
+      document.getElementById('window-minimize').onclick = () => app.minimize();
+      document.getElementById('window-maximize').onclick = () => app.toggleMaximize();
+      document.getElementById('window-close').onclick = () => app.close();
+    }
+
     function showError(message) {
       document.body.classList.add('failed');
       document.getElementById('title').textContent = "Tabherd couldn't start";

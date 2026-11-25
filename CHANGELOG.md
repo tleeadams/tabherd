@@ -2,6 +2,10 @@
 
 Notable changes in each release. Version numbers follow [Semantic Versioning](https://semver.org). The release build takes each release's notes from its section here.
 
+## Unreleased
+
+- The desktop app's window has no title bar of the system's: the dashboard's header stands in for it, with more room for the cards. Drag the header to move the window and double-click it to maximize. On Windows and Linux, minimize, maximize and close are in its top right corner; on macOS, the system's own buttons sit in its top left. The cards scroll below the header. See [docs/desktop-app.md](docs/desktop-app.md#the-window).
+
 ## 0.6.0-beta.2 - 2026-11-24
 
 A prerelease, to try the desktop app on macOS and Linux before a release has it. On Windows it's the same as 0.5.0.
