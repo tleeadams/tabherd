@@ -281,6 +281,15 @@
   '{pct}% busy': '{pct} % de uso',
   "Unloads all of {name}'s models: ComfyUI can't unload one alone": 'Libera todos los modelos de {name}: ComfyUI no puede liberar solo uno',
   'No models loaded in ComfyUI, LocalAI, Ollama, LM Studio or llama.cpp.': 'No hay modelos cargados en ComfyUI, LocalAI, Ollama, LM Studio ni llama.cpp.',
+  '{n} model loaded': '{n} modelo cargado',
+  '{n} models loaded': '{n} modelos cargados',
+  "{size}, the model's size: about what it takes in memory": '{size}, el tamaño del modelo: más o menos lo que ocupa en memoria',
+  '{pct}% GPU': '{pct} % GPU',
+  'CPU only': 'Solo CPU',
+  '{size} in memory': '{size} en memoria',
+  '{size} in memory, {graphics} of it in graphics memory': '{size} en memoria, {graphics} de ello en memoria gráfica',
+  '{size} in graphics memory': '{size} en memoria gráfica',
+  '{size} in memory, none of it in graphics memory': '{size} en memoria, nada de ello en memoria gráfica',
 
   // ---- notifications
   Notifications: 'Notificaciones',
