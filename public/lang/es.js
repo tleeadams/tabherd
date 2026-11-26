@@ -620,6 +620,10 @@
     'Esta copia se ejecuta desde un clon del repositorio. Trae la versión nueva y vuelve a iniciar el servidor:',
   'Installed with Homebrew:': 'Instalado con Homebrew:',
   'Installed with winget:': 'Instalado con winget:',
+  'Installed with npm. Stop the server with Ctrl+C in its terminal, then install the new version and start it again:':
+    'Instalado con npm. Detén el servidor con Ctrl+C en su terminal, luego instala la nueva versión y vuelve a iniciarlo:',
+  'Run with npx. Stop the server with Ctrl+C in its terminal, then start the new version:':
+    'Ejecutado con npx. Detén el servidor con Ctrl+C en su terminal y luego inicia la nueva versión:',
   'Download the new installer from the release and run it. It installs over this version.':
     'Descarga el nuevo instalador desde la versión publicada y ejecútalo. Se instala sobre esta versión.',
   "Download the new zip from the release, and put its folder in place of this one's.":

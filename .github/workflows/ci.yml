@@ -29,6 +29,8 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - run: npm test
+      # What npm would publish installs and runs.
+      - run: npm run check-package
 
   build:
     # Builds the Windows installer and zip as a tagged release would, so a

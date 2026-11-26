@@ -2361,10 +2361,13 @@ try {
   updateNoted = localStorage.getItem(UPDATE_NOTED_KEY);
 } catch {}
 
-// How to update, for each way the server can tell Tabherd was installed.
+// How to update, for each way the server can tell Tabherd was installed. A
+// command can depend on the new version.
 const HOW_TO_UPDATE = {
   git: { text: tr('This copy runs from a clone of the repository. Pull the new version, then start the server again:'), command: 'git pull' },
   homebrew: { text: tr('Installed with Homebrew:'), command: 'brew upgrade tabherd' },
+  npm: { text: tr('Installed with npm. Stop the server with Ctrl+C in its terminal, then install the new version and start it again:'), command: (v) => `npm install -g tabherd@${v}` },
+  npx: { text: tr('Run with npx. Stop the server with Ctrl+C in its terminal, then start the new version:'), command: (v) => `npx tabherd@${v}` },
   winget: { text: tr('Installed with winget:'), command: 'winget upgrade tleeadams.Tabherd' },
   'windows-installer': { text: tr('Download the new installer from the release and run it. It installs over this version.') },
   'windows-zip': { text: tr("Download the new zip from the release, and put its folder in place of this one's.") },
@@ -2457,9 +2460,10 @@ async function openUpdate() {
     .join(' ');
   $('update-notes').replaceChildren(...releaseNotes(latest.notes));
   const how = HOW_TO_UPDATE[info.install] || HOW_TO_UPDATE.archive;
+  const command = typeof how.command === 'function' ? how.command(latest.version) : how.command;
   $('update-how').textContent = how.text;
-  $('update-command').hidden = !how.command;
-  $('update-command-text').textContent = how.command || '';
+  $('update-command').hidden = !command;
+  $('update-command-text').textContent = command || '';
   $('update-release').href = latest.url;
   dialog.dataset.version = latest.version;
   dialog.returnValue = '';
