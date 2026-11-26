@@ -2,6 +2,22 @@
 
 Notable changes in each release. Version numbers follow [Semantic Versioning](https://semver.org). The release build takes each release's notes from its section here.
 
+## 0.6.1 - 2026-11-26
+
+Fixes for 0.6.0. Coming from 0.5.0? [0.6.0's notes](https://github.com/tleeadams/tabherd/releases/tag/v0.6.0) have what's new: the desktop app on macOS and Linux, OpenCode and Cursor CLI, tickets on cards, **Complete**, update alerts, and npm.
+
+- **Windows:** run `tabherd-v0.6.1-windows-x64-setup.exe`. It installs over the version you have. It isn't code-signed yet, so SmartScreen may warn the first time: choose **More info**, then **Run anyway**.
+- **macOS** (Apple silicon): open `tabherd-v0.6.1-macos-arm64.dmg` and drag Tabherd to Applications, replacing the one you have.
+- **Linux:** install the new .deb or .rpm as you did the last, or use the new AppImage in place of the old.
+- **npm:** `npm install -g tabherd@latest`, or `npx tabherd@latest`.
+
+> **The macOS app isn't signed by Apple yet.** macOS asks before opening each new version you download: choose Done, then System Settings → Privacy & Security → *Open Anyway*. **When a version signed by Apple comes out, update to it**, and macOS stops asking.
+
+What's fixed:
+
+- Windows' list of installed apps, and the Linux packages, name Tabherd's publisher as tleeadams, not github.
+- The update dialog showed a release note's quote or heading with its `>` or `#` in front.
+
 ## 0.6.0 - 2026-11-26
 
 The desktop app comes to macOS and Linux, and Tabherd is on npm. Sessions from OpenCode and Cursor CLI get cards, tickets link to cards, and **Complete** closes work that's done. Below is everything since 0.5.0, including what the betas had.

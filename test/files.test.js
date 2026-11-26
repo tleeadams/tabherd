@@ -46,6 +46,15 @@ test('release notes come from the changelog, with either line ending', () => {
   assert.throws(() => releaseNotes(changelog, '0.3.0'), /no notes under "## 0\.3\.0"/);
 });
 
+// The desktop app takes its version from package.json, but its crate has one
+// too, which a release sets by hand.
+test("the desktop app's crate has package.json's version", () => {
+  const { version } = require('../package.json');
+  const cargo = (file) => fs.readFileSync(path.join(ROOT, 'app', 'src-tauri', file), 'utf8').replace(/\r\n/g, '\n');
+  assert.equal(/^version = "([^"]+)"/m.exec(cargo('Cargo.toml'))[1], version, 'Cargo.toml');
+  assert.equal(/^name = "tabherd"\nversion = "([^"]+)"/m.exec(cargo('Cargo.lock'))[1], version, 'Cargo.lock');
+});
+
 test('PNGs are read back as they were written', () => {
   const rgba = Buffer.from(Array.from({ length: 3 * 2 * 4 }, (_, i) => (i * 37) % 256));
   const back = decode(encode(3, 2, rgba));
