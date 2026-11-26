@@ -1,6 +1,6 @@
 # Ticket links
 
-*Spec, 2026-11-25, revised with the owner's answers. Phase 1, trackers and encrypted settings, is built; see [Phases](#phases).*
+*Spec, 2026-11-25, revised with the owner's answers. Phase 1, trackers and encrypted settings, and Phase 2, links, are built; see [Phases](#phases).*
 
 A session's card shows the tickets it's working on, from Jira, Linear, GitHub Issues and Zendesk, as chips with each ticket's status that open it. Several systems can be connected at once. Completing a session can then comment on its tickets and move them to done, after asking.
 
@@ -62,7 +62,7 @@ Each one is looked up. One that doesn't exist isn't linked. A key without a trac
 
 - **Card:** a row of chips under the folder, beside the pull request links: `ABC-123 · In progress`, with a dot in the status's colour. Hovering shows the title and assignee, and clicking opens the ticket. Then **+ Ticket**.
 - **History:** the same chips on each closed session, as they were when it closed. History's filter finds sessions by ticket key.
-- **To-do cards and dialog:** their chips, and a field to add one. Pasting a ticket link as a new to-do's title fills in the title from the ticket and puts its description in the notes.
+- **To-do cards and dialog:** their chips, and a field to add one. (Not yet: pasting a ticket link as a new to-do's title fills in the title from the ticket and puts its description in the notes. See [Later](#later).)
 
 Statuses fall into the dashboard's own groups:
 
@@ -135,6 +135,7 @@ Each is one pull request:
 
 ## Later
 
+- **A to-do from a ticket:** pasting a ticket link as a new to-do's title fills in the title from the ticket and puts its description in the notes.
 - **Create a ticket** from **+ Ticket**, in a tracker you choose, from the session's title and recap.
 - Comment on a ticket from a card at any time, not only on Complete.
 - A filter tab by ticket status, such as "Ticket done, session still open".

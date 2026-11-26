@@ -29,6 +29,7 @@ const dismissed = require('./lib/dismissed');
 const completed = require('./lib/completed');
 const secrets = require('./lib/secrets');
 const trackers = require('./lib/trackers');
+const tickets = require('./lib/tickets');
 const updates = require('./lib/updates');
 
 const PORT = Number(process.env.PORT) || 4317;
@@ -115,6 +116,12 @@ function currentSnapshot() {
         snap.settled = codex.settled();
         snap.copilotInstalled = copilot.installed();
         snap.newSessionApp = newSessionApp();
+        // Each session's and to-do's tickets, before the history takes the
+        // sessions that closed.
+        tickets.observe(snap.agents, snap.now);
+        for (const t of snap.todos) t.tickets = tickets.forTodo(t, snap.now);
+        // Whether there are trackers, so cards offer + Ticket.
+        snap.trackerCount = (settings.get().trackers || []).length;
         history.observe(snap.agents, snap.now);
         // Sessions marked complete, which a session asked more once resumed
         // no longer is.
@@ -201,7 +208,13 @@ const forPage = (s) => ({
 
 // Settings → Tickets: the trackers without their tokens, and how secrets are
 // kept on this computer.
-const trackersForPage = () => ({ ok: true, trackers: trackers.forPage(settings.get().trackers), secrets: { ...secrets.status(), unreadable: settings.unreadableKeys() } });
+const trackersForPage = () => ({
+  ok: true,
+  trackers: trackers.forPage(settings.get().trackers),
+  // Each tracker's last failed lookup, if it hasn't answered since.
+  problems: tickets.problems(),
+  secrets: { ...secrets.status(), unreadable: settings.unreadableKeys() },
+});
 
 async function trackerAction(res, name, body) {
   const list = settings.get().trackers;
@@ -215,6 +228,9 @@ async function trackerAction(res, name, body) {
   if (!result.ok) return send(res, 400, result);
   const saved = settings.update({ trackers: result.list }, { internal: true });
   if (!saved.ok) return send(res, 500, saved);
+  // What was read with its old sign-in, or from it, goes.
+  tickets.forget(name === 'save' ? result.tracker.id : body.id);
+  cached = null;
   return send(res, 200, { ...trackersForPage(), id: result.tracker?.id });
 }
 
@@ -654,6 +670,21 @@ const server = http.createServer(async (req, res) => {
         cached = null;
         pushSnapshot();
       }
+      return send(res, result.ok ? 200 : 400, result);
+    }
+
+    // A card's + Ticket, and a ticket's ✕. The session must be on the
+    // dashboard now.
+    const ticketRoute = url.pathname.match(/^\/api\/tickets\/(add|remove)$/);
+    if (ticketRoute) {
+      if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
+      if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
+      const body = await readJson(req);
+      const agent = (await currentSnapshot()).agents.find((a) => a.id === body?.id);
+      if (!agent) return send(res, 404, { ok: false, error: 'That session is no longer running.' });
+      const result = ticketRoute[1] === 'add' ? await tickets.add(agent, body.text) : tickets.remove(agent.id, body.chip);
+      cached = null;
+      pushSnapshot();
       return send(res, result.ok ? 200 : 400, result);
     }
 

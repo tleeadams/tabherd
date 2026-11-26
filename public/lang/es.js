@@ -443,6 +443,22 @@
   None: 'Ninguna',
   // ---- tickets
   Tickets: 'Tickets',
+  // On cards, to-dos and History.
+  'Assigned to {name}': 'Asignado a {name}',
+  'Take {key} off this card': 'Quitar {key} de esta tarjeta',
+  'Link a ticket to this session': 'Vincular un ticket a esta sesión',
+  '+ Ticket': '+ Ticket',
+  'Link a ticket': 'Vincular un ticket',
+  Ticket: 'Ticket',
+  Link: 'Vincular',
+  'ABC-123, or a link to the ticket': 'ABC-123, o un enlace al ticket',
+  "Paste its link or key. Name the tracker first if the key could be in more than one, as in Linear ENG-42. It's linked if the tracker has it. A session can link one itself with a line in a prompt or reply starting with Claim:, as in Claim: ABC-123.":
+    'Pega su enlace o su clave. Pon antes el nombre del gestor si la clave puede estar en más de uno, como en Linear ENG-42. Se vincula si el gestor lo tiene. Una sesión puede vincular uno por sí misma con una línea en un prompt o una respuesta que empiece por Claim:, como en Claim: ABC-123.',
+  'Linked {keys}.': 'Vinculado: {keys}.',
+  "{keys}: its tracker didn't answer, so it's linked once it does.": '{keys}: su gestor no respondió, así que se vinculará cuando responda.',
+  '{keys}: not found in your trackers.': '{keys}: no se encontró en tus gestores.',
+  '{key} taken off. Link it again with + Ticket.': 'Se quitó {key}. Vincúlalo de nuevo con + Ticket.',
+  'Looking up tickets: {problem}': 'Al buscar tickets: {problem}',
   'The ticket systems sessions can be linked to: Jira, Linear, GitHub Issues and Zendesk. Several can be connected at once. Each signs in with its own token.':
     'Los sistemas de tickets a los que se pueden vincular las sesiones: Jira, Linear, GitHub Issues y Zendesk. Se pueden conectar varios a la vez. Cada uno inicia sesión con su propio token.',
   'Add a tracker': 'Añadir un gestor de tickets',
@@ -497,6 +513,14 @@
     'Zendesk rechazó el inicio de sesión. Revisa el correo y el token, y que el acceso con token de API esté activado en Admin Center.',
   "It didn't answer in time.": 'No respondió a tiempo.',
   "Couldn't reach it. Check the address and your connection.": 'No se pudo conectar. Revisa la dirección y tu conexión.',
+  // Looking up a ticket, and linking one.
+  'It refused the sign-in. Check its token.': 'Rechazó el inicio de sesión. Revisa su token.',
+  "Couldn't reach it.": 'No se pudo conectar.',
+  "gh couldn't read it.": 'gh no pudo leerlo.',
+  'Paste a ticket link or key, such as ABC-123.': 'Pega el enlace o la clave de un ticket, como ABC-123.',
+  'Add your trackers in Settings → Tickets first.': 'Primero añade tus gestores en Configuración → Tickets.',
+  'Not a ticket.': 'No es un ticket.',
+  'Give at most 10 tickets.': 'Indica 10 tickets como máximo.',
   "Windows' data protection didn't answer.": 'La protección de datos de Windows no respondió.',
   "The Keychain didn't give the key.": 'El llavero no dio la clave.',
   'A to-do starts Claude in its folder. Without one, it starts in the folder below, where Claude can make a new project. <b>Choose folder</b> on a to-do picks one from:':
