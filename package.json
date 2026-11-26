@@ -1,6 +1,6 @@
 {
   "name": "tabherd",
-  "version": "0.6.0-beta.3",
+  "version": "0.6.0",
   "description": "A dashboard for your Claude Code and Codex sessions: which ones need you, which are working, and what they last said",
   "keywords": [
     "claude-code",
