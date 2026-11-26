@@ -275,7 +275,7 @@ The gear button in the header opens Settings, one section at a time, picked from
 - **GitHub Issues:** nothing; it uses `gh`'s sign-in.
 - **Zendesk:** the address, and an email and API token, or an OAuth access token.
 
-**Test** signs in and says as whom, or what's wrong; a tracker is tested as it's saved. **Edit** keeps the saved token unless you type a new one, and **Remove** asks for a second click. Linking tickets to cards is next; see [the plan](docs/ticket-links.md).
+**Test** signs in and says as whom, or what's wrong; a tracker is tested as it's saved. **Edit** keeps the saved token unless you type a new one, and **Remove** asks for a second click. A tracker whose last lookup failed says why. See [Tickets](#tickets) for linking them to cards.
 
 **To-dos**: where a to-do's folder is chosen from (the repo menu or any folder), and the folder that choice starts at. See [To-dos](#to-dos).
 
@@ -340,6 +340,31 @@ Only the last saved set is kept, in `~/.tabherd/saved-sessions.json`; the next S
 
 A completed session can still be resumed from History. It stays complete if you only look, and stops being complete once you ask it something new. Save and close doesn't save a completed session, so Resume last session doesn't bring it back. Sessions marked complete are kept in `~/.tabherd/completed.json`.
 
+## Tickets
+
+Once [Settings → Tickets](#settings) has a tracker, each session's card shows the tickets it's working on, as chips under its folder. Each shows the ticket's key and status, with a dot for whether it's to do, in progress, done, or closed without being done. Hover for its title, assignee and tracker; click to open it.
+
+A ticket is only linked if its tracker has it. A session's tickets come from:
+
+- **Its branch:** a key anywhere in the branch's name, in any case, as in `abc-123-fix-login` or Linear's `eng-42-…`. A branch named for a GitHub issue, such as `123-fix-login`, links that issue in the GitHub repository the folder was cloned from.
+- **Claim: lines:** a line starting with `Claim:` in a prompt you send, or in the session's reply.
+  - `Claim: ABC-123`, or several, separated by commas.
+  - `Claim: Linear ENG-42`, to say which tracker, by its type or name.
+  - `Claim: octo/app#12`, or `Claim: #12` for the session's own repository.
+  - `Claim: Zendesk 4567`, or a link.
+  - `Unclaim: ABC-123` takes one off.
+
+  A key mentioned in passing isn't linked. A session that creates an issue can claim it in its reply, so it's linked once it exists.
+- **Links in prompts:** a link you send to a Jira issue, a Linear issue, a GitHub issue or a Zendesk ticket.
+- **+ Ticket:** paste a link or key, as in a Claim: line. It says which it couldn't find.
+- **Its to-do:** a to-do's *Tickets* field, which its session starts with.
+
+A key is looked up in every tracker it could be in, unless the tracker is named. With key prefixes in Settings → Tickets, a Jira or Linear tracker is only asked about keys with those prefixes. ✕ on a chip takes it off that session's card for good, and + Ticket links it again. History keeps each closed session's tickets as they were, and its filter finds sessions by a ticket's key or title.
+
+A ticket's status is read again every five minutes while its card is shown, and one that wasn't found is asked about again after an hour. A tracker that refuses its sign-in or can't be reached says so in Settings → Tickets, and its tickets keep their last known status. Only a ticket's key goes to its tracker: a link in a session is read for its key, never fetched. What each session claimed is kept in `~/.tabherd/tickets.json`, with each ticket's last status.
+
+Writing back to tickets on Complete is next; see [the plan](docs/ticket-links.md).
+
 ## History
 
 The clock button in the header lists sessions that have closed, newest first and grouped by day. Each entry has the session's name, folder, branch and last prompt, and a filter searches all of those. **Resume** opens Claude in the session's folder, in your terminal, running `claude --resume <id>`, so the conversation carries on where it stopped. **Copy resume command** copies a command that does the same, for running yourself.
@@ -398,11 +423,13 @@ All of it is read-only, from files Claude Code and Codex already write, and from
 | Comfy Desktop's `comfy-procs/*.json` and `installations.json` | Which ComfyUIs are running, on which ports, and their names. |
 | ComfyUI's `/api/jobs`, `/queue`, `/api/userdata` and `/view` | Its jobs, their workflows' names and the models they load, and their output images. Its window's title gives the running job's progress. |
 | LocalAI's `/system`, `/api/operations`, `/api/chats` and `/api/agent/jobs` | Its loaded models and which are working, downloads, agent chats and agent jobs. |
+| Each session folder's `.git`: its `HEAD` and `origin` | The branch's tickets, and the GitHub repository a `#12` is in. |
+| The trackers in Settings → Tickets, and `gh api repos/<owner>/<repo>/issues/<n>` | Each linked ticket's title, status and assignee. Only the ticket's key or number is sent. |
 | GitHub's list of Tabherd's releases (`api.github.com/repos/tleeadams/tabherd/releases`) | Whether a newer version is out. Only with [update alerts](#update-alerts) on, or after **Check now**. |
 
 A session file whose process has exited, or whose PID now belongs to another process, is ignored.
 
-The only files the server writes are its own, in `~/.tabherd`: `settings.json` holds the settings that aren't kept in the browser, with its secrets encrypted (see [Secrets](#secrets)), `secret.key` the key for them on Windows, `history.json` the closed sessions, `todos.json` the to-dos, `groups.json` the groups, with the sessions moved between them by hand, `saved-sessions.json` the sessions Save and close saved last, `completed.json` the sessions marked complete, and `updates.json` what the last check for a new version found.
+The only files the server writes are its own, in `~/.tabherd`: `settings.json` holds the settings that aren't kept in the browser, with its secrets encrypted (see [Secrets](#secrets)), `secret.key` the key for them on Windows, `history.json` the closed sessions, `todos.json` the to-dos, `groups.json` the groups, with the sessions moved between them by hand, `saved-sessions.json` the sessions Save and close saved last, `completed.json` the sessions marked complete, `tickets.json` the tickets sessions claimed and the last status of each, and `updates.json` what the last check for a new version found.
 
 ## Safety
 

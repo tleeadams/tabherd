@@ -956,6 +956,7 @@ function card(a) {
     ),
     subtitle ? el('p', { class: 'title', text: subtitle }) : null,
     el('div', { class: 'where' }, el('span', { class: 'path', title: a.cwd, text: shortPath(a.cwd) }), tags),
+    ticketRow(a.tickets, { add: () => openTicketDialog(a), remove: (t) => removeTicket(a, t) }),
     // The part that scrolls when every card is the same size.
     el(
       'div',
@@ -974,6 +975,91 @@ function card(a) {
     actions(a),
   );
 }
+
+// ---- tickets -------------------------------------------------------------------
+
+// A ticket's key as its chip shows it: a GitHub issue by its repository's
+// name and number, without its owner.
+const ticketKey = (t) => (t.type === 'github' ? t.key.replace(/^[^/]+\//, '') : t.key);
+
+// A ticket's chip: its key and status, with a dot in its status group's
+// colour, opening the ticket. Its title, assignee and tracker show on hover.
+function ticketChip(t, remove) {
+  const tip = [t.title, t.assignee ? tr('Assigned to {name}', { name: t.assignee }) : null, t.trackerName].filter(Boolean).join('\n');
+  const label = [el('span', { class: 'ticket-dot' }), `${ticketKey(t)} · ${t.status}`];
+  return el(
+    'span',
+    { class: `ticket t-${t.category}` },
+    t.url ? el('a', { href: t.url, target: '_blank', rel: 'noopener noreferrer', title: tip }, label) : el('span', { title: tip }, label),
+    remove ? el('button', { type: 'button', class: 'ticket-x', title: tr('Take {key} off this card', { key: ticketKey(t) }), 'aria-label': tr('Take {key} off this card', { key: ticketKey(t) }), onclick: () => remove(t) }, '✕') : null,
+  );
+}
+
+// A card's tickets, under its folder, then + Ticket to link one by hand,
+// once there's a tracker in Settings → Tickets.
+function ticketRow(list, { add, remove } = {}) {
+  const adding = Boolean(add && snap?.trackerCount);
+  if (!list?.length && !adding) return null;
+  return el(
+    'div',
+    { class: 'tickets' },
+    (list || []).map((t) => ticketChip(t, remove)),
+    adding ? el('button', { type: 'button', class: 'ticket ticket-add', title: tr('Link a ticket to this session'), onclick: add }, tr('+ Ticket')) : null,
+  );
+}
+
+let ticketFor = null;
+
+function openTicketDialog(a) {
+  ticketFor = a;
+  $('ticket-name').textContent = displayName(a);
+  $('ticket-text').value = '';
+  $('ticket-dialog').showModal();
+  $('ticket-text').focus();
+}
+
+$('ticket-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const a = ticketFor;
+  const button = $('ticket-save');
+  button.disabled = true;
+  try {
+    const r = await api('/api/tickets/add', { id: a.id, text: $('ticket-text').value });
+    const said = [];
+    if (r.linked.length) said.push(tr('Linked {keys}.', { keys: r.linked.join(', ') }));
+    if (r.unsure.length) said.push(tr("{keys}: its tracker didn't answer, so it's linked once it does.", { keys: r.unsure.join(', ') }));
+    if (r.notFound.length) said.push(tr('{keys}: not found in your trackers.', { keys: r.notFound.join(', ') }));
+    toast(said.join(' '), !r.linked.length && !r.unsure.length);
+    if (r.linked.length || r.unsure.length) $('ticket-dialog').close();
+    refresh();
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    button.disabled = false;
+  }
+});
+for (const id of ['ticket-cancel', 'ticket-close']) $(id).addEventListener('click', () => $('ticket-dialog').close());
+
+// Takes a ticket off a session's card. It stays off, unless it's linked
+// again with + Ticket.
+async function removeTicket(a, t) {
+  try {
+    await api('/api/tickets/remove', { id: a.id, chip: t.id });
+    toast(tr('{key} taken off. Link it again with + Ticket.', { key: ticketKey(t) }));
+    refresh();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+// A to-do's tickets as its Tickets field shows them: one from a link, as
+// that link again.
+function refText(r) {
+  const host = r.hint?.startsWith('host:') ? r.hint.slice(5) : null;
+  if (host) return r.key.startsWith('#') ? `https://${host}/agent/tickets/${r.key.slice(1)}` : `https://${host}/browse/${r.key}`;
+  return r.hint ? `${r.hint} ${r.key}` : r.key;
+}
+const refsText = (list) => (list || []).map(refText).join(', ');
 
 // ---- to-dos --------------------------------------------------------------------
 
@@ -1001,6 +1087,9 @@ function editTodo(t) {
   $('todo-app').querySelector('option[value="copilot"]').hidden = !snap?.copilotInstalled;
   $('todo-app-default').textContent = tr('As in Settings ({app})', { app: APPS[snap?.newSessionApp] || APPS.claude });
   $('todo-app').value = t?.app || '';
+  // Its tickets, once there's a tracker to look them up in.
+  $('todo-tickets-field').hidden = !snap?.trackerCount && !t?.ticketRefs?.length;
+  $('todo-tickets').value = refsText(t?.ticketRefs);
   $('todo-dialog').showModal();
   $('todo-title').focus();
 }
@@ -1092,6 +1181,7 @@ function todoCard(t) {
         ? el('span', { class: 'path', title: t.cwd, text: shortPath(t.cwd) })
         : el('span', { class: 'no-folder', title: tr('No folder chosen: it starts here, where Claude can make a new project'), text: tr('Starts in {folder}', { folder: startsIn }) }),
     ),
+    ticketRow(t.tickets),
     el(
       'div',
       { class: 'card-body' },
@@ -1138,7 +1228,7 @@ $('todo-form').addEventListener('submit', async (e) => {
   const save = $('todo-save');
   save.disabled = true;
   try {
-    const body = { title: $('todo-title').value, notes: $('todo-notes').value, app: $('todo-app').value || null };
+    const body = { title: $('todo-title').value, notes: $('todo-notes').value, app: $('todo-app').value || null, tickets: $('todo-tickets').value };
     await api(editingTodo ? `/api/todos/${editingTodo.id}` : '/api/todos', body);
     $('todo-dialog').close();
     refresh();
@@ -2544,6 +2634,7 @@ function pastItem(s) {
       s.gitBranch ? el('span', { class: 'tag branch', title: tr('Git branch'), text: `⎇ ${s.gitBranch}` }) : null,
       s.background ? el('span', { class: 'tag background', title: tr('Ran in the background, with claude -p'), text: tr('Background') }) : null,
     ),
+    ticketRow(s.tickets),
     s.lastPrompt ? el('p', { class: 'past-prompt', title: s.lastPrompt.text }, el('b', {}, `${tr('Last prompt')} · `), s.lastPrompt.text) : null,
     el(
       'div',
@@ -2572,7 +2663,8 @@ function pastItem(s) {
   );
 }
 
-// Every word must appear somewhere in the session's names, folder, branch or prompts.
+// Every word must appear somewhere in the session's names, folder, branch,
+// prompts or tickets.
 function renderHistory() {
   if (!historyData) return;
   const terms = $('history-filter').value.toLowerCase().split(/\s+/).filter(Boolean);
@@ -2581,7 +2673,8 @@ function renderHistory() {
   const shown = historyData.filter((s) => {
     if (s.background && !background) return false;
     if (s.completedAt && !complete) return false;
-    const text = [pastName(s), s.title, s.name, s.cwd, s.gitBranch, s.firstPrompt?.text, s.lastPrompt?.text, s.todo?.title, s.todo?.notes]
+    const tickets = (s.tickets || []).flatMap((t) => [t.key, t.title]);
+    const text = [pastName(s), s.title, s.name, s.cwd, s.gitBranch, s.firstPrompt?.text, s.lastPrompt?.text, s.todo?.title, s.todo?.notes, ...tickets]
       .join(' ')
       .toLowerCase();
     return terms.every((t) => text.includes(t));
@@ -3349,6 +3442,8 @@ function renderTrackers() {
       if (tested?.pending) note = el('span', { text: tr('Testing…') });
       else if (tested) note = el('span', { class: tested.ok ? 'tracker-ok' : 'tracker-error', text: tested.ok ? tr('Connected as {name}', { name: tested.as }) : tested.error });
       else if (t.type !== 'github' && !t.tokenSet) note = el('span', { class: 'tracker-error', text: tr('No token yet') });
+      // Its tickets keep their last known status until it answers again.
+      else if (trackerData.problems?.[t.id]) note = el('span', { class: 'tracker-error', text: tr('Looking up tickets: {problem}', { problem: tr(trackerData.problems[t.id].error) }) });
       return el(
         'li',
         { class: 'filter-row tracker-row' },

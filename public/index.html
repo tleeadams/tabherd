@@ -423,10 +423,33 @@
           <option value="copilot">Copilot</option>
         </select>
       </label>
+      <label id="todo-tickets-field" class="field" hidden>
+        <span>Tickets</span>
+        <input id="todo-tickets" type="text" maxlength="2000" autocomplete="off" placeholder="ABC-123, or a link to the ticket">
+      </label>
       <p class="settings-help">Nothing here is sent to the session. To use it as a prompt, copy it in once it's started.</p>
       <div class="confirm-actions">
         <button type="button" id="todo-cancel" class="btn">Cancel</button>
         <button type="submit" id="todo-save" class="btn btn-primary">Add to-do</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="ticket-dialog" class="settings" aria-labelledby="ticket-dialog-title">
+    <form id="ticket-form">
+      <div class="settings-head">
+        <h2 id="ticket-dialog-title">Link a ticket</h2>
+        <button type="button" id="ticket-close" class="icon-btn" title="Close" aria-label="Close">✕</button>
+      </div>
+      <p class="settings-help ticket-for" id="ticket-name"></p>
+      <label class="field">
+        <span>Ticket</span>
+        <input id="ticket-text" type="text" required maxlength="2000" autocomplete="off" placeholder="ABC-123, or a link to the ticket">
+      </label>
+      <p class="settings-help">Paste its link or key. Name the tracker first if the key could be in more than one, as in Linear ENG-42. It's linked if the tracker has it. A session can link one itself with a line in a prompt or reply starting with Claim:, as in Claim: ABC-123.</p>
+      <div class="confirm-actions">
+        <button type="button" id="ticket-cancel" class="btn">Cancel</button>
+        <button type="submit" id="ticket-save" class="btn btn-primary">Link</button>
       </div>
     </form>
   </dialog>
