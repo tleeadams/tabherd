@@ -801,6 +801,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible, .msg .text:focus-v
 .settings-foot { margin: 12px 0 0; color: var(--faint); font-size: 12px; }
 .settings-help { margin: 0 0 8px; color: var(--muted); font-size: 12.5px; }
 .field + .settings-help { margin-top: 6px; }
+#todo-from-ticket.problem { color: var(--danger); }
 
 /* A labelled text box or list, in Settings and the to-do dialog. */
 .field { display: grid; gap: 4px; margin: 10px 0 0; }

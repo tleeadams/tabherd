@@ -269,6 +269,10 @@
   'As in Settings ({app})': 'Como en Configuración ({app})',
   "Nothing here is sent to the session. To use it as a prompt, copy it in once it's started.":
     'Nada de esto se envía a la sesión. Para usarlo como prompt, cópialo en ella cuando haya empezado.',
+  'Or paste a ticket link or key': 'O pega el enlace o la clave de un ticket',
+  'Looking up the ticket…': 'Buscando el ticket…',
+  'Filled in from {key}, in {tracker}.': 'Rellenada a partir de {key}, en {tracker}.',
+  "That ticket wasn't found in your trackers.": 'Ese ticket no está en tus gestores.',
   Copy: 'Copiar',
   'Copy the title and notes, to paste into Claude': 'Copia el título y las notas para pegarlos en Claude',
   Edit: 'Editar',
