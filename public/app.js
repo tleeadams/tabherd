@@ -84,6 +84,14 @@ const STATUS = {
 // from the rest of Working.
 const FILTER_STATUSES = { needs: tr('Needs you'), working: tr('Working'), shell: tr('Shell running'), idle: tr('Idle') };
 const filterStatus = (x) => (x.status === 'shell' ? 'shell' : status(x).group);
+// The ticket statuses a filter can pick: the dashboard's groups for them, or none.
+const FILTER_TICKETS = { todo: tr('To do'), progress: tr('In progress'), done: tr('Done'), closed: tr('Cancelled'), none: tr('No ticket') };
+// A card's tickets' status: its least finished ticket's, so a card is done
+// only once all its tickets are. Cancelled counts as finished, without being done.
+const ticketStatus = (x) => {
+  const cats = (x.tickets || []).map((t) => t.category);
+  return cats.length ? ['todo', 'progress', 'done', 'closed'].find((c) => cats.includes(c)) || 'progress' : 'none';
+};
 const MAX_FILTERS = 12;
 const PERMISSION_MODES = {
   bypassPermissions: tr('bypass'),
@@ -1756,6 +1764,7 @@ function matchesFilter(f, x, isTodo) {
   if (isTodo ? !f.todos : f.statuses.length && !f.statuses.includes(filterStatus(x))) return false;
   if (f.apps.length && !f.apps.includes(x.app || 'claude')) return false;
   if (f.groups.length && !f.groups.includes(x.group || 'none')) return false;
+  if (f.tickets.length && !f.tickets.includes(ticketStatus(x))) return false;
   if (f.text) {
     const words = [x.name, x.title, x.cwd, x.where].filter(Boolean).join(' ').toLowerCase();
     if (!f.text.toLowerCase().split(' ').every((w) => words.includes(w))) return false;
@@ -1772,6 +1781,7 @@ function describeFilter(f) {
     f.statuses.length ? or(f.statuses, (s) => FILTER_STATUSES[s]) : tr('Any status'),
     f.apps.length ? or(f.apps, (a) => APPS[a]) : null,
     f.groups.length ? tr('in {groups}', { groups: or(f.groups, (g) => (g === 'none' ? tr('no group') : groupDef(g)?.name)) }) : null,
+    f.tickets.length ? tr('ticket: {statuses}', { statuses: or(f.tickets, (s) => FILTER_TICKETS[s]) }) : null,
     f.text ? `“${f.text}”` : null,
     f.todos ? tr('and to-dos') : null,
   ]
@@ -1787,8 +1797,9 @@ function chooseFilter(id) {
 
 // Each tab with how many cards it shows, amber when one of them needs you.
 function renderFilterTabs(agents, todos) {
-  const filters = snap.filters || [];
-  if (filter !== 'all' && !filterDef(filter)) filter = 'all';
+  // A filter that picks tickets' statuses waits for a tracker to read them from.
+  const filters = (snap.filters || []).filter((f) => !f.tickets.length || snap.trackerCount);
+  if (filter !== 'all' && !filters.some((f) => f.id === filter)) filter = 'all';
   const nav = $('filters');
   const tabs = [{ id: 'all', name: tr('All') }, ...filters];
   const signature = JSON.stringify([tabs, snap.groups]);
@@ -1899,6 +1910,7 @@ function filterFromForm() {
     statuses: ticked('filter-statuses'),
     apps: ticked('filter-apps'),
     groups: ticked('filter-groups'),
+    tickets: ticked('filter-tickets'),
     text: $('filter-text').value.replace(/\s+/g, ' ').trim(),
     todos: $('filter-todos').checked,
   };
@@ -1927,6 +1939,9 @@ function editFilter(f) {
   const groups = snap?.groups || [];
   $('filter-groups-field').hidden = !groups.length;
   filterChecks($('filter-groups'), [...groups.map((g) => [g.id, g.name, g.color]), ['none', tr('No group')]], f?.groups || []);
+  // Tickets' statuses, once there's a tracker to read them from.
+  $('filter-tickets-field').hidden = !snap?.trackerCount && !f?.tickets.length;
+  filterChecks($('filter-tickets'), Object.entries(FILTER_TICKETS), f?.tickets || []);
   $('filter-text').value = f?.text || '';
   $('filter-todos').checked = !!f?.todos;
   showFilterCount();
