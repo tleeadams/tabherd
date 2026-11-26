@@ -18,6 +18,7 @@ const filters = require('./lib/filters');
 const codex = require('./lib/codex');
 const copilot = require('./lib/copilot');
 const opencode = require('./lib/opencode');
+const cursor = require('./lib/cursor');
 const comfy = require('./lib/comfy');
 const localai = require('./lib/localai');
 const ollama = require('./lib/ollama');
@@ -47,6 +48,7 @@ function sessionCommand(app, resume = null) {
   if (app === 'codex') return codex.command({ skipPermissions: settings.get().skipPermissions, resume });
   if (app === 'copilot') return copilot.command({ skipPermissions: settings.get().skipPermissions, resume });
   if (app === 'opencode') return opencode.command({ skipPermissions: settings.get().skipPermissions, resume });
+  if (app === 'cursor') return cursor.command({ skipPermissions: settings.get().skipPermissions, resume });
   return resume ? `${claudeCommand()} --resume ${resume}` : claudeCommand();
 }
 // The app new sessions start in, from Settings: Claude unless Codex is chosen
@@ -353,13 +355,14 @@ async function action(res, sessionId, name) {
 
 // ---- Save and close, and Resume last session ----------------------------------
 
-// The sessions Save and close takes: Claude and Codex sessions in a
-// terminal. Not background runs, which have no tab, nor sessions in a VS Code
-// panel, which has no shell to close.
+// The sessions Save and close takes: Claude's, Codex's, OpenCode's and
+// Cursor's in a terminal. Not background runs, which have no tab, nor
+// sessions in a VS Code panel, which has no shell to close.
 const closable = (a) =>
   (a.app === 'claude' && !a.background && (!a.kind || a.kind === 'interactive') && (!a.entrypoint || a.entrypoint === 'cli')) ||
   a.app === 'codex' ||
   a.app === 'opencode' ||
+  a.app === 'cursor' ||
   (a.app === 'copilot' && a.entrypoint === 'cli');
 const working = (a) => a.status === 'busy' || a.status === 'shell';
 // Waiting to close once they're done: session ID -> its name.

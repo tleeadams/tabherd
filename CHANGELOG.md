@@ -5,6 +5,7 @@ Notable changes in each release. Version numbers follow [Semantic Versioning](ht
 ## Unreleased
 
 - **OpenCode** sessions get cards. They show *Working*, *Needs you* while OpenCode asks permission or a question, or *Idle*, with the last prompt and reply. **Go to window**, **Catch up**, **Stop**, **Complete** and Save and close work as they do for Codex. The dashboard asks OpenCode 2's background service, and matches each window to its session by its tab's title. See [OpenCode](README.md#opencode).
+- **Cursor CLI** sessions get cards, matched to their windows by their tabs' titles. With Cursor's status indicators on (`/status-indicators`), they show *Needs you* while Cursor waits for an approval or an answer; otherwise *Working* or *Idle*, from the chat's transcript. **Go to window**, **Catch up**, **Stop**, **Complete**, Save and close, History and Resume work as they do for Claude. See [Cursor CLI](README.md#cursor-cli).
 
 ## 0.6.0-beta.3 - 2026-11-25
 

@@ -179,6 +179,17 @@ OpenCode's sessions get cards marked **OpenCode**. OpenCode 2 runs a background 
 - **Resume:** `opencode --session <id>`. *Skip permission prompts* adds `--auto`.
 - **Not yet:** starting OpenCode from a to-do or the repo menu, and OpenCode's closed sessions in History.
 
+## Cursor CLI
+
+The Cursor CLI's sessions (`cursor-agent`) get cards marked **Cursor**. Cursor keeps each chat in `~/.cursor/chats/`, with a `meta.json` giving its folder and title, and writes what's asked and answered to a transcript in `~/.cursor/projects/<folder>/agent-transcripts/`. `CURSOR_CONFIG_DIR` and `CURSOR_DATA_DIR` move them, as they do for Cursor.
+
+- **Which chats have cards:** each one a `cursor-agent` window shows. Cursor records no process for a chat, so a window is matched to its chat by its tab's title, which Cursor sets to the chat's title, or by the `--resume` it was started with. A new chat has no title until its first prompt, so until then its window goes with the chat begun in it since it started. When two chats share a title, neither is guessed.
+- **Status:** turn on Cursor's status indicators, with `/status-indicators` in any Cursor window, and its tab titles say whether it's working, waiting for you or ready. The dashboard then shows *Needs you* while Cursor waits for an approval, with the command it wants to run, or for your answer. Without them, it only knows from the transcript whether a turn is running, so a chat waiting on an approval shows *Working*. A turn that failed needs you too.
+- **Activity:** the last prompt and reply, and the tool calls of the step running. Cursor's transcript has no times, so the reply's time is when the dashboard read it.
+- **Go to window**, **Catch up** and **Stop** work as they do for Claude: Catch up types its prompt into the window. **Complete** and Save and close take Cursor chats too.
+- **History and Resume:** closed chats are listed, and Resume runs `cursor-agent --resume <id>` in the chat's folder, where Cursor keeps it. *Skip permission prompts* adds `--force`.
+- **Not yet:** starting Cursor from a to-do or the repo menu, and subagents.
+
 ## ComfyUI and LocalAI
 
 The dashboard also shows what ComfyUI and LocalAI are doing, as cards marked **Comfy** and **LocalAI**. They join the app list in the header once they have something to show. Nothing needs setting up in either, unless LocalAI has an API key.
@@ -381,6 +392,9 @@ All of it is read-only, from files Claude Code and Codex already write, and from
 | The `codex` processes and their tab titles | Which window each Codex session is in, and its memory use. |
 | OpenCode's background service: `/api/session`, `/api/session/active`, and each shown session's permission requests, questions and messages | Which OpenCode sessions are open, their status, titles, prompts and replies. |
 | The `opencode` processes and their tab titles | Which window each OpenCode session is in, and its memory use. |
+| `~/.cursor/chats/<folder hash>/<chat>/meta.json` | Each Cursor chat's folder and title, and when it began and changed. |
+| `~/.cursor/projects/<folder>/agent-transcripts/<chat>/<chat>.jsonl` | A Cursor chat's prompts, replies and tool calls, and where each turn ended. |
+| The `cursor-agent` processes and their tab titles | Which window each Cursor chat is in, its state with Cursor's status indicators on, its version and memory use. |
 | Comfy Desktop's `comfy-procs/*.json` and `installations.json` | Which ComfyUIs are running, on which ports, and their names. |
 | ComfyUI's `/api/jobs`, `/queue`, `/api/userdata` and `/view` | Its jobs, their workflows' names and the models they load, and their output images. Its window's title gives the running job's progress. |
 | LocalAI's `/system`, `/api/operations`, `/api/chats` and `/api/agent/jobs` | Its loaded models and which are working, downloads, agent chats and agent jobs. |
