@@ -1242,6 +1242,10 @@ function editTodo(t) {
   $('todo-dialog-title').textContent = t ? tr('Edit to-do') : tr('New to-do');
   $('todo-save').textContent = t ? tr('Save') : tr('Add to-do');
   $('todo-title').value = t?.title || '';
+  // A new one can be filled in from a ticket.
+  $('todo-title').placeholder = !t && snap?.trackerCount ? tr('Or paste a ticket link or key') : '';
+  ticketLookup++;
+  todoTicketNote('');
   $('todo-notes').value = t?.notes || '';
   // Which app it starts in, once Codex is installed too.
   $('todo-app-field').hidden = !otherAppsInstalled();
@@ -1408,6 +1412,50 @@ $('todo-notes').addEventListener('keydown', (e) => {
   }
 });
 for (const id of ['todo-cancel', 'todo-close']) $(id).addEventListener('click', () => $('todo-dialog').close());
+
+// A ticket's link or key pasted as a new to-do's title fills the to-do in
+// from the ticket: its title, its description as the notes if they're empty,
+// and the ticket in Tickets. Only what looks like one is looked up.
+const LOOKS_LIKE_TICKET = /^(?:https?:\/\/\S*(?:\/browse\/|selectedIssue=|linear\.app\/\S*\/issue\/|github\.com\/\S*\/issues\/|\/agent\/tickets\/)\S*|[A-Za-z][A-Za-z0-9_]*-\d+|[\w.-]+\/[\w.-]+#\d+)$/;
+// Each lookup's number, so one answered after the title changed, or the
+// dialog was opened again, is ignored.
+let ticketLookup = 0;
+
+// The line under Title: the lookup, what it filled in from, or what went wrong.
+function todoTicketNote(text, problem = false) {
+  const note = $('todo-from-ticket');
+  note.textContent = text;
+  note.classList.toggle('problem', problem);
+  note.hidden = !text;
+}
+
+async function fillTodoFromTicket(pasted) {
+  const asked = ++ticketLookup;
+  todoTicketNote(tr('Looking up the ticket…'));
+  let r;
+  try {
+    r = await api('/api/tickets/describe', { text: pasted });
+  } catch (err) {
+    r = { error: err.message };
+  }
+  // The dialog was opened again, or something else pasted, in the meantime.
+  if (asked !== ticketLookup) return;
+  // Typed over: what was typed stays.
+  if ($('todo-title').value.trim() !== pasted) return todoTicketNote('');
+  if (r.error) return todoTicketNote(r.error, true);
+  if (!r.ticket) return todoTicketNote('');
+  $('todo-title').value = r.ticket.title;
+  if (!$('todo-notes').value.trim()) $('todo-notes').value = r.ticket.description;
+  const field = $('todo-tickets');
+  if (!field.value.includes(pasted)) field.value = field.value.trim() ? `${field.value.trim()}, ${pasted}` : pasted;
+  $('todo-tickets-field').hidden = false;
+  todoTicketNote(tr('Filled in from {key}, in {tracker}.', { key: r.ticket.key, tracker: r.ticket.trackerName }));
+}
+
+$('todo-title').addEventListener('input', (e) => {
+  const pasted = $('todo-title').value.trim();
+  if (e.inputType === 'insertFromPaste' && !editingTodo && snap?.trackerCount && LOOKS_LIKE_TICKET.test(pasted)) fillTodoFromTicket(pasted);
+});
 
 // ---- page ------------------------------------------------------------------
 

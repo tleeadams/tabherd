@@ -16,6 +16,32 @@ const tickets = require('../lib/tickets');
 const SESSION = '3f2a1b4c-5d6e-4f70-8a9b-0c1d2e3f4a5b';
 const OTHER = '9e8d7c6b-5a49-4382-9716-05f4e3d2c1b0';
 
+// ABC-1's description, as Jira Cloud gives it: Atlassian Document Format.
+const ADF = {
+  type: 'doc',
+  version: 1,
+  content: [
+    { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Steps' }] },
+    {
+      type: 'orderedList',
+      content: [
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Open ' }, { type: 'text', text: 'the login page', marks: [{ type: 'link', attrs: { href: 'https://example.com/login' } }] }] }] },
+        {
+          type: 'listItem',
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'Sign in as ' }, { type: 'mention', attrs: { id: 'u1', text: '@Ada' } }] },
+            { type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'with 2FA' }] }] }] },
+          ],
+        },
+      ],
+    },
+    { type: 'paragraph', content: [{ type: 'text', text: 'It fails with:' }, { type: 'hardBreak' }, { type: 'text', text: 'a blank page. See ' }, { type: 'text', text: 'https://example.com/a', marks: [{ type: 'link', attrs: { href: 'https://example.com/a' } }] }] },
+    { type: 'mediaSingle', content: [{ type: 'media', attrs: { id: 'screenshot', type: 'file' } }] },
+    { type: 'codeBlock', attrs: { language: 'text' }, content: [{ type: 'text', text: 'TypeError: x is undefined' }] },
+    { type: 'blockquote', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Seen in Safari too' }] }] },
+  ],
+};
+
 // Jira, Linear and Zendesk, answering as their documentation says.
 function standIn() {
   const asked = [];
@@ -29,17 +55,22 @@ function standIn() {
         res.end(JSON.stringify(data));
       };
       if (req.url.startsWith('/jira/rest/api/3/issue/ABC-1?')) {
-        return reply(200, { key: 'ABC-1', fields: { summary: 'Fix the login', status: { name: 'In Review', statusCategory: { key: 'indeterminate' } }, assignee: { displayName: 'Ada' } } });
+        return reply(200, { key: 'ABC-1', fields: { summary: 'Fix the login', status: { name: 'In Review', statusCategory: { key: 'indeterminate' } }, assignee: { displayName: 'Ada' }, description: ADF } });
       }
       if (req.url.startsWith('/jira/rest/api/3/issue/')) return reply(404, { errorMessages: ['Issue does not exist'] });
+      // Data Center: version 2, with its description as text.
+      if (req.url.startsWith('/dc/rest/api/2/issue/OPS-7?')) {
+        return reply(200, { key: 'OPS-7', fields: { summary: 'Rotate the keys', status: { name: 'To Do', statusCategory: { key: 'new' } }, assignee: null, description: 'h2. Steps\r\n\r\n*Bold* text' } });
+      }
       if (req.url === '/linear') {
-        const { variables } = JSON.parse(body);
+        const { query, variables } = JSON.parse(body);
         if (variables.id === 'ENG-42') {
-          return reply(200, { data: { issue: { identifier: 'ENG-42', title: 'Tidy the CSS', url: 'https://linear.app/acme/issue/ENG-42/tidy', state: { name: 'Done', type: 'completed' }, assignee: null } } });
+          const issue = { identifier: 'ENG-42', title: 'Tidy the CSS', url: 'https://linear.app/acme/issue/ENG-42/tidy', state: { name: 'Done', type: 'completed' }, assignee: null };
+          return reply(200, { data: { issue: query.includes('description') ? { ...issue, description: '## Why\r\n\r\nIt is **messy**.' } : issue } });
         }
         return reply(200, { data: null, errors: [{ message: 'Entity not found: Issue', extensions: { type: 'invalid input' } }] });
       }
-      if (req.url === '/zd/api/v2/tickets/4567.json') return reply(200, { ticket: { id: 4567, subject: 'Refund', status: 'pending' } });
+      if (req.url === '/zd/api/v2/tickets/4567.json') return reply(200, { ticket: { id: 4567, subject: 'Refund', status: 'pending', description: 'Please refund order 1001.' } });
       reply(404, {});
     });
   });
@@ -48,7 +79,7 @@ function standIn() {
 
 // gh, for issues in octo/app.
 trackers.useGh(async (args) => {
-  if (args[1] === 'repos/octo/app/issues/12') return { ok: true, stdout: JSON.stringify({ number: 12, title: 'Crash on start', state: 'closed', state_reason: 'not_planned', html_url: 'https://github.com/octo/app/issues/12', assignee: { login: 'octocat' } }) };
+  if (args[1] === 'repos/octo/app/issues/12') return { ok: true, stdout: JSON.stringify({ number: 12, title: 'Crash on start', body: 'It crashes.\r\n', state: 'closed', state_reason: 'not_planned', html_url: 'https://github.com/octo/app/issues/12', assignee: { login: 'octocat' } }) };
   if (args[1] === 'repos/octo/app/issues/13') return { ok: true, stdout: JSON.stringify({ number: 13, title: 'Add dark mode', state: 'closed', html_url: 'https://github.com/octo/app/pull/13', pull_request: { merged_at: '2026-11-01T00:00:00Z' } }) };
   return { ok: false, stdout: '', stderr: 'gh: Not Found (HTTP 404)' };
 });
@@ -190,6 +221,71 @@ test('a to-do is linked to the tickets it was given, not its folder’s branch',
     assert.deepEqual(tickets.forTodo({ cwd: repo(), ticketRefs: [] }), [], "its folder is on ABC-1's branch, but it starts its own");
   } finally {
     s.server.close();
+    tickets.useTrackers(() => []);
+  }
+});
+
+test('a ticket pasted as a new to-do’s title fills it in, with its description', async () => {
+  const s = await standIn();
+  trackers.endpoints.linear = `${s.base}/linear`;
+  const list = [
+    { id: '66666666-6666-4666-8666-666666666666', type: 'jira', name: 'Jira', url: `${s.base}/jira`, email: 'me@example.com', token: 't', prefixes: ['ABC'] },
+    { id: '77777777-7777-4777-8777-777777777777', type: 'jira', name: 'Data Center', url: `${s.base}/dc`, email: '', token: 'pat', prefixes: ['OPS'] },
+    { id: '88888888-8888-4888-8888-888888888888', type: 'linear', name: 'Linear', token: 'lin', prefixes: ['ENG'] },
+    { id: '99999999-9999-4999-8999-999999999999', type: 'zendesk', name: 'Zendesk', url: `${s.base}/zd`, email: 'me@example.com', token: 'z', prefixes: [] },
+    { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', type: 'github', name: 'GitHub', prefixes: [] },
+  ];
+  tickets.useTrackers(() => list);
+  try {
+    const link = `${s.base}/jira/browse/ABC-1`;
+    assert.deepEqual(await tickets.describe(link), {
+      ok: true,
+      ticket: {
+        key: 'ABC-1',
+        title: 'Fix the login',
+        description: [
+          'Steps',
+          '1. Open the login page (https://example.com/login)\n2. Sign in as @Ada\n   - with 2FA',
+          'It fails with:\na blank page. See https://example.com/a',
+          '```\nTypeError: x is undefined\n```',
+          '> Seen in Safari too',
+        ].join('\n\n'),
+        trackerName: 'Jira',
+      },
+    });
+    assert.ok(s.asked.some((a) => a.url.endsWith('?fields=summary,status,assignee,description')), 'its description is asked for');
+    assert.deepEqual(
+      tickets.forTodo({ cwd: null, ticketRefs: tickets.parse(link) }).map((x) => x.key),
+      ['ABC-1'],
+      'its chip shows at once',
+    );
+    assert.equal((await tickets.describe('OPS-7')).ticket.description, 'h2. Steps\n\n*Bold* text', "Data Center's is text already");
+    assert.equal((await tickets.describe('https://linear.app/acme/issue/ENG-42/tidy')).ticket.description, '## Why\n\nIt is **messy**.');
+    assert.equal((await tickets.describe('octo/app#12')).ticket.description, 'It crashes.');
+    // A Zendesk link has the ticket straight after the address.
+    assert.deepEqual((await tickets.describe(`${s.base}/agent/tickets/4567`)).ticket, { key: '#4567', title: 'Refund', description: 'Please refund order 1001.', trackerName: 'Zendesk' });
+    for (const text of ['Fix the login', 'https://example.com/docs', '12', '#12', 'ABC-1 and more']) {
+      assert.deepEqual(await tickets.describe(text), { ok: true, ticket: null }, `${text} isn't one ticket`);
+    }
+    assert.deepEqual(await tickets.describe('ABC-2'), { ok: false, error: "That ticket wasn't found in your trackers." });
+    tickets.useTrackers(() => []);
+    assert.deepEqual(await tickets.describe('ABC-1'), { ok: false, error: 'Add your trackers in Settings → Tickets first.' });
+  } finally {
+    s.server.close();
+    tickets.useTrackers(() => []);
+  }
+});
+
+test('a long ticket is cut to fit a to-do', async () => {
+  const long = 'x'.repeat(30000);
+  trackers.useGh(async () => ({ ok: true, stdout: JSON.stringify({ number: 5, title: `A ${'very '.repeat(60)}long title`, body: long, state: 'open' }) }));
+  tickets.useTrackers(() => [{ id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', type: 'github', name: 'GitHub', prefixes: [] }]);
+  try {
+    const { ticket } = await tickets.describe('octo/app#5');
+    assert.equal(ticket.title.length, 200);
+    assert.ok(ticket.title.endsWith('…'));
+    assert.equal(ticket.description.length, 20000);
+  } finally {
     tickets.useTrackers(() => []);
   }
 });

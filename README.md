@@ -235,6 +235,8 @@ The colours are a set of eight, each tuned for light and dark and kept apart fro
 
 **+ To-do** in the header adds a card with a title and notes, for work you want to give Claude later. To-do cards sit at the top of the grid, with a dashed border, and count under All and Todo. Ctrl+Enter saves from the notes box.
 
+With a tracker in Settings → Tickets, pasting a ticket's link or key as a new to-do's title fills it in from the ticket: the ticket's title, its description as the notes if they're empty, and the ticket in *Tickets*, so the session starts linked to it. The line under the title says which ticket it came from, or why it couldn't. Jira Cloud's descriptions come as text, with lists, links and code kept. See [Tickets](#tickets).
+
 **Start** opens Claude in the to-do's folder, in your terminal, running `claude --session-id <new id> --name "<the to-do's title>"`, so the session is named after the to-do in its tab's title and Claude's session list. Once Codex is installed, the to-do's **Start with** chooses Claude or Codex, or leaves it to Settings; for Codex, see [Codex](#codex). A to-do doesn't need a folder: without one, it starts in Settings → To-dos → **Start in**, your repos folder unless you set another, where Claude can make a new project. The card says where it will start.
 
 **Choose folder** picks one first, from where Settings → To-dos says:
@@ -357,7 +359,7 @@ A ticket is only linked if its tracker has it. A session's tickets come from:
   A key mentioned in passing isn't linked. A session that creates an issue can claim it in its reply, so it's linked once it exists.
 - **Links in prompts:** a link you send to a Jira issue, a Linear issue, a GitHub issue or a Zendesk ticket.
 - **+ Ticket:** paste a link or key, as in a Claim: line. It says which it couldn't find.
-- **Its to-do:** a to-do's *Tickets* field, which its session starts with.
+- **Its to-do:** a to-do's *Tickets* field, which its session starts with. Pasting a ticket's link or key as a new to-do's title fills the to-do in from it; see [To-dos](#to-dos).
 
 A key is looked up in every tracker it could be in, unless the tracker is named. With key prefixes in Settings → Tickets, a Jira or Linear tracker is only asked about keys with those prefixes. ✕ on a chip takes it off that session's card for good, and + Ticket links it again. History keeps each closed session's tickets as they were, and its filter finds sessions by a ticket's key or title.
 
