@@ -73,6 +73,8 @@ Statuses fall into the dashboard's own groups:
 | **GitHub** | | `open` | `closed`, reason `completed` | `closed`, reason `not_planned` |
 | **Zendesk** | `new` | `open`, `pending`, `hold` | `solved`, `closed` | |
 
+**Filters** can pick cards by these groups, or *No ticket* (built 2026-11-26). A card with several tickets goes by its least finished one, closed counting as finished, so it's done only once every ticket is done or closed. **Ticket done**, which picks done and closed, is one of the usual filters, and was added once to filters saved before it. A filter that picks tickets shows once there's a tracker.
+
 ## Reading a ticket
 
 - **Jira:** `GET <site>/rest/api/3/issue/<key>?fields=summary,status,assignee`, with Basic authorization from the email and API token. A *scoped* API token is refused at the site's own address. It has to go through `https://api.atlassian.com/ex/jira/<cloudId>/rest/api/3/…`, with the cloud ID read once from `<site>/_edge/tenant_info`. Tabherd tries the site first and falls back to that address if refused. **Test** reads `/rest/api/3/myself`.
@@ -139,7 +141,6 @@ Each is one pull request:
 
 - **Create a ticket** from **+ Ticket**, in a tracker you choose, from the session's title and recap.
 - Comment on a ticket from a card at any time, not only on Complete.
-- A filter tab by ticket status, such as "Ticket done, session still open".
 - Other trackers: Azure DevOps, GitLab issues, Shortcut, YouTrack, Freshdesk, ServiceNow. Each is a reader and a writer behind the same tracker interface.
 - Zendesk OAuth sign-in from Settings, rather than pasting a token made in Zendesk's Admin Center.
 

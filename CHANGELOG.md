@@ -12,6 +12,7 @@ Notable changes in each release. Version numbers follow [Semantic Versioning](ht
   - **History** keeps each closed session's tickets, and finds sessions by them.
   - **A to-do from a ticket:** paste a ticket's link or key as a new to-do's title, and the to-do is filled in from it: the ticket's title, its description as the notes, and the ticket in *Tickets*. See [To-dos](README.md#to-dos).
   - **Complete** on a card with tickets opens a dialog first. It can comment on each ticket, with what the session did and its pull requests, and move it to done: a Jira transition, Linear's completed state, a GitHub issue closed as completed, or a Zendesk ticket solved. Nothing is posted unless it's ticked, and Zendesk comments are internal notes unless *Public reply* is ticked.
+  - **Ticket done**, a new filter tab, shows the sessions whose tickets are all done or cancelled, still open. Any filter can pick by its cards' tickets: to do, in progress, done, cancelled, or none. It's added to the filters you already have, and shows once there's a tracker. See [What it shows](README.md#what-it-shows).
   - See [Tickets](README.md#tickets).
 
 ## 0.6.0-beta.3 - 2026-11-25
