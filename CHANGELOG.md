@@ -2,6 +2,41 @@
 
 Notable changes in each release. Version numbers follow [Semantic Versioning](https://semver.org). The release build takes each release's notes from its section here.
 
+## 0.6.0 - 2026-11-26
+
+The desktop app comes to macOS and Linux, and Tabherd is on npm. Sessions from OpenCode and Cursor CLI get cards, tickets link to cards, and **Complete** closes work that's done. Below is everything since 0.5.0, including what the betas had.
+
+- **Windows:** run `tabherd-v0.6.0-windows-x64-setup.exe`. It installs over the version you have. It isn't code-signed yet, so SmartScreen may warn the first time: choose **More info**, then **Run anyway**.
+- **macOS** (Apple silicon): open `tabherd-v0.6.0-macos-arm64.dmg` and drag Tabherd to Applications. With Homebrew, `brew upgrade tabherd` updates the version that opens in your browser.
+- **Linux:** install the .deb with `sudo apt install ./tabherd-v0.6.0-linux-x64.deb`, or the .rpm with `sudo dnf install ./tabherd-v0.6.0-linux-x64.rpm`, or make the AppImage executable (`chmod +x`) and run it. Use arm64 in place of x64 on an ARM computer.
+- **Anywhere with Node 18 or later:** `npx tabherd@latest`.
+
+> **The macOS app isn't signed by Apple yet.** It's signed ad hoc, so the first time you open it, and each new version you download, macOS says it can't check it: choose Done, then System Settings → Privacy & Security → *Open Anyway*. **When a version signed by Apple comes out, update to it.** From then on, macOS opens it without asking. Its release notes will say it's signed.
+
+What's new since 0.5.0:
+
+- **The desktop app comes to macOS and Linux:** a disk image for Apple silicon Macs, and a .deb, an .rpm and an AppImage for Linux, x64 and arm64, built on Ubuntu 22.04. They need WebKitGTK 4.1. As on Windows, it has a window of its own, starts the dashboard server unless one is running, and stops it on closing. The archives and Homebrew stay, for the dashboard in your browser. See [Install](README.md#macos-and-linux) and [docs/desktop-app.md](docs/desktop-app.md).
+- The desktop app's window has no title bar of the system's: the dashboard's header stands in for it, with more room for the cards. Drag the header to move the window and double-click it to maximize. On Windows and Linux, minimize, maximize and close are in its top right corner; on macOS, the system's own buttons sit in its top left. The cards scroll below the header. See [docs/desktop-app.md](docs/desktop-app.md#the-window).
+- **OpenCode** sessions get cards. They show *Working*, *Needs you* while OpenCode asks permission or a question, or *Idle*, with the last prompt and reply. **Go to window**, **Catch up**, **Stop**, **Complete** and Save and close work as they do for Codex. The dashboard asks OpenCode 2's background service, and matches each window to its session by its tab's title. See [OpenCode](README.md#opencode).
+- **Cursor CLI** sessions get cards, matched to their windows by their tabs' titles. With Cursor's status indicators on (`/status-indicators`), they show *Needs you* while Cursor waits for an approval or an answer; otherwise *Working* or *Idle*, from the chat's transcript. **Go to window**, **Catch up**, **Stop**, **Complete**, Save and close, History and Resume work as they do for Claude. See [Cursor CLI](README.md#cursor-cli).
+- **Complete** on a session's card, beside Stop…, for work that's done: after a second click it closes the session, once its turn ends if it's working, and History marks it *Completed*, with a switch to hide completed sessions. Save and close doesn't save a completed session, and one resumed and asked something new is no longer complete. See [Complete](README.md#complete).
+- **Tickets on cards.** Add your Jira sites, Linear, GitHub Issues and Zendesk in Settings → Tickets, as many as you use, and **Test** each one's sign-in. Each session's card then shows its tickets, with their status, and opens them.
+  - **Where they come from:** its branch's name, `Claim: ABC-123` lines in prompts or the session's replies (`Unclaim:` takes one off), ticket links in prompts, its to-do's new *Tickets* field, and **+ Ticket** on the card.
+  - **What's linked:** a ticket is only linked if its tracker has it. ✕ takes one off.
+  - **History** keeps each closed session's tickets, and finds sessions by them.
+  - **A to-do from a ticket:** paste a ticket's link or key as a new to-do's title, and the to-do is filled in from it: the ticket's title, its description as the notes, and the ticket in *Tickets*. See [To-dos](README.md#to-dos).
+  - **Complete** on a card with tickets opens a dialog first. It can comment on each ticket, with what the session did and its pull requests, and move it to done: a Jira transition, Linear's completed state, a GitHub issue closed as completed, or a Zendesk ticket solved. Nothing is posted unless it's ticked, and Zendesk comments are internal notes unless *Public reply* is ticked.
+  - **Ticket done**, a new filter tab, shows the sessions whose tickets are all done or cancelled, still open. Any filter can pick by its cards' tickets: to do, in progress, done, cancelled, or none. It's added to the filters you already have, and shows once there's a tracker. See [What it shows](README.md#what-it-shows).
+  - See [Tickets](README.md#tickets).
+- **Secrets are encrypted** in `settings.json`: the trackers, with their addresses, emails and tokens, and LocalAI's key and LM Studio's token. The key is held by Windows (DPAPI), the macOS Keychain or your Linux keyring, so the file can't be read on another computer or by another user. Keys saved by older versions are encrypted on the first start. See [Secrets](README.md#secrets).
+- **Update alerts:** Tabherd can tell you when a new version is out. It's off until you say yes, when the dashboard asks once or in Settings → Help, which also has **Check now**. With it on, the server asks GitHub for the latest release once a day, sending nothing about you or your sessions. A newer version brings an **Update to <version>** button to the header and a note to the notification list. The button shows what's new and how to update this copy: the command for Homebrew, npm, winget or a clone of the repository, or which download to get. **Not now** hides it until the next version. Prereleases, such as betas, are only mentioned if Settings → Help's *Tell me about betas and other prereleases too* is on, or to someone already running one. See [Update alerts](README.md#update-alerts).
+- **On npm.** With Node 18 or later, `npx tabherd@latest` runs the dashboard on any system, or `npm install -g tabherd` adds a `tabherd` command. It starts the server in the terminal and opens the dashboard. See [With npm](README.md#with-npm).
+- A LocalAI model that's working on a request, from LocalAI's chat or another app, gets a *Working* card. LocalAI doesn't list its requests, so the card goes by the processor the model's backend is using, and leaves a few seconds after it's quiet. One that worked half a minute or more dings when it stops.
+- The version running shows under the computer's name in the header.
+- With Card size set to Small, Medium or Large, the Memory and models card shrinks when its list of models is closed, instead of keeping a card's full height.
+- Stop, Cancel and Unload on a job's, model's or download's card, and Unload on the Memory and models card, kept their first click only until the card next changed, which for a busy model could be within two seconds. The first click now lasts its three seconds whatever the card does.
+- Intel Macs: the macOS desktop app is for Apple silicon only. The `macos-x64` download stays, but it won't be supported forever. We'll try to keep it updated until the official cutoff in 2029, but support may end sooner if it becomes too much for the team to keep up. See [Install](README.md#macos-and-linux).
+
 ## 0.6.0-beta.3 - 2026-11-25
 
 A prerelease with everything since 0.6.0-beta.2, to try before 0.6.0: the app's own title bar, **Complete**, update alerts, a *Working* card for LocalAI, and the first part of linking tickets to cards.

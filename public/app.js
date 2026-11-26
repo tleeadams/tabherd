@@ -84,6 +84,14 @@ const STATUS = {
 // from the rest of Working.
 const FILTER_STATUSES = { needs: tr('Needs you'), working: tr('Working'), shell: tr('Shell running'), idle: tr('Idle') };
 const filterStatus = (x) => (x.status === 'shell' ? 'shell' : status(x).group);
+// The ticket statuses a filter can pick: the dashboard's groups for them, or none.
+const FILTER_TICKETS = { todo: tr('To do'), progress: tr('In progress'), done: tr('Done'), closed: tr('Cancelled'), none: tr('No ticket') };
+// A card's tickets' status: its least finished ticket's, so a card is done
+// only once all its tickets are. Cancelled counts as finished, without being done.
+const ticketStatus = (x) => {
+  const cats = (x.tickets || []).map((t) => t.category);
+  return cats.length ? ['todo', 'progress', 'done', 'closed'].find((c) => cats.includes(c)) || 'progress' : 'none';
+};
 const MAX_FILTERS = 12;
 const PERMISSION_MODES = {
   bypassPermissions: tr('bypass'),
@@ -94,7 +102,7 @@ const PERMISSION_MODES = {
   'never-ask': tr('never asks'),
 };
 // Which app each session is, on its card and in the history.
-const APPS = { claude: 'Claude', codex: 'Codex', copilot: 'Copilot', comfy: 'Comfy', localai: 'LocalAI', ollama: 'Ollama', lmstudio: 'LM Studio', llamacpp: 'llama.cpp' };
+const APPS = { claude: 'Claude', codex: 'Codex', copilot: 'Copilot', opencode: 'OpenCode', cursor: 'Cursor', comfy: 'Comfy', localai: 'LocalAI', ollama: 'Ollama', lmstudio: 'LM Studio', llamacpp: 'llama.cpp' };
 // Cards for things other than sessions: ComfyUI's jobs, LocalAI's models,
 // downloads and chats, and the other model servers' loaded models.
 const isItem = (a) => ['comfy', 'localai', 'ollama', 'lmstudio', 'llamacpp'].includes(a.app);
@@ -102,6 +110,8 @@ const APP_HINTS = {
   claude: tr('A Claude Code session'),
   codex: tr('A Codex session'),
   copilot: tr('A GitHub Copilot session'),
+  opencode: tr('An OpenCode session'),
+  cursor: tr('A Cursor CLI session'),
   comfy: tr('A ComfyUI job'),
   localai: tr('From LocalAI'),
   ollama: tr('From Ollama'),
@@ -207,7 +217,13 @@ function shortPath(p) {
 const status = (a) => STATUS[a.status] || STATUS.unknown;
 // What the terminal tab shows, falling back to Claude's own names.
 const displayName = (a) => a.terminalTitle || a.title || a.name;
-const RESUME = { codex: (id) => `codex resume ${id}`, copilot: (id) => `copilot --resume=${id}`, claude: (id) => `claude --resume ${id}` };
+const RESUME = {
+  codex: (id) => `codex resume ${id}`,
+  copilot: (id) => `copilot --resume=${id}`,
+  opencode: (id) => `opencode --session ${id}`,
+  cursor: (id) => `cursor-agent --resume ${id}`,
+  claude: (id) => `claude --resume ${id}`,
+};
 const resumeCommand = (a) => `cd "${a.cwd}"; ${(RESUME[a.app] || RESUME.claude)(a.id)}`;
 // A Copilot session inside VS Code can only be gone to: VS Code runs it.
 const inVsCode = (a) => a.app === 'copilot' && a.entrypoint === 'vscode';
@@ -278,9 +294,9 @@ const post = (agent, action) => api(`/api/agents/${encodeURIComponent(agent.id)}
 // Other apps' cards say which buttons they have.
 const canFocus = (a) =>
   Boolean(snap?.terminals) && !a.background && Boolean(a.pid) && (a.actions ? a.actions.includes('focus') : !a.kind || a.kind === 'interactive');
-// Codex takes Catch up's prompt through its own service, so it doesn't need
-// the window; Claude's is typed into the window.
-const canCatchUp = (a) => !inVsCode(a) && (a.app === 'codex' ? !a.kind || a.kind === 'interactive' : canFocus(a));
+// Codex and OpenCode take Catch up's prompt through their own services, so
+// they don't need the window; Claude's is typed into the window.
+const canCatchUp = (a) => !inVsCode(a) && (a.app === 'codex' || a.app === 'opencode' ? !a.kind || a.kind === 'interactive' : canFocus(a));
 // The app a to-do starts: its own choice, or the one Settings names.
 const todoApp = (t) => t.app || snap?.newSessionApp || 'claude';
 
@@ -465,10 +481,13 @@ function showInstalledChoices(name) {
 
 // ---- save and close, resume ----------------------------------------------------
 
-// The sessions Save and close takes: Claude and Codex sessions in a terminal.
+// The sessions Save and close takes: Claude's, Codex's, OpenCode's and
+// Cursor's in a terminal.
 const closable = (a) =>
   (a.app === 'claude' && !a.background && (!a.kind || a.kind === 'interactive') && (!a.entrypoint || a.entrypoint === 'cli')) ||
   a.app === 'codex' ||
+  a.app === 'opencode' ||
+  a.app === 'cursor' ||
   (a.app === 'copilot' && a.entrypoint === 'cli');
 const isWorking = (a) => a.status === 'busy' || a.status === 'shell';
 
@@ -778,19 +797,181 @@ function secondClick(key, button, label) {
 }
 
 // Complete asks for a second click, like Unload, then closes the session,
-// once its turn ends if it's working. History keeps it, marked complete.
+// once its turn ends if it's working. History keeps it, marked complete. A
+// session with tickets opens a dialog instead, to update them first.
 async function completeSession(a, button) {
+  if (a.tickets?.length) {
+    openCompleteDialog(a);
+    return;
+  }
   if (!secondClick(`complete:${a.id}`, button, tr('Complete'))) return;
   button.disabled = true;
+  if (!(await completeNow(a))) button.disabled = false;
+}
+
+async function completeNow(a) {
   try {
     const r = await post(a, 'complete');
     toast(r.waiting ? tr('{name} will close when its turn ends', { name: displayName(a) }) : tr('Completed {name}', { name: displayName(a) }));
+    return true;
   } catch (err) {
     toast(err.message, true);
-    button.disabled = false;
+    return false;
+  } finally {
+    refresh();
   }
-  refresh();
 }
+
+// ---- completing a session with tickets -----------------------------------------
+
+// Each tracker's ticks in the Complete dialog, kept in this browser.
+const TICKS_KEY = 'tabherd:ticket-ticks';
+function savedTicks() {
+  try {
+    return JSON.parse(localStorage.getItem(TICKS_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+function keepTicks(rows) {
+  const all = savedTicks();
+  for (const r of rows) all[r.t.tracker] = { comment: r.comment.checked, move: r.move.checked, publicReply: Boolean(r.pub?.checked) };
+  try {
+    localStorage.setItem(TICKS_KEY, JSON.stringify(all));
+  } catch {}
+}
+
+// The comment a ticket is offered: the session that did the work, what it
+// said last, and its pull requests. It goes to the ticket as written, so
+// it's in English, and can be changed before it's posted.
+const APP_NAMES = { claude: 'Claude Code', codex: 'Codex', copilot: 'GitHub Copilot', opencode: 'OpenCode', cursor: 'Cursor CLI' };
+function doneComment(a) {
+  const said = (a.recap?.text || a.lastReply?.text || '').trim();
+  const parts = [`Done in a ${APP_NAMES[a.app] || 'coding'} session (${displayName(a)})${said ? `: ${said}` : '.'}`];
+  if (a.prs?.length) parts.push(`Pull requests: ${a.prs.map((p) => p.url).join(', ')}`);
+  return parts.join('\n\n');
+}
+
+let completing = null;
+
+// What a ticket's row says about moving it to done.
+function showMoves(row, options) {
+  const moves = options?.moves || [];
+  row.moveTo.replaceChildren(...moves.map((m) => el('option', { value: m.id, text: m.name })));
+  row.moveTo.hidden = moves.length < 2;
+  row.move.disabled = !moves.length || row.done.includes('move');
+  if (!moves.length) row.move.checked = false;
+  const t = row.t;
+  let note = '';
+  if (options?.error) note = tr("Can't move it: {problem}", { problem: tr(options.error) });
+  else if (t.pullRequest) note = tr("A pull request isn't moved from here.");
+  else if (t.category === 'done' || t.category === 'closed') note = tr('Already {status}.', { status: t.status });
+  else if (!moves.length) note = tr('Its status has no way to done.');
+  else if (t.type === 'zendesk') note = tr('To Solved, which emails the requester.');
+  else if (t.type === 'github') note = tr('Closes it as completed.');
+  else if (moves.length === 1) note = tr('To {status}', { status: moves[0].name });
+  row.moveNote.textContent = note;
+}
+
+async function openCompleteDialog(a) {
+  const ticks = savedTicks();
+  const rows = a.tickets.map((t) => {
+    const saved = ticks[t.tracker] || {};
+    const check = (label, checked) => {
+      const box = el('input', { type: 'checkbox' });
+      box.checked = Boolean(checked);
+      return [box, el('label', { class: 'check' }, box, label)];
+    };
+    const [comment, commentLabel] = check(tr('Comment'), saved.comment);
+    const text = el('textarea', { rows: 4, maxlength: 20000, 'aria-label': tr('Comment') });
+    text.value = doneComment(a);
+    text.disabled = !comment.checked;
+    comment.addEventListener('change', () => (text.disabled = !comment.checked));
+    // Zendesk comments are internal notes unless they're a public reply.
+    const [pub, pubLabel] = t.type === 'zendesk' ? check(tr('Public reply'), saved.publicReply) : [null, null];
+    const [move, moveLabel] = check(tr('Move to done'), saved.move);
+    move.disabled = true;
+    const moveTo = el('select', { hidden: true, 'aria-label': tr('Move to') });
+    const moveNote = el('span', { class: 'complete-note', text: tr('Checking how it can be moved…') });
+    const problem = el('p', { class: 'complete-problem', hidden: true });
+    const block = el(
+      'div',
+      { class: 'complete-ticket' },
+      el('div', { class: 'complete-title' }, ticketChip(t), el('span', { class: 'complete-note', text: t.title })),
+      el('div', { class: 'checks' }, commentLabel, pubLabel),
+      el('div', { class: 'field' }, text),
+      pub ? el('p', { class: 'settings-help', text: tr("Without Public reply, it's an internal note. A public reply emails the requester.") }) : null,
+      el('div', { class: 'checks' }, moveLabel, moveTo, moveNote),
+      problem,
+    );
+    return { t, comment, text, pub, move, moveTo, moveNote, problem, block, done: [] };
+  });
+  completing = { a, rows };
+  $('complete-name').textContent = displayName(a);
+  $('complete-tickets').replaceChildren(...rows.map((r) => r.block));
+  $('complete-anyway').hidden = true;
+  $('complete-save').disabled = false;
+  $('complete-dialog').showModal();
+  try {
+    const r = await api('/api/tickets/done-options', { id: a.id });
+    for (const row of rows) showMoves(row, r.tickets.find((x) => x.chip === row.t.id));
+  } catch (err) {
+    for (const row of rows) showMoves(row, { moves: [], error: err.message });
+  }
+}
+
+// Posts what's ticked to the tickets, then completes the session. If any
+// fails, the dialog stays, saying why, with Complete anyway. What was posted
+// isn't posted again.
+$('complete-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const { a, rows } = completing;
+  const save = $('complete-save');
+  save.disabled = true;
+  try {
+    keepTicks(rows);
+    const writes = rows
+      .map((r) => ({
+        chip: r.t.id,
+        comment: r.comment.checked && !r.done.includes('comment') ? r.text.value : null,
+        publicReply: Boolean(r.pub?.checked),
+        move: r.move.checked && !r.move.disabled && !r.done.includes('move') ? r.moveTo.value || null : null,
+      }))
+      .filter((w) => w.comment || w.move);
+    let failed = false;
+    if (writes.length) {
+      const res = await api('/api/tickets/write', { id: a.id, writes });
+      for (const result of res.results) {
+        const row = rows.find((r) => r.t.id === result.chip);
+        if (!row) continue;
+        row.done.push(...result.done);
+        if (row.done.includes('comment')) row.comment.disabled = row.text.disabled = true;
+        if (row.done.includes('move')) row.move.disabled = true;
+        row.problem.hidden = result.ok;
+        if (!result.ok) {
+          failed = true;
+          row.problem.textContent = result.done.includes('comment') ? tr('The comment was posted, but: {problem}', { problem: tr(result.error) }) : tr(result.error);
+        }
+      }
+    }
+    if (failed) {
+      $('complete-anyway').hidden = false;
+      toast(tr("Some tickets weren't updated. Try again, or complete it anyway."), true);
+      return;
+    }
+    $('complete-dialog').close();
+    await completeNow(a);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    save.disabled = false;
+  }
+});
+$('complete-anyway').addEventListener('click', async () => {
+  $('complete-dialog').close();
+  await completeNow(completing.a);
+});
+for (const id of ['complete-cancel', 'complete-close']) $(id).addEventListener('click', () => $('complete-dialog').close());
 
 // A card for a ComfyUI job, or a LocalAI model, download or chat. The server
 // gives what it shows, `facts` as label and value pairs, and which buttons it
@@ -945,6 +1126,7 @@ function card(a) {
     ),
     subtitle ? el('p', { class: 'title', text: subtitle }) : null,
     el('div', { class: 'where' }, el('span', { class: 'path', title: a.cwd, text: shortPath(a.cwd) }), tags),
+    ticketRow(a.tickets, { add: () => openTicketDialog(a), remove: (t) => removeTicket(a, t) }),
     // The part that scrolls when every card is the same size.
     el(
       'div',
@@ -963,6 +1145,91 @@ function card(a) {
     actions(a),
   );
 }
+
+// ---- tickets -------------------------------------------------------------------
+
+// A ticket's key as its chip shows it: a GitHub issue by its repository's
+// name and number, without its owner.
+const ticketKey = (t) => (t.type === 'github' ? t.key.replace(/^[^/]+\//, '') : t.key);
+
+// A ticket's chip: its key and status, with a dot in its status group's
+// colour, opening the ticket. Its title, assignee and tracker show on hover.
+function ticketChip(t, remove) {
+  const tip = [t.title, t.assignee ? tr('Assigned to {name}', { name: t.assignee }) : null, t.trackerName].filter(Boolean).join('\n');
+  const label = [el('span', { class: 'ticket-dot' }), `${ticketKey(t)} · ${t.status}`];
+  return el(
+    'span',
+    { class: `ticket t-${t.category}` },
+    t.url ? el('a', { href: t.url, target: '_blank', rel: 'noopener noreferrer', title: tip }, label) : el('span', { title: tip }, label),
+    remove ? el('button', { type: 'button', class: 'ticket-x', title: tr('Take {key} off this card', { key: ticketKey(t) }), 'aria-label': tr('Take {key} off this card', { key: ticketKey(t) }), onclick: () => remove(t) }, '✕') : null,
+  );
+}
+
+// A card's tickets, under its folder, then + Ticket to link one by hand,
+// once there's a tracker in Settings → Tickets.
+function ticketRow(list, { add, remove } = {}) {
+  const adding = Boolean(add && snap?.trackerCount);
+  if (!list?.length && !adding) return null;
+  return el(
+    'div',
+    { class: 'tickets' },
+    (list || []).map((t) => ticketChip(t, remove)),
+    adding ? el('button', { type: 'button', class: 'ticket ticket-add', title: tr('Link a ticket to this session'), onclick: add }, tr('+ Ticket')) : null,
+  );
+}
+
+let ticketFor = null;
+
+function openTicketDialog(a) {
+  ticketFor = a;
+  $('ticket-name').textContent = displayName(a);
+  $('ticket-text').value = '';
+  $('ticket-dialog').showModal();
+  $('ticket-text').focus();
+}
+
+$('ticket-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const a = ticketFor;
+  const button = $('ticket-save');
+  button.disabled = true;
+  try {
+    const r = await api('/api/tickets/add', { id: a.id, text: $('ticket-text').value });
+    const said = [];
+    if (r.linked.length) said.push(tr('Linked {keys}.', { keys: r.linked.join(', ') }));
+    if (r.unsure.length) said.push(tr("{keys}: its tracker didn't answer, so it's linked once it does.", { keys: r.unsure.join(', ') }));
+    if (r.notFound.length) said.push(tr('{keys}: not found in your trackers.', { keys: r.notFound.join(', ') }));
+    toast(said.join(' '), !r.linked.length && !r.unsure.length);
+    if (r.linked.length || r.unsure.length) $('ticket-dialog').close();
+    refresh();
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    button.disabled = false;
+  }
+});
+for (const id of ['ticket-cancel', 'ticket-close']) $(id).addEventListener('click', () => $('ticket-dialog').close());
+
+// Takes a ticket off a session's card. It stays off, unless it's linked
+// again with + Ticket.
+async function removeTicket(a, t) {
+  try {
+    await api('/api/tickets/remove', { id: a.id, chip: t.id });
+    toast(tr('{key} taken off. Link it again with + Ticket.', { key: ticketKey(t) }));
+    refresh();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+// A to-do's tickets as its Tickets field shows them: one from a link, as
+// that link again.
+function refText(r) {
+  const host = r.hint?.startsWith('host:') ? r.hint.slice(5) : null;
+  if (host) return r.key.startsWith('#') ? `https://${host}/agent/tickets/${r.key.slice(1)}` : `https://${host}/browse/${r.key}`;
+  return r.hint ? `${r.hint} ${r.key}` : r.key;
+}
+const refsText = (list) => (list || []).map(refText).join(', ');
 
 // ---- to-dos --------------------------------------------------------------------
 
@@ -983,6 +1250,10 @@ function editTodo(t) {
   $('todo-dialog-title').textContent = t ? tr('Edit to-do') : tr('New to-do');
   $('todo-save').textContent = t ? tr('Save') : tr('Add to-do');
   $('todo-title').value = t?.title || '';
+  // A new one can be filled in from a ticket.
+  $('todo-title').placeholder = !t && snap?.trackerCount ? tr('Or paste a ticket link or key') : '';
+  ticketLookup++;
+  todoTicketNote('');
   $('todo-notes').value = t?.notes || '';
   // Which app it starts in, once Codex is installed too.
   $('todo-app-field').hidden = !otherAppsInstalled();
@@ -990,6 +1261,9 @@ function editTodo(t) {
   $('todo-app').querySelector('option[value="copilot"]').hidden = !snap?.copilotInstalled;
   $('todo-app-default').textContent = tr('As in Settings ({app})', { app: APPS[snap?.newSessionApp] || APPS.claude });
   $('todo-app').value = t?.app || '';
+  // Its tickets, once there's a tracker to look them up in.
+  $('todo-tickets-field').hidden = !snap?.trackerCount && !t?.ticketRefs?.length;
+  $('todo-tickets').value = refsText(t?.ticketRefs);
   $('todo-dialog').showModal();
   $('todo-title').focus();
 }
@@ -1081,6 +1355,7 @@ function todoCard(t) {
         ? el('span', { class: 'path', title: t.cwd, text: shortPath(t.cwd) })
         : el('span', { class: 'no-folder', title: tr('No folder chosen: it starts here, where Claude can make a new project'), text: tr('Starts in {folder}', { folder: startsIn }) }),
     ),
+    ticketRow(t.tickets),
     el(
       'div',
       { class: 'card-body' },
@@ -1127,7 +1402,7 @@ $('todo-form').addEventListener('submit', async (e) => {
   const save = $('todo-save');
   save.disabled = true;
   try {
-    const body = { title: $('todo-title').value, notes: $('todo-notes').value, app: $('todo-app').value || null };
+    const body = { title: $('todo-title').value, notes: $('todo-notes').value, app: $('todo-app').value || null, tickets: $('todo-tickets').value };
     await api(editingTodo ? `/api/todos/${editingTodo.id}` : '/api/todos', body);
     $('todo-dialog').close();
     refresh();
@@ -1145,6 +1420,50 @@ $('todo-notes').addEventListener('keydown', (e) => {
   }
 });
 for (const id of ['todo-cancel', 'todo-close']) $(id).addEventListener('click', () => $('todo-dialog').close());
+
+// A ticket's link or key pasted as a new to-do's title fills the to-do in
+// from the ticket: its title, its description as the notes if they're empty,
+// and the ticket in Tickets. Only what looks like one is looked up.
+const LOOKS_LIKE_TICKET = /^(?:https?:\/\/\S*(?:\/browse\/|selectedIssue=|linear\.app\/\S*\/issue\/|github\.com\/\S*\/issues\/|\/agent\/tickets\/)\S*|[A-Za-z][A-Za-z0-9_]*-\d+|[\w.-]+\/[\w.-]+#\d+)$/;
+// Each lookup's number, so one answered after the title changed, or the
+// dialog was opened again, is ignored.
+let ticketLookup = 0;
+
+// The line under Title: the lookup, what it filled in from, or what went wrong.
+function todoTicketNote(text, problem = false) {
+  const note = $('todo-from-ticket');
+  note.textContent = text;
+  note.classList.toggle('problem', problem);
+  note.hidden = !text;
+}
+
+async function fillTodoFromTicket(pasted) {
+  const asked = ++ticketLookup;
+  todoTicketNote(tr('Looking up the ticket…'));
+  let r;
+  try {
+    r = await api('/api/tickets/describe', { text: pasted });
+  } catch (err) {
+    r = { error: err.message };
+  }
+  // The dialog was opened again, or something else pasted, in the meantime.
+  if (asked !== ticketLookup) return;
+  // Typed over: what was typed stays.
+  if ($('todo-title').value.trim() !== pasted) return todoTicketNote('');
+  if (r.error) return todoTicketNote(r.error, true);
+  if (!r.ticket) return todoTicketNote('');
+  $('todo-title').value = r.ticket.title;
+  if (!$('todo-notes').value.trim()) $('todo-notes').value = r.ticket.description;
+  const field = $('todo-tickets');
+  if (!field.value.includes(pasted)) field.value = field.value.trim() ? `${field.value.trim()}, ${pasted}` : pasted;
+  $('todo-tickets-field').hidden = false;
+  todoTicketNote(tr('Filled in from {key}, in {tracker}.', { key: r.ticket.key, tracker: r.ticket.trackerName }));
+}
+
+$('todo-title').addEventListener('input', (e) => {
+  const pasted = $('todo-title').value.trim();
+  if (e.inputType === 'insertFromPaste' && !editingTodo && snap?.trackerCount && LOOKS_LIKE_TICKET.test(pasted)) fillTodoFromTicket(pasted);
+});
 
 // ---- page ------------------------------------------------------------------
 
@@ -1493,6 +1812,7 @@ function matchesFilter(f, x, isTodo) {
   if (isTodo ? !f.todos : f.statuses.length && !f.statuses.includes(filterStatus(x))) return false;
   if (f.apps.length && !f.apps.includes(x.app || 'claude')) return false;
   if (f.groups.length && !f.groups.includes(x.group || 'none')) return false;
+  if (f.tickets.length && !f.tickets.includes(ticketStatus(x))) return false;
   if (f.text) {
     const words = [x.name, x.title, x.cwd, x.where].filter(Boolean).join(' ').toLowerCase();
     if (!f.text.toLowerCase().split(' ').every((w) => words.includes(w))) return false;
@@ -1509,6 +1829,7 @@ function describeFilter(f) {
     f.statuses.length ? or(f.statuses, (s) => FILTER_STATUSES[s]) : tr('Any status'),
     f.apps.length ? or(f.apps, (a) => APPS[a]) : null,
     f.groups.length ? tr('in {groups}', { groups: or(f.groups, (g) => (g === 'none' ? tr('no group') : groupDef(g)?.name)) }) : null,
+    f.tickets.length ? tr('ticket: {statuses}', { statuses: or(f.tickets, (s) => FILTER_TICKETS[s]) }) : null,
     f.text ? `“${f.text}”` : null,
     f.todos ? tr('and to-dos') : null,
   ]
@@ -1524,8 +1845,9 @@ function chooseFilter(id) {
 
 // Each tab with how many cards it shows, amber when one of them needs you.
 function renderFilterTabs(agents, todos) {
-  const filters = snap.filters || [];
-  if (filter !== 'all' && !filterDef(filter)) filter = 'all';
+  // A filter that picks tickets' statuses waits for a tracker to read them from.
+  const filters = (snap.filters || []).filter((f) => !f.tickets.length || snap.trackerCount);
+  if (filter !== 'all' && !filters.some((f) => f.id === filter)) filter = 'all';
   const nav = $('filters');
   const tabs = [{ id: 'all', name: tr('All') }, ...filters];
   const signature = JSON.stringify([tabs, snap.groups]);
@@ -1636,6 +1958,7 @@ function filterFromForm() {
     statuses: ticked('filter-statuses'),
     apps: ticked('filter-apps'),
     groups: ticked('filter-groups'),
+    tickets: ticked('filter-tickets'),
     text: $('filter-text').value.replace(/\s+/g, ' ').trim(),
     todos: $('filter-todos').checked,
   };
@@ -1664,6 +1987,9 @@ function editFilter(f) {
   const groups = snap?.groups || [];
   $('filter-groups-field').hidden = !groups.length;
   filterChecks($('filter-groups'), [...groups.map((g) => [g.id, g.name, g.color]), ['none', tr('No group')]], f?.groups || []);
+  // Tickets' statuses, once there's a tracker to read them from.
+  $('filter-tickets-field').hidden = !snap?.trackerCount && !f?.tickets.length;
+  filterChecks($('filter-tickets'), Object.entries(FILTER_TICKETS), f?.tickets || []);
   $('filter-text').value = f?.text || '';
   $('filter-todos').checked = !!f?.todos;
   showFilterCount();
@@ -2035,10 +2361,13 @@ try {
   updateNoted = localStorage.getItem(UPDATE_NOTED_KEY);
 } catch {}
 
-// How to update, for each way the server can tell Tabherd was installed.
+// How to update, for each way the server can tell Tabherd was installed. A
+// command can depend on the new version.
 const HOW_TO_UPDATE = {
   git: { text: tr('This copy runs from a clone of the repository. Pull the new version, then start the server again:'), command: 'git pull' },
   homebrew: { text: tr('Installed with Homebrew:'), command: 'brew upgrade tabherd' },
+  npm: { text: tr('Installed with npm. Stop the server with Ctrl+C in its terminal, then install the new version and start it again:'), command: (v) => `npm install -g tabherd@${v}` },
+  npx: { text: tr('Run with npx. Stop the server with Ctrl+C in its terminal, then start the new version:'), command: (v) => `npx tabherd@${v}` },
   winget: { text: tr('Installed with winget:'), command: 'winget upgrade tleeadams.Tabherd' },
   'windows-installer': { text: tr('Download the new installer from the release and run it. It installs over this version.') },
   'windows-zip': { text: tr("Download the new zip from the release, and put its folder in place of this one's.") },
@@ -2131,9 +2460,10 @@ async function openUpdate() {
     .join(' ');
   $('update-notes').replaceChildren(...releaseNotes(latest.notes));
   const how = HOW_TO_UPDATE[info.install] || HOW_TO_UPDATE.archive;
+  const command = typeof how.command === 'function' ? how.command(latest.version) : how.command;
   $('update-how').textContent = how.text;
-  $('update-command').hidden = !how.command;
-  $('update-command-text').textContent = how.command || '';
+  $('update-command').hidden = !command;
+  $('update-command-text').textContent = command || '';
   $('update-release').href = latest.url;
   dialog.dataset.version = latest.version;
   dialog.returnValue = '';
@@ -2219,13 +2549,15 @@ function connect() {
 function confirmStop(a) {
   const dialog = $('confirm');
   $('confirm-name').textContent = displayName(a);
-  // Codex runs the session in its background service: Stop interrupts its
-  // turn there, then ends the Codex in its window, if that's known.
+  // Codex and OpenCode run the session in a background service: Stop
+  // interrupts its turn there, then ends the app in its window, if that's known.
   $('confirm-what').textContent =
-    a.app !== 'codex'
+    a.app !== 'codex' && a.app !== 'opencode'
       ? tr("This force-ends PID {pid} along with its shells and MCP servers. Anything the current turn hasn't saved is lost.", { pid: a.pid })
       : a.pid
-        ? tr("This interrupts its current turn and ends Codex in its window, PID {pid}. What the turn hasn't finished is lost.", { pid: a.pid })
+        ? a.app === 'codex'
+          ? tr("This interrupts its current turn and ends Codex in its window, PID {pid}. What the turn hasn't finished is lost.", { pid: a.pid })
+          : tr("This interrupts its current turn and ends OpenCode in its window, PID {pid}. What the turn hasn't finished is lost.", { pid: a.pid })
         : tr("This interrupts its current turn. What the turn hasn't finished is lost. Its window isn't known, so close that yourself.");
   $('confirm-resume').textContent = resumeCommand(a);
   dialog.returnValue = '';
@@ -2531,6 +2863,7 @@ function pastItem(s) {
       s.gitBranch ? el('span', { class: 'tag branch', title: tr('Git branch'), text: `⎇ ${s.gitBranch}` }) : null,
       s.background ? el('span', { class: 'tag background', title: tr('Ran in the background, with claude -p'), text: tr('Background') }) : null,
     ),
+    ticketRow(s.tickets),
     s.lastPrompt ? el('p', { class: 'past-prompt', title: s.lastPrompt.text }, el('b', {}, `${tr('Last prompt')} · `), s.lastPrompt.text) : null,
     el(
       'div',
@@ -2559,7 +2892,8 @@ function pastItem(s) {
   );
 }
 
-// Every word must appear somewhere in the session's names, folder, branch or prompts.
+// Every word must appear somewhere in the session's names, folder, branch,
+// prompts or tickets.
 function renderHistory() {
   if (!historyData) return;
   const terms = $('history-filter').value.toLowerCase().split(/\s+/).filter(Boolean);
@@ -2568,7 +2902,8 @@ function renderHistory() {
   const shown = historyData.filter((s) => {
     if (s.background && !background) return false;
     if (s.completedAt && !complete) return false;
-    const text = [pastName(s), s.title, s.name, s.cwd, s.gitBranch, s.firstPrompt?.text, s.lastPrompt?.text, s.todo?.title, s.todo?.notes]
+    const tickets = (s.tickets || []).flatMap((t) => [t.key, t.title]);
+    const text = [pastName(s), s.title, s.name, s.cwd, s.gitBranch, s.firstPrompt?.text, s.lastPrompt?.text, s.todo?.title, s.todo?.notes, ...tickets]
       .join(' ')
       .toLowerCase();
     return terms.every((t) => text.includes(t));
@@ -3336,6 +3671,8 @@ function renderTrackers() {
       if (tested?.pending) note = el('span', { text: tr('Testing…') });
       else if (tested) note = el('span', { class: tested.ok ? 'tracker-ok' : 'tracker-error', text: tested.ok ? tr('Connected as {name}', { name: tested.as }) : tested.error });
       else if (t.type !== 'github' && !t.tokenSet) note = el('span', { class: 'tracker-error', text: tr('No token yet') });
+      // Its tickets keep their last known status until it answers again.
+      else if (trackerData.problems?.[t.id]) note = el('span', { class: 'tracker-error', text: tr('Looking up tickets: {problem}', { problem: tr(trackerData.problems[t.id].error) }) });
       return el(
         'li',
         { class: 'filter-row tracker-row' },

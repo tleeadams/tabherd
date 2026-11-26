@@ -307,6 +307,8 @@ main { padding: 20px 24px 48px; }
 .app-claude { color: light-dark(#a8502b, #e3916b); border-color: light-dark(#ecd3c6, #4a3127); }
 .app-codex { color: var(--text); background: var(--panel-2); }
 .app-copilot { color: light-dark(#2f5fb3, #8fb3f0); border-color: light-dark(#d3def2, #2c3a55); }
+.app-cursor { color: light-dark(#26251e, #edecec); border-color: light-dark(#d8d6cf, #3d3c38); }
+.app-opencode { color: light-dark(#4a4a52, #c9c9d1); border-color: light-dark(#d6d6dc, #3c3c44); }
 
 .badge {
   display: inline-flex;
@@ -481,6 +483,40 @@ main { padding: 20px 24px 48px; }
 .prs { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; }
 .prs a { text-decoration: none; padding: 1px 7px; border-radius: 4px; background: var(--panel-2); border: 1px solid var(--border); }
 .prs a:hover { border-color: var(--accent); }
+
+/* Tickets: a chip each, with a dot in its status group's colour */
+
+.tickets { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; }
+.ticket { display: inline-flex; align-items: center; border-radius: 4px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); max-width: 100%; }
+.ticket > a, .ticket > span { display: inline-flex; align-items: center; gap: 5px; padding: 1px 7px; color: inherit; text-decoration: none; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ticket:hover { border-color: var(--accent); }
+.ticket-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--idle); }
+.t-progress .ticket-dot { background: var(--accent); }
+.t-done .ticket-dot { background: var(--busy); }
+.t-closed .ticket-dot { background: var(--muted); }
+.t-done > a, .t-closed > a { color: var(--muted); }
+.ticket-x { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 6px 0 0; font-size: 11px; line-height: 1; }
+.ticket-x:hover { color: var(--danger); }
+button.ticket-add { cursor: pointer; padding: 1px 7px; color: var(--muted); border-style: dashed; font: inherit; }
+button.ticket-add:hover { color: var(--accent); }
+.ticket-for { font-weight: 600; margin: 0 0 8px; }
+
+/* Complete's dialog, for a session with tickets: each ticket's comment and move */
+
+#complete-dialog { width: min(600px, calc(100vw - 32px)); }
+#complete-dialog form { padding: 16px 20px 18px; }
+.complete-ticket { border-top: 1px solid var(--border); padding: 12px 0; display: grid; gap: 8px; }
+.complete-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.complete-title .complete-note { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.complete-note { color: var(--muted); font-size: 12.5px; }
+.complete-ticket .checks { align-items: center; }
+.complete-ticket .field { margin: 0; }
+.complete-ticket textarea { min-height: 90px; }
+.complete-ticket textarea:disabled { opacity: 0.6; }
+.complete-ticket select { padding: 3px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); color: var(--text); font: inherit; font-size: 12.5px; }
+.complete-ticket .settings-help { margin: 0; }
+.complete-problem { margin: 0; color: var(--danger); font-size: 12.5px; }
+.check:has(input:disabled) { opacity: 0.55; cursor: default; }
 
 .actions { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
 .btn {
@@ -765,6 +801,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible, .msg .text:focus-v
 .settings-foot { margin: 12px 0 0; color: var(--faint); font-size: 12px; }
 .settings-help { margin: 0 0 8px; color: var(--muted); font-size: 12.5px; }
 .field + .settings-help { margin-top: 6px; }
+#todo-from-ticket.problem { color: var(--danger); }
 
 /* A labelled text box or list, in Settings and the to-do dialog. */
 .field { display: grid; gap: 4px; margin: 10px 0 0; }

@@ -410,6 +410,7 @@
         <span>Title</span>
         <input id="todo-title" type="text" required maxlength="200" autocomplete="off">
       </label>
+      <p id="todo-from-ticket" class="settings-help" aria-live="polite" hidden></p>
       <label class="field">
         <span>Notes</span>
         <textarea id="todo-notes" rows="7" maxlength="20000"></textarea>
@@ -423,10 +424,50 @@
           <option value="copilot">Copilot</option>
         </select>
       </label>
+      <label id="todo-tickets-field" class="field" hidden>
+        <span>Tickets</span>
+        <input id="todo-tickets" type="text" maxlength="2000" autocomplete="off" placeholder="ABC-123, or a link to the ticket">
+      </label>
       <p class="settings-help">Nothing here is sent to the session. To use it as a prompt, copy it in once it's started.</p>
       <div class="confirm-actions">
         <button type="button" id="todo-cancel" class="btn">Cancel</button>
         <button type="submit" id="todo-save" class="btn btn-primary">Add to-do</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="ticket-dialog" class="settings" aria-labelledby="ticket-dialog-title">
+    <form id="ticket-form">
+      <div class="settings-head">
+        <h2 id="ticket-dialog-title">Link a ticket</h2>
+        <button type="button" id="ticket-close" class="icon-btn" title="Close" aria-label="Close">✕</button>
+      </div>
+      <p class="settings-help ticket-for" id="ticket-name"></p>
+      <label class="field">
+        <span>Ticket</span>
+        <input id="ticket-text" type="text" required maxlength="2000" autocomplete="off" placeholder="ABC-123, or a link to the ticket">
+      </label>
+      <p class="settings-help">Paste its link or key. Name the tracker first if the key could be in more than one, as in Linear ENG-42. It's linked if the tracker has it. A session can link one itself with a line in a prompt or reply starting with Claim:, as in Claim: ABC-123.</p>
+      <div class="confirm-actions">
+        <button type="button" id="ticket-cancel" class="btn">Cancel</button>
+        <button type="submit" id="ticket-save" class="btn btn-primary">Link</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="complete-dialog" class="settings" aria-labelledby="complete-dialog-title">
+    <form id="complete-form">
+      <div class="settings-head">
+        <h2 id="complete-dialog-title">Complete</h2>
+        <button type="button" id="complete-close" class="icon-btn" title="Close" aria-label="Close">✕</button>
+      </div>
+      <p class="settings-help ticket-for" id="complete-name"></p>
+      <p class="settings-help">It closes, once its turn ends if it's working, and History marks it complete. Its tickets can be updated first: nothing is posted to them unless it's ticked.</p>
+      <div id="complete-tickets"></div>
+      <div class="confirm-actions">
+        <button type="button" id="complete-cancel" class="btn">Cancel</button>
+        <button type="button" id="complete-anyway" class="btn" hidden>Complete anyway</button>
+        <button type="submit" id="complete-save" class="btn btn-primary">Complete</button>
       </div>
     </form>
   </dialog>
@@ -503,6 +544,10 @@
         <legend>Group</legend>
         <div id="filter-groups" class="checks"></div>
       </fieldset>
+      <fieldset id="filter-tickets-field" class="filter-pick">
+        <legend>Ticket</legend>
+        <div id="filter-tickets" class="checks"></div>
+      </fieldset>
       <p class="settings-help">Tick none in a row to match any.</p>
       <label class="field">
         <span>Name or folder has</span>
@@ -510,7 +555,7 @@
       </label>
       <label class="choice filter-todos">
         <input type="checkbox" id="filter-todos">
-        <span class="choice-text"><b>Show to-dos</b><span>To-dos have no status, so they show if they're from an app, in a group and have words that match.</span></span>
+        <span class="choice-text"><b>Show to-dos</b><span>To-dos have no status, so they show if their app, group, tickets and words match.</span></span>
       </label>
       <p id="filter-count" class="settings-help filter-count"></p>
       <div class="confirm-actions">

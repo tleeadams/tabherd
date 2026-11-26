@@ -21,7 +21,7 @@
 //                                                     the desktop app for macOS or Linux, on that
 //                                                     system. For macOS a disk image, signed and
 //                                                     notarized when the APPLE_* variables are set
-//                                                     (see CONTRIBUTING.md), signed ad hoc to try
+//                                                     (see CONTRIBUTING.md), signed ad hoc
 //                                                     when they aren't. For Linux a .deb, an .rpm
 //                                                     and an AppImage.
 //

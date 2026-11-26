@@ -12,6 +12,7 @@ The repository follows gitflow:
 | `bugfix/<name>` | `develop` | `develop` | Fixes to unreleased work. |
 | `release/<version>` | `develop` | `main`, then `develop` | Getting a release ready: `release/0.2.0`. |
 | `hotfix/<version>` | `main` | `main`, then `develop` | Urgent fixes to a release: `hotfix/0.2.1`. |
+| `dependabot/…` | `develop` | `develop` | Dependabot's dependency updates. See [Dependency updates](#dependency-updates). |
 
 `main` and `develop` only change through pull requests, which merge with a merge commit. That keeps each branch's history and makes merging a release back into `develop` clean.
 
@@ -25,6 +26,15 @@ The repository follows gitflow:
   ```
 
   They stop commits made directly on `main` or `develop`, commits on branches named outside the model, and pushes to `main` or `develop` once those exist. Merging into `develop` or `main` locally is allowed, but the result reaches GitHub through a pull request. The rules live in `scripts/gitflow.js`; `node scripts/gitflow.js check-branch <name>` checks a name.
+
+## Dependency updates
+
+The dashboard has no dependencies, but the workflows use GitHub Actions and the desktop app is built from Rust crates. Dependabot keeps both up to date (`.github/dependabot.yml`):
+- **Weekly pull requests** into `develop`, grouped: one for the Actions, and one for the crates' minor and patch updates. A new major version of a crate gets its own.
+- **A week's wait:** a release is only proposed once it's been out a week, so a bad or compromised one has time to be pulled.
+- **Security updates** come as soon as Dependabot finds a vulnerability, and Dependabot alerts list them in the Security tab.
+
+Their branches are named `dependabot/…`, which the Gitflow check lets into `develop` only. They're reviewed and merged like any other pull request once CI passes. An Action pinned to a commit keeps its pin: Dependabot moves it to the new release's commit and updates the version in its comment.
 
 ## Reviews
 
@@ -86,8 +96,11 @@ The page is written in English and shown in the language chosen in Settings. Eac
 2. Merge it once the checks pass and it's been reviewed.
 3. Tag the merge on `main`: `git switch main && git pull && git tag v<version> && git push origin v<version>`.
 4. The Release workflow tests, builds the downloads and makes a draft release. Once signing is set up, it waits up to an hour each for two signing requests to be approved on [signpath.io](https://app.signpath.io): the Windows app's, then its installer's. An approver approves them there. Check the draft and publish it.
+
+   Publishing tidies up the prereleases: each upcoming version keeps only its newest on the releases page. The Prune prereleases workflow turns the ones it supersedes back into drafts, which keeps their files and notes, so publishing one again brings it back. A newer prerelease of a version hides its older ones (1.2.3-beta.1 hides 1.2.3-alpha.3), a release hides its version's prereleases and any older version's, and a prerelease of another version stays (1.2.4-alpha.1 doesn't hide 1.2.3-beta.1). Releases are never hidden. Run the workflow from the Actions tab to see what it would hide, or `node scripts/prune-prereleases.js --dry-run`.
 5. Open a pull request from `main` into `develop`, so `develop` has the release's changes.
 6. Package managers:
+   - **npm** gets the version when the release is published: the npm workflow checks the package (`npm run check-package`) and publishes it, a release under `latest` and a prerelease under `next`. A version already on npm is skipped, since npm never takes one twice. `next` keeps pointing at the last prerelease until there's a newer one.
    - **Homebrew** ([tleeadams/homebrew-tap](https://github.com/tleeadams/homebrew-tap)) picks the release up by itself within a day: its Update workflow installs and tests the formula at the new release on macOS and Linux, then commits it. Run that workflow from its Actions tab to do it now.
    - **winget**: submit the new version to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) as a pull request, with the three manifest files for `tleeadams.Tabherd` updated to the new version, URL and SHA-256 (`wingetcreate update tleeadams.Tabherd -v <version> -u <installer url> --submit` does it). Microsoft validates and merges it, typically within a few days. From the first release with the desktop app, the manifest should point at the installer (`-setup.exe`): installer type `nullsoft`, scope `user`, and `UpgradeBehavior: uninstallPrevious`, so that a copy installed from the portable zip is replaced rather than left beside it. The installer adds Tabherd to the Start menu, which a portable install doesn't. The zip still works as a portable install too (`zip`, nested `portable`, `tabherd-windows-x64Tabherd.exe`): the app follows winget's link back to its own folder to find Node and the server.
 
@@ -115,6 +128,15 @@ For maintainers, once, after creating the repository on GitHub:
 1. Push `main` and `develop`. The rulesets would stop pushes that create them, so they come first.
 2. With the [GitHub CLI](https://cli.github.com) signed in as an admin of the repository, run `npm run setup-github`. It applies the rulesets in `.github/rulesets`, makes `develop` the default branch, allows only merge commits, deletes branches once merged, and turns on private vulnerability reporting. It also names anyone in `.github/CODEOWNERS` who doesn't have write access yet. Running it again updates the rulesets.
 
+### npm
+
+The npm workflow (`.github/workflows/npm.yml`) publishes with npm's [trusted publishing](https://docs.npmjs.com/trusted-publishers): npm trusts the workflow itself, so there's no npm token in GitHub. It runs in the `release` environment, which only version tags can use (see [Apple signing](#apple-signing), step 4, for making it). To set it up, once, on [npmjs.com](https://www.npmjs.com/package/tabherd) as the package's owner:
+
+1. In the package's **Settings**, under **Trusted Publisher**, choose **GitHub Actions** and enter the user `tleeadams`, the repository `tabherd`, the workflow `npm.yml` and the environment `release`.
+2. Under **Publishing access**, choose *Require two-factor authentication and disallow tokens*. The workflow can still publish; a token can't.
+
+Until it's set up, the workflow fails when a release is published, and nothing reaches npm.
+
 ### Code signing
 
 The Windows app and its installer are signed by [SignPath Foundation](https://signpath.org), which signs open-source projects for free, under the policy in the README. Until the project is set up there, releases ship unsigned. To set it up:
@@ -128,7 +150,7 @@ The variable turns signing on. The app is signed first, and the installer is the
 
 ### Apple signing
 
-The macOS desktop app is signed with a Developer ID and notarized by Apple in the Release workflow, so a downloaded copy opens without Gatekeeper's warnings. Until it's set up, releases leave the app out and macOS ships the `tar.gz` archives. The keys go into GitHub as secrets, from your own computer, never into the repository or a chat. To set it up:
+The macOS desktop app is signed with a Developer ID and notarized by Apple in the Release workflow, so a downloaded copy opens without Gatekeeper's warnings. Until it's set up, the app is signed ad hoc: it works, but macOS asks before opening each download of it, and Open Anyway in System Settings lets it open. The release notes of the first signed version should tell Mac users to update to it. The keys go into GitHub as secrets, from your own computer, never into the repository or a chat. To set it up:
 
 1. Join the [Apple Developer Program](https://developer.apple.com/programs/). Only the account holder can make the certificate.
 2. Make a **Developer ID Application** certificate: on a Mac, in Xcode, **Settings → Accounts → Manage Certificates → + → Developer ID Application**. Then, in Keychain Access, under **My Certificates**, export it with its private key as a `.p12`, with a password.

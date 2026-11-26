@@ -8,7 +8,7 @@ Tabherd is an independent project. It isn't made or endorsed by Anthropic or Ope
 
 ## Install
 
-Each [release](../../releases/latest) has a download for Windows, macOS (Apple silicon `arm64`, Intel `x64`) and Linux (`x64`, `arm64`). Each includes Node, so there's nothing else to install, and has a `.sha256` file beside it for checking the download.
+Each [release](../../releases/latest) has a download for Windows, macOS (Apple silicon `arm64`, Intel `x64`) and Linux (`x64`, `arm64`). Each includes Node, so there's nothing else to install, and has a `.sha256` file beside it for checking the download. With Node already installed, it's also [on npm](#with-npm).
 
 ### Windows
 
@@ -17,7 +17,7 @@ On Windows, Tabherd is a desktop app with a window of its own.
 - **With the installer:** download `tabherd-v<version>-windows-x64-setup.exe` and run it. It installs for you alone, without asking for administrator rights, into `%LOCALAPPDATA%\Tabherd`, and adds Tabherd to the Start menu.
 - **From the zip,** without installing: download `tabherd-v<version>-windows-x64.zip` and extract it somewhere to keep it, such as `%LOCALAPPDATA%\Programs`. It holds one folder, `tabherd-windows-x64`. Run **Tabherd.exe** in it.
 
-Neither is code-signed yet: signing through SignPath Foundation is waiting on their approval (see the [code signing policy](#code-signing-policy)). Until then, Windows SmartScreen may warn about them the first time. Choose **More info**, then **Run anyway**.
+Neither is code-signed yet: signing through SignPath Foundation is waiting on their approval (see the [code signing policy](#code-signing-policy)). Until then, your browser and Windows SmartScreen may warn about them; see [Warnings when downloading and installing](#warnings-when-downloading-and-installing).
 
 Tabherd starts the dashboard server in the background, with no console window, unless one is already running. It shows the dashboard in WebView2, the engine Edge uses, which comes with Windows. Nothing from your browser shows in its window, and sound plays without a click first. Links to pull requests and other sites open in your browser. Opening Tabherd while it's open brings its window to the front. Closing the window stops the server it started.
 
@@ -25,7 +25,14 @@ The header is the window's title bar: drag it to move the window, double-click i
 
 ### macOS and Linux
 
-With [Homebrew](https://brew.sh):
+**The desktop app** has a window of its own, as on Windows:
+
+- **macOS** (Apple silicon): download `tabherd-v<version>-macos-arm64.dmg`, open it and drag Tabherd to Applications.
+- **Linux** (x64 or arm64, with WebKitGTK 4.1): install the .deb with `sudo apt install ./tabherd-v<version>-linux-x64.deb`, or the .rpm with `sudo dnf install ./tabherd-v<version>-linux-x64.rpm`, or make the AppImage executable (`chmod +x`) and run it. On an ARM computer, use the `arm64` ones.
+
+> **Until the macOS app is signed by Apple,** it's signed ad hoc, so macOS asks before opening it the first time, and again for each new version you download; see [Warnings when downloading and installing](#warnings-when-downloading-and-installing). **When the first signed version is out, update to it.** From then on, macOS opens it without asking. Its release notes will say it's signed.
+
+**Without the app,** the dashboard opens in your browser. With [Homebrew](https://brew.sh):
 
 ```
 brew install tleeadams/tap/tabherd
@@ -43,15 +50,55 @@ Or from a download:
 
 `tabherd` starts the dashboard server in the background if it isn't running, then opens the dashboard: as an app window, with no tabs or address bar, if Chrome, Edge, Brave, Chromium or Vivaldi is installed, otherwise in your browser.
 
+### With npm
+
+On any system with Node 18 or later, run the newest version without installing it:
+
+```
+npx tabherd@latest
+```
+
+Or install it, for a `tabherd` command:
+
+```
+npm install -g tabherd
+tabherd
+```
+
+This `tabherd` starts the dashboard server in that terminal and opens the dashboard, as above; Ctrl+C stops it. If the dashboard is already running, it opens that one instead. Betas are under `next`: `npx tabherd@next`. There's no desktop app window or applications menu entry this way.
+
+### Warnings when downloading and installing
+
+The downloads aren't code-signed yet (see the [code signing policy](#code-signing-policy)), so your browser, Windows and macOS may warn about them. Those warnings say the file is unsigned or new to them, which is expected for now. A warning that names a virus or other threat is different: don't open that file, and please [report it](SECURITY.md).
+
+Before opening a download, you can check that it's the file the release published, with the `.sha256` file beside it. In the folder you downloaded both to:
+
+- **Windows,** in PowerShell: `$f = 'tabherd-v<version>-windows-x64-setup.exe'; (Get-FileHash $f).Hash -eq (Get-Content "$f.sha256").Split(' ')[0]` answers `True`.
+- **macOS:** `shasum -a 256 -c tabherd-v<version>-macos-arm64.tar.gz.sha256` answers `OK`.
+- **Linux:** `sha256sum -c tabherd-v<version>-linux-x64.deb.sha256` answers `OK`.
+
+**Windows:**
+
+- **Downloading:** Edge may say the installer *isn't commonly downloaded*. Open the download's **⋯** menu, choose **Keep**, then **Show more** and **Keep anyway**. Other browsers have a similar **Keep**.
+- **Running:** SmartScreen may say *Windows protected your PC*. Choose **More info**, then **Run anyway**.
+- **The zip:** Windows marks the files extracted from a downloaded zip as downloaded too, so **Tabherd.exe** gets SmartScreen's warning the first time it runs. To skip it, right-click the zip before extracting it, choose **Properties**, tick **Unblock**, and choose **OK**.
+
+**macOS:**
+
+- Installing with Homebrew doesn't bring up these warnings.
+- **The desktop app** isn't signed by Apple yet. It's signed ad hoc, so the first time you open it, and each new version you download, macOS says it can't check it for malware. Choose **Done**, then go to System Settings → Privacy & Security, where Tabherd is named near the bottom, choose **Open Anyway**, and confirm. Once a version signed by Apple is out, update to it, and this stops.
+
+**Linux:** `sudo apt install ./tabherd-v<version>-linux-x64.deb` may end with *Download is performed unsandboxed as root as file … couldn't be accessed by user '_apt'*. That's apt reading the file as root, because its own user can't read your home folder. The package is installed all the same.
+
 ### Updating and uninstalling
 
 On macOS and Linux, a server started by `tabherd` stops by itself 10 minutes after the last dashboard closes, and the next launch starts it again in a couple of seconds.
 
 The dashboard can tell you when a new version is out, and how to update; see [Update alerts](#update-alerts).
 
-To update on Windows, run the new release's installer, which installs over the old one. From the zip, replace the folder with the new release's. On macOS and Linux, replace the folder; its name doesn't change between releases, so the `tabherd` command and its entry in your applications keep working. Settings, history and to-dos are kept in `~/.tabherd`, outside the app.
+To update on Windows, run the new release's installer, which installs over the old one. From the zip, replace the folder with the new release's. For the macOS app, open the new disk image and drag Tabherd to Applications, replacing the old one. On Linux, install the new .deb or .rpm as you did the first, or use the new AppImage in place of the old. From an archive, replace the folder; its name doesn't change between releases, so the `tabherd` command and its entry in your applications keep working. With npm, run `npm install -g tabherd@latest`; `npx tabherd@latest` already runs the newest. Settings, history and to-dos are kept in `~/.tabherd`, outside the app.
 
-To uninstall on Windows, use Settings › Apps › Installed apps, or delete the zip's folder. On macOS and Linux, run `./tabherd --uninstall`, then delete the folder. Delete `~/.tabherd` too unless you want to keep your settings, history and to-dos.
+To uninstall on Windows, use Settings › Apps › Installed apps, or delete the zip's folder. Drag the macOS app from Applications to the Trash. On Linux, remove the package with your package manager, or delete the AppImage. From an archive, run `./tabherd --uninstall`, then delete the folder. With npm, run `npm uninstall -g tabherd`. Delete `~/.tabherd` too unless you want to keep your settings, history and to-dos.
 
 ## Run from source
 
@@ -128,10 +175,11 @@ The first time a browser opens the dashboard, a short tour points out each part 
 
 A card across the top, **Memory and models**, shows the computer's memory in use against what it has, and each NVIDIA graphics card's, from `nvidia-smi` when it's there. Under them it lists the models loaded in ComfyUI, LocalAI, Ollama, LM Studio and llama.cpp, each with the memory it takes and **Unload** where the app allows it. Where the app doesn't say what a model takes, as ComfyUI, LM Studio and llama.cpp don't, it's the model's size, marked ≈, as that's about what it takes; where some of an Ollama model is in the computer's memory rather than graphics memory, the line says how much is on the GPU. The line above the models, with how many there are and what they take together, closes the list and opens it again, which the browser remembers. It shows whatever the filter. Settings → Appearance → *Keep it in view* keeps it under the header while the cards below it scroll, with a long list of models scrolling inside it. *Memory and models* turns it off, and each loaded model then gets a card of its own, shown under All.
 
-The tabs in the header filter the cards. **All** shows everything. The others are yours to change, and start as **Todo** (*Needs you* and *Idle*, with the to-do cards: everything whose turn it is), **Needs you**, **Working** and **Idle**. *Queued* counts as Working, and so does *Shell running* on the Working tab, though a filter can pick Shell running on its own. Each tab counts its cards, in amber when one of them needs you.
+The tabs in the header filter the cards. **All** shows everything. The others are yours to change, and start as **Todo** (*Needs you* and *Idle*, with the to-do cards: everything whose turn it is), **Needs you**, **Working**, **Idle** and **Ticket done**. Ticket done shows the sessions whose [tickets](#tickets) are all done or cancelled, whatever the session is doing, so work that's finished but still open stands out. It shows once Settings → Tickets has a tracker. *Queued* counts as Working, and so does *Shell running* on the Working tab, though a filter can pick Shell running on its own. Each tab counts its cards, in amber when one of them needs you.
 
-- **Make one** from the **⋯** menu after the tabs, with **New filter…**. A filter picks statuses, apps and groups, and words that must be in the card's name or folder. A row with nothing ticked matches any. To-dos have no status, so a filter shows them only when *Show to-dos* is ticked, and then only those from its apps, in its groups and with its words.
-- **Change or delete one**: the same menu's **Edit** changes the tab you're on, and **Edit filters…** opens Settings → **Filters**, which lists them all to change, delete or move up and down the tabs, and has **Restore the usual filters** to put back the four above.
+- **Make one** from the **⋯** menu after the tabs, with **New filter…**. A filter picks statuses, apps, groups and tickets, and words that must be in the card's name or folder. A row with nothing ticked matches any. To-dos have no status, so a filter shows them only when *Show to-dos* is ticked, and then only those from its apps, in its groups, with its tickets and with its words.
+- **Tickets** in a filter are the card's tickets' status: *To do*, *In progress*, *Done*, *Cancelled* (closed without being done), or *No ticket*. A card with several tickets goes by its least finished one, so it's *Done* only once every ticket is done or cancelled. A filter that picks tickets shows once Settings → Tickets has a tracker.
+- **Change or delete one**: the same menu's **Edit** changes the tab you're on, and **Edit filters…** opens Settings → **Filters**, which lists them all to change, delete or move up and down the tabs, and has **Restore the usual filters** to put back the five above.
 
 Filters are saved in `~/.tabherd/filters.json`, for every browser. The tab you're on is remembered in the browser.
 
@@ -167,6 +215,28 @@ GitHub Copilot's sessions get cards marked **Copilot**: the Copilot CLI's, and t
 - **Go to window**, **Catch up** and **Stop** work for the CLI as they do for Claude. A VS Code session runs inside VS Code, with all its others, so its card only has Go to window, which brings up VS Code.
 - **Starting Copilot**: once the Copilot CLI is installed, Settings → New sessions, the repo menu and a to-do's *Start with* offer it. A to-do starts `copilot --session-id=<new id> --name "<the to-do's title>"`, so, as with Claude, the server knows which session the to-do became.
 - **History and Resume**: the CLI's closed sessions are listed, and Resume runs `copilot --resume=<id>`. *Skip permission prompts* adds `--allow-all`. Save and close takes CLI sessions too.
+
+## OpenCode
+
+OpenCode's sessions get cards marked **OpenCode**. OpenCode 2 runs a background service that all its windows use, and the dashboard asks it what each session is doing. The service's address and password are in `~/.local/state/opencode/service.json` (or under `$XDG_STATE_HOME`). The password only goes to a service on this computer.
+
+- **Which sessions have cards:** each one an OpenCode window shows, and any that's working or waiting on you without one. A window is matched to its session by its tab's title, which OpenCode sets to *OC | <the session's title>*, or by the `--session` it was started with. When two sessions share a title, neither is guessed.
+- **Status:** *Needs you* while it asks permission or a question; *Working* while a turn runs; otherwise *Idle*. A turn that failed needs you too.
+- **Activity:** the last prompt and reply, the model and output tokens.
+- **Catch up** sends its prompt through the service, as Codex's does, so nothing is typed into the window. **Stop** interrupts the turn, then ends OpenCode in its window. **Complete** and Save and close take OpenCode sessions too.
+- **Resume:** `opencode --session <id>`. *Skip permission prompts* adds `--auto`.
+- **Not yet:** starting OpenCode from a to-do or the repo menu, and OpenCode's closed sessions in History.
+
+## Cursor CLI
+
+The Cursor CLI's sessions (`cursor-agent`) get cards marked **Cursor**. Cursor keeps each chat in `~/.cursor/chats/`, with a `meta.json` giving its folder and title, and writes what's asked and answered to a transcript in `~/.cursor/projects/<folder>/agent-transcripts/`. `CURSOR_CONFIG_DIR` and `CURSOR_DATA_DIR` move them, as they do for Cursor.
+
+- **Which chats have cards:** each one a `cursor-agent` window shows. Cursor records no process for a chat, so a window is matched to its chat by its tab's title, which Cursor sets to the chat's title, or by the `--resume` it was started with. A new chat has no title until its first prompt, so until then its window goes with the chat begun in it since it started. When two chats share a title, neither is guessed.
+- **Status:** turn on Cursor's status indicators, with `/status-indicators` in any Cursor window, and its tab titles say whether it's working, waiting for you or ready. The dashboard then shows *Needs you* while Cursor waits for an approval, with the command it wants to run, or for your answer. Without them, it only knows from the transcript whether a turn is running, so a chat waiting on an approval shows *Working*. A turn that failed needs you too.
+- **Activity:** the last prompt and reply, and the tool calls of the step running. Cursor's transcript has no times, so the reply's time is when the dashboard read it.
+- **Go to window**, **Catch up** and **Stop** work as they do for Claude: Catch up types its prompt into the window. **Complete** and Save and close take Cursor chats too.
+- **History and Resume:** closed chats are listed, and Resume runs `cursor-agent --resume <id>` in the chat's folder, where Cursor keeps it. *Skip permission prompts* adds `--force`.
+- **Not yet:** starting Cursor from a to-do or the repo menu, and subagents.
 
 ## ComfyUI and LocalAI
 
@@ -213,6 +283,8 @@ The colours are a set of eight, each tuned for light and dark and kept apart fro
 
 **+ To-do** in the header adds a card with a title and notes, for work you want to give Claude later. To-do cards sit at the top of the grid, with a dashed border, and count under All and Todo. Ctrl+Enter saves from the notes box.
 
+With a tracker in Settings → Tickets, pasting a ticket's link or key as a new to-do's title fills it in from the ticket: the ticket's title, its description as the notes if they're empty, and the ticket in *Tickets*, so the session starts linked to it. The line under the title says which ticket it came from, or why it couldn't. Jira Cloud's descriptions come as text, with lists, links and code kept. See [Tickets](#tickets).
+
 **Start** opens Claude in the to-do's folder, in your terminal, running `claude --session-id <new id> --name "<the to-do's title>"`, so the session is named after the to-do in its tab's title and Claude's session list. Once Codex is installed, the to-do's **Start with** chooses Claude or Codex, or leaves it to Settings; for Codex, see [Codex](#codex). A to-do doesn't need a folder: without one, it starts in Settings → To-dos → **Start in**, your repos folder unless you set another, where Claude can make a new project. The card says where it will start.
 
 **Choose folder** picks one first, from where Settings → To-dos says:
@@ -253,7 +325,7 @@ The gear button in the header opens Settings, one section at a time, picked from
 - **GitHub Issues:** nothing; it uses `gh`'s sign-in.
 - **Zendesk:** the address, and an email and API token, or an OAuth access token.
 
-**Test** signs in and says as whom, or what's wrong; a tracker is tested as it's saved. **Edit** keeps the saved token unless you type a new one, and **Remove** asks for a second click. Linking tickets to cards is next; see [the plan](docs/ticket-links.md).
+**Test** signs in and says as whom, or what's wrong; a tracker is tested as it's saved. **Edit** keeps the saved token unless you type a new one, and **Remove** asks for a second click. A tracker whose last lookup failed says why. See [Tickets](#tickets) for linking them to cards.
 
 **To-dos**: where a to-do's folder is chosen from (the repo menu or any folder), and the folder that choice starts at. See [To-dos](#to-dos).
 
@@ -298,7 +370,7 @@ Tabherd can tell you when a new version is out. It's off until you say yes:
 
 When there's a newer version:
 - **The header** gets an **Update to <version>** button, and the notification list says so once.
-- **The button** shows what's new, from the release's notes on GitHub, which are in English. It also says how to update this copy: the command for Homebrew, winget or a clone of the repository, or which download to get. **See the release** opens its page.
+- **The button** shows what's new, from the release's notes on GitHub, which are in English. It also says how to update this copy: the command for Homebrew, npm, winget or a clone of the repository, or which download to get. **See the release** opens its page.
 - **Not now** hides the button, in that browser, until the next version.
 - **Prereleases**, such as betas, are only mentioned if *Tell me about betas and other prereleases too* is on in Settings → Help. Someone already running a prerelease always hears of newer ones.
 
@@ -314,9 +386,47 @@ Only the last saved set is kept, in `~/.tabherd/saved-sessions.json`; the next S
 
 ## Complete
 
-**Complete**, beside **Stop…** on a Claude, Codex or Copilot CLI card, is for a session whose work is done. After a second click it closes the session and its tab, as Save and close does, and History marks it *Completed*, so it's told apart from work that was only closed. A session that's working finishes its turn first; until then its card says *Completes when done*, and clicking that keeps it open and takes the mark off.
+**Complete**, beside **Stop…** on a session's card, is for a session whose work is done. After a second click it closes the session and its tab, as Save and close does, and History marks it *Completed*, so it's told apart from work that was only closed. A session that's working finishes its turn first; until then its card says *Completes when done*, and clicking that keeps it open and takes the mark off.
 
 A completed session can still be resumed from History. It stays complete if you only look, and stops being complete once you ask it something new. Save and close doesn't save a completed session, so Resume last session doesn't bring it back. Sessions marked complete are kept in `~/.tabherd/completed.json`.
+
+## Tickets
+
+Once [Settings → Tickets](#settings) has a tracker, each session's card shows the tickets it's working on, as chips under its folder. Each shows the ticket's key and status, with a dot for whether it's to do, in progress, done, or closed without being done. Hover for its title, assignee and tracker; click to open it.
+
+A ticket is only linked if its tracker has it. A session's tickets come from:
+
+- **Its branch:** a key anywhere in the branch's name, in any case, as in `abc-123-fix-login` or Linear's `eng-42-…`. A branch named for a GitHub issue, such as `123-fix-login`, links that issue in the GitHub repository the folder was cloned from.
+- **Claim: lines:** a line starting with `Claim:` in a prompt you send, or in the session's reply.
+  - `Claim: ABC-123`, or several, separated by commas.
+  - `Claim: Linear ENG-42`, to say which tracker, by its type or name.
+  - `Claim: octo/app#12`, or `Claim: #12` for the session's own repository.
+  - `Claim: Zendesk 4567`, or a link.
+  - `Unclaim: ABC-123` takes one off.
+
+  A key mentioned in passing isn't linked. A session that creates an issue can claim it in its reply, so it's linked once it exists.
+- **Links in prompts:** a link you send to a Jira issue, a Linear issue, a GitHub issue or a Zendesk ticket.
+- **+ Ticket:** paste a link or key, as in a Claim: line. It says which it couldn't find.
+- **Its to-do:** a to-do's *Tickets* field, which its session starts with. Pasting a ticket's link or key as a new to-do's title fills the to-do in from it; see [To-dos](#to-dos).
+
+A key is looked up in every tracker it could be in, unless the tracker is named. With key prefixes in Settings → Tickets, a Jira or Linear tracker is only asked about keys with those prefixes. ✕ on a chip takes it off that session's card for good, and + Ticket links it again. History keeps each closed session's tickets as they were, and its filter finds sessions by a ticket's key or title.
+
+A ticket's status is read again every five minutes while its card is shown, and one that wasn't found is asked about again after an hour. A tracker that refuses its sign-in or can't be reached says so in Settings → Tickets, and its tickets keep their last known status. Only a ticket's key goes to its tracker: a link in a session is read for its key, never fetched. What each session claimed is kept in `~/.tabherd/tickets.json`, with each ticket's last status.
+
+The **Ticket done** filter tab shows the sessions whose tickets are all done or cancelled, still open. Any filter can pick by tickets too; see [What it shows](#what-it-shows).
+
+**Complete** on a card with tickets opens a dialog in place of its second click, to update them before the session closes. Nothing is posted unless it's ticked, and your ticks are remembered for each tracker, in this browser. For each ticket:
+
+- **Comment** posts a comment. It's filled in with the session that did the work, its recap or last reply, and its pull requests, and can be changed first. Jira gets it as a document, with its links as links. A Zendesk comment is an internal note unless *Public reply* is ticked, as a public reply emails the requester.
+- **Move to done** moves the ticket to done:
+  - **Jira:** a transition from its status into a done one, chosen if there's more than one.
+  - **Linear:** its team's completed state.
+  - **GitHub:** the issue is closed as completed.
+  - **Zendesk:** the ticket is solved, which emails the requester.
+
+  A ticket that's already done, or a pull request, isn't moved.
+
+**Complete** posts what's ticked, then closes the session. If something fails, the dialog stays open and says why; what was already posted isn't posted again, and **Complete anyway** closes the session without the rest. Writing needs a token that can write: for a Jira scoped token, `write:jira-work`.
 
 ## History
 
@@ -368,14 +478,21 @@ All of it is read-only, from files Claude Code and Codex already write, and from
 | `~/.codex/sessions/<yyyy>/<mm>/<dd>/rollout-<time>-<session>.jsonl` | A Codex session's prompts, replies, tool calls, model and token usage. |
 | `~/.codex/session_index.jsonl` | Closed Codex sessions' names, for History. |
 | The `codex` processes and their tab titles | Which window each Codex session is in, and its memory use. |
+| OpenCode's background service: `/api/session`, `/api/session/active`, and each shown session's permission requests, questions and messages | Which OpenCode sessions are open, their status, titles, prompts and replies. |
+| The `opencode` processes and their tab titles | Which window each OpenCode session is in, and its memory use. |
+| `~/.cursor/chats/<folder hash>/<chat>/meta.json` | Each Cursor chat's folder and title, and when it began and changed. |
+| `~/.cursor/projects/<folder>/agent-transcripts/<chat>/<chat>.jsonl` | A Cursor chat's prompts, replies and tool calls, and where each turn ended. |
+| The `cursor-agent` processes and their tab titles | Which window each Cursor chat is in, its state with Cursor's status indicators on, its version and memory use. |
 | Comfy Desktop's `comfy-procs/*.json` and `installations.json` | Which ComfyUIs are running, on which ports, and their names. |
 | ComfyUI's `/api/jobs`, `/queue`, `/api/userdata` and `/view` | Its jobs, their workflows' names and the models they load, and their output images. Its window's title gives the running job's progress. |
 | LocalAI's `/system`, `/api/operations`, `/api/chats` and `/api/agent/jobs` | Its loaded models and which are working, downloads, agent chats and agent jobs. |
+| Each session folder's `.git`: its `HEAD` and `origin` | The branch's tickets, and the GitHub repository a `#12` is in. |
+| The trackers in Settings → Tickets, and `gh api repos/<owner>/<repo>/issues/<n>` | Each linked ticket's title, status and assignee. Only the ticket's key or number is sent. |
 | GitHub's list of Tabherd's releases (`api.github.com/repos/tleeadams/tabherd/releases`) | Whether a newer version is out. Only with [update alerts](#update-alerts) on, or after **Check now**. |
 
 A session file whose process has exited, or whose PID now belongs to another process, is ignored.
 
-The only files the server writes are its own, in `~/.tabherd`: `settings.json` holds the settings that aren't kept in the browser, with its secrets encrypted (see [Secrets](#secrets)), `secret.key` the key for them on Windows, `history.json` the closed sessions, `todos.json` the to-dos, `groups.json` the groups, with the sessions moved between them by hand, `saved-sessions.json` the sessions Save and close saved last, `completed.json` the sessions marked complete, and `updates.json` what the last check for a new version found.
+The only files the server writes are its own, in `~/.tabherd`: `settings.json` holds the settings that aren't kept in the browser, with its secrets encrypted (see [Secrets](#secrets)), `secret.key` the key for them on Windows, `history.json` the closed sessions, `todos.json` the to-dos, `groups.json` the groups, with the sessions moved between them by hand, `saved-sessions.json` the sessions Save and close saved last, `completed.json` the sessions marked complete, `tickets.json` the tickets sessions claimed and the last status of each, and `updates.json` what the last check for a new version found.
 
 ## Safety
 

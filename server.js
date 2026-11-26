@@ -17,6 +17,8 @@ const groups = require('./lib/groups');
 const filters = require('./lib/filters');
 const codex = require('./lib/codex');
 const copilot = require('./lib/copilot');
+const opencode = require('./lib/opencode');
+const cursor = require('./lib/cursor');
 const comfy = require('./lib/comfy');
 const localai = require('./lib/localai');
 const ollama = require('./lib/ollama');
@@ -27,6 +29,7 @@ const dismissed = require('./lib/dismissed');
 const completed = require('./lib/completed');
 const secrets = require('./lib/secrets');
 const trackers = require('./lib/trackers');
+const tickets = require('./lib/tickets');
 const updates = require('./lib/updates');
 
 const PORT = Number(process.env.PORT) || 4317;
@@ -45,6 +48,8 @@ const claudeCommand = () => (settings.get().skipPermissions ? 'claude --dangerou
 function sessionCommand(app, resume = null) {
   if (app === 'codex') return codex.command({ skipPermissions: settings.get().skipPermissions, resume });
   if (app === 'copilot') return copilot.command({ skipPermissions: settings.get().skipPermissions, resume });
+  if (app === 'opencode') return opencode.command({ skipPermissions: settings.get().skipPermissions, resume });
+  if (app === 'cursor') return cursor.command({ skipPermissions: settings.get().skipPermissions, resume });
   return resume ? `${claudeCommand()} --resume ${resume}` : claudeCommand();
 }
 // The app new sessions start in, from Settings: Claude unless Codex is chosen
@@ -111,6 +116,12 @@ function currentSnapshot() {
         snap.settled = codex.settled();
         snap.copilotInstalled = copilot.installed();
         snap.newSessionApp = newSessionApp();
+        // Each session's and to-do's tickets, before the history takes the
+        // sessions that closed.
+        tickets.observe(snap.agents, snap.now);
+        for (const t of snap.todos) t.tickets = tickets.forTodo(t, snap.now);
+        // Whether there are trackers, so cards offer + Ticket.
+        snap.trackerCount = (settings.get().trackers || []).length;
         history.observe(snap.agents, snap.now);
         // Sessions marked complete, which a session asked more once resumed
         // no longer is.
@@ -197,7 +208,13 @@ const forPage = (s) => ({
 
 // Settings → Tickets: the trackers without their tokens, and how secrets are
 // kept on this computer.
-const trackersForPage = () => ({ ok: true, trackers: trackers.forPage(settings.get().trackers), secrets: { ...secrets.status(), unreadable: settings.unreadableKeys() } });
+const trackersForPage = () => ({
+  ok: true,
+  trackers: trackers.forPage(settings.get().trackers),
+  // Each tracker's last failed lookup, if it hasn't answered since.
+  problems: tickets.problems(),
+  secrets: { ...secrets.status(), unreadable: settings.unreadableKeys() },
+});
 
 async function trackerAction(res, name, body) {
   const list = settings.get().trackers;
@@ -211,6 +228,9 @@ async function trackerAction(res, name, body) {
   if (!result.ok) return send(res, 400, result);
   const saved = settings.update({ trackers: result.list }, { internal: true });
   if (!saved.ok) return send(res, 500, saved);
+  // What was read with its old sign-in, or from it, goes.
+  tickets.forget(name === 'save' ? result.tracker.id : body.id);
+  cached = null;
   return send(res, 200, { ...trackersForPage(), id: result.tracker?.id });
 }
 
@@ -318,17 +338,18 @@ async function action(res, sessionId, name) {
     const label = agent.terminalTitle || agent.title || agent.name;
     return send(res, 409, { ok: false, error: `${label} is waiting on a prompt or dialog. Use Go to window and answer it first.` });
   }
-  // Codex takes Catch up's prompt through its service, so nothing is typed
-  // into its window, which comes forward if it's known. Stop interrupts the
-  // turn it's running, then ends the Codex in its window.
-  if (agent.app === 'codex' && name === 'catch-up') {
-    const queued = await codex.queuePrompt(agent.id, CATCH_UP_PROMPT);
+  // Codex and OpenCode take Catch up's prompt through their services, so
+  // nothing is typed into the window, which comes forward if it's known. Stop
+  // interrupts the turn it's running, then ends the app in its window.
+  const sessions = { codex, opencode }[agent.app];
+  if (sessions && name === 'catch-up') {
+    const queued = await sessions.queuePrompt(agent.id, CATCH_UP_PROMPT);
     if (!queued.ok) return send(res, 500, queued);
     const shown = agent.pid ? await terminals.focus(agent.pid) : null;
     return send(res, 200, { ok: true, queued: true, raised: Boolean(shown?.raised), window: shown?.window || null });
   }
-  if (agent.app === 'codex' && name === 'stop') {
-    const stopped = await codex.interrupt(agent.id);
+  if (sessions && name === 'stop') {
+    const stopped = await sessions.interrupt(agent.id);
     if (!stopped.ok) return send(res, 500, stopped);
     if (!agent.pid) return send(res, 200, { ok: true, interrupted: stopped.interrupted, windowLeft: true });
     const result = await terminals.stop(agent.pid);
@@ -350,22 +371,24 @@ async function action(res, sessionId, name) {
 
 // ---- Save and close, and Resume last session ----------------------------------
 
-// The sessions Save and close takes: Claude and Codex sessions in a
-// terminal. Not background runs, which have no tab, nor sessions in a VS Code
-// panel, which has no shell to close.
+// The sessions Save and close takes: Claude's, Codex's, OpenCode's and
+// Cursor's in a terminal. Not background runs, which have no tab, nor
+// sessions in a VS Code panel, which has no shell to close.
 const closable = (a) =>
   (a.app === 'claude' && !a.background && (!a.kind || a.kind === 'interactive') && (!a.entrypoint || a.entrypoint === 'cli')) ||
   a.app === 'codex' ||
+  a.app === 'opencode' ||
+  a.app === 'cursor' ||
   (a.app === 'copilot' && a.entrypoint === 'cli');
 const working = (a) => a.status === 'busy' || a.status === 'shell';
 // Waiting to close once they're done: session ID -> its name.
 const closing = new Map();
 
-// Ends a session and its tab. A Codex session's turn is interrupted first,
-// and one whose window isn't known can't be closed from here.
+// Ends a session and its tab. A Codex or OpenCode session's turn is
+// interrupted first, and one whose window isn't known can't be closed from here.
 async function closeSession(a) {
-  if (a.app === 'codex') {
-    await codex.interrupt(a.id);
+  if (a.app === 'codex' || a.app === 'opencode') {
+    await { codex, opencode }[a.app].interrupt(a.id);
     if (!a.pid) return { ok: false, error: "its window isn't known" };
   }
   return terminals.close(a.pid);
@@ -425,7 +448,8 @@ async function resumeLast(res) {
     if (open.has(s.id)) skipped.push({ name: s.name, why: 'already open' });
     else if (!fs.existsSync(s.cwd)) skipped.push({ name: s.name, why: 'its folder is gone' });
     else {
-      // The ID comes from the saved set, which only holds UUIDs.
+      // The ID comes from the saved set, which only holds session IDs, each
+      // safe in a command line (session-id.js).
       const result = await openTab(s.cwd, sessionCommand(s.app, s.id));
       if (result.ok) opened++;
       else skipped.push({ name: s.name, why: result.error });
@@ -649,6 +673,37 @@ const server = http.createServer(async (req, res) => {
       return send(res, result.ok ? 200 : 400, result);
     }
 
+    // A ticket's link or key pasted as a new to-do's title: its title and
+    // description, to fill in the to-do.
+    if (url.pathname === '/api/tickets/describe') {
+      if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
+      if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
+      const answer = await tickets.describe((await readJson(req))?.text);
+      return send(res, answer.ok ? 200 : 400, answer);
+    }
+
+    // A card's + Ticket, a ticket's ✕, and the Complete dialog's options and
+    // what it posts to the tickets. The session must be on the dashboard now,
+    // and only the tickets on its card are written to.
+    const ticketRoute = url.pathname.match(/^\/api\/tickets\/(add|remove|done-options|write)$/);
+    if (ticketRoute) {
+      if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
+      if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
+      const body = await readJson(req);
+      const agent = (await currentSnapshot()).agents.find((a) => a.id === body?.id);
+      if (!agent) return send(res, 404, { ok: false, error: 'That session is no longer running.' });
+      const run = {
+        add: () => tickets.add(agent, body.text),
+        remove: () => tickets.remove(agent.id, body.chip),
+        'done-options': () => tickets.doneOptions(agent),
+        write: () => tickets.writeBack(agent, body.writes),
+      }[ticketRoute[1]];
+      const answer = await run();
+      cached = null;
+      pushSnapshot();
+      return send(res, answer.ok ? 200 : 400, answer);
+    }
+
     if (url.pathname === '/api/todos') {
       if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
       if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
@@ -667,7 +722,8 @@ const server = http.createServer(async (req, res) => {
       return await todoAction(res, t[1], t[2] || 'edit', await readJson(req));
     }
 
-    // Sessions have UUIDs; jobs and models have IDs such as comfy:<install>:<job>.
+    // Sessions have UUIDs, or OpenCode's ses_ IDs; jobs and models have IDs
+    // such as comfy:<install>:<job>.
     // Either way it must be on the dashboard now.
     const m = url.pathname.match(/^\/api\/agents\/([^/]{1,300})\/(focus|catch-up|open-folder|stop|complete|cancel|unload|dismiss)$/i);
     if (m) {

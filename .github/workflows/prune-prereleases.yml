@@ -1,0 +1,36 @@
+name: Prune prereleases
+
+# Each upcoming version keeps only its newest prerelease on the releases page.
+# When a release is published, the prereleases it supersedes go back to
+# drafts, with their files and notes kept (see scripts/prune-prereleases.js).
+# Run it from the Actions tab to tidy up by hand; "Only list" says what it
+# would hide without hiding anything.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Only list what it would hide
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    permissions:
+      # To turn releases back into drafts.
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - name: Hide the prereleases this one supersedes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry-run && '--dry-run' || '' }}
+        run: node scripts/prune-prereleases.js $DRY_RUN

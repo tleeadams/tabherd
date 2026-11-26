@@ -22,6 +22,8 @@
   'A Claude Code session': 'Una sesión de Claude Code',
   'A Codex session': 'Una sesión de Codex',
   'A GitHub Copilot session': 'Una sesión de GitHub Copilot',
+  'An OpenCode session': 'Una sesión de OpenCode',
+  'A Cursor CLI session': 'Una sesión de Cursor CLI',
   'A ComfyUI job': 'Un trabajo de ComfyUI',
   'From LocalAI': 'De LocalAI',
   'From Ollama': 'De Ollama',
@@ -100,8 +102,13 @@
   'Name or folder has': 'El nombre o la carpeta contiene',
   'Any words': 'Cualquier palabra',
   'Show to-dos': 'Mostrar tareas',
-  "To-dos have no status, so they show if they're from an app, in a group and have words that match.":
-    'Las tareas no tienen estado, así que se muestran si son de una app, están en un grupo y tienen palabras que coinciden.',
+  'To-dos have no status, so they show if their app, group, tickets and words match.':
+    'Las tareas no tienen estado, así que se muestran si coinciden su app, su grupo, sus tickets y sus palabras.',
+  'Ticket done': 'Ticket hecho',
+  'To do': 'Por hacer',
+  'In progress': 'En curso',
+  'No ticket': 'Sin ticket',
+  'ticket: {statuses}': 'ticket: {statuses}',
   'Shows {n} card now.': 'Ahora muestra {n} tarjeta.',
   'Shows {n} cards now.': 'Ahora muestra {n} tarjetas.',
   'Move up': 'Subir',
@@ -188,6 +195,8 @@
     'Esto fuerza el cierre del PID {pid} junto con sus shells y servidores MCP. Se pierde todo lo que el turno actual no haya guardado.',
   "This interrupts its current turn and ends Codex in its window, PID {pid}. What the turn hasn't finished is lost.":
     'Esto interrumpe su turno actual y cierra Codex en su ventana, PID {pid}. Se pierde lo que el turno no haya terminado.',
+  "This interrupts its current turn and ends OpenCode in its window, PID {pid}. What the turn hasn't finished is lost.":
+    'Esto interrumpe su turno actual y cierra OpenCode en su ventana, PID {pid}. Se pierde lo que el turno no haya terminado.',
   "This interrupts its current turn. What the turn hasn't finished is lost. Its window isn't known, so close that yourself.":
     'Esto interrumpe su turno actual. Se pierde lo que el turno no haya terminado. No se sabe cuál es su ventana, así que ciérrala tú.',
   'You can reopen the conversation later with:': 'Puedes volver a abrir la conversación más tarde con:',
@@ -265,6 +274,10 @@
   'As in Settings ({app})': 'Como en Configuración ({app})',
   "Nothing here is sent to the session. To use it as a prompt, copy it in once it's started.":
     'Nada de esto se envía a la sesión. Para usarlo como prompt, cópialo en ella cuando haya empezado.',
+  'Or paste a ticket link or key': 'O pega el enlace o la clave de un ticket',
+  'Looking up the ticket…': 'Buscando el ticket…',
+  'Filled in from {key}, in {tracker}.': 'Rellenada a partir de {key}, en {tracker}.',
+  "That ticket wasn't found in your trackers.": 'Ese ticket no está en tus gestores.',
   Copy: 'Copiar',
   'Copy the title and notes, to paste into Claude': 'Copia el título y las notas para pegarlos en Claude',
   Edit: 'Editar',
@@ -439,6 +452,41 @@
   None: 'Ninguna',
   // ---- tickets
   Tickets: 'Tickets',
+  // On cards, to-dos and History.
+  'Assigned to {name}': 'Asignado a {name}',
+  'Take {key} off this card': 'Quitar {key} de esta tarjeta',
+  'Link a ticket to this session': 'Vincular un ticket a esta sesión',
+  '+ Ticket': '+ Ticket',
+  'Link a ticket': 'Vincular un ticket',
+  Ticket: 'Ticket',
+  Link: 'Vincular',
+  'ABC-123, or a link to the ticket': 'ABC-123, o un enlace al ticket',
+  "Paste its link or key. Name the tracker first if the key could be in more than one, as in Linear ENG-42. It's linked if the tracker has it. A session can link one itself with a line in a prompt or reply starting with Claim:, as in Claim: ABC-123.":
+    'Pega su enlace o su clave. Pon antes el nombre del gestor si la clave puede estar en más de uno, como en Linear ENG-42. Se vincula si el gestor lo tiene. Una sesión puede vincular uno por sí misma con una línea en un prompt o una respuesta que empiece por Claim:, como en Claim: ABC-123.',
+  'Linked {keys}.': 'Vinculado: {keys}.',
+  "{keys}: its tracker didn't answer, so it's linked once it does.": '{keys}: su gestor no respondió, así que se vinculará cuando responda.',
+  '{keys}: not found in your trackers.': '{keys}: no se encontró en tus gestores.',
+  '{key} taken off. Link it again with + Ticket.': 'Se quitó {key}. Vincúlalo de nuevo con + Ticket.',
+  'Looking up tickets: {problem}': 'Al buscar tickets: {problem}',
+  // Complete's dialog, for a session with tickets.
+  "It closes, once its turn ends if it's working, and History marks it complete. Its tickets can be updated first: nothing is posted to them unless it's ticked.":
+    'Se cierra, cuando termine su turno si está trabajando, y el Historial la marca como completada. Antes se pueden actualizar sus tickets: no se publica nada en ellos si no está marcado.',
+  'Complete anyway': 'Completar de todos modos',
+  Comment: 'Comentar',
+  'Public reply': 'Respuesta pública',
+  'Move to done': 'Pasar a hecho',
+  'Move to': 'Pasar a',
+  'Checking how it can be moved…': 'Comprobando cómo se puede mover…',
+  "Without Public reply, it's an internal note. A public reply emails the requester.": 'Sin Respuesta pública, es una nota interna. Una respuesta pública envía un correo al solicitante.',
+  "Can't move it: {problem}": 'No se puede mover: {problem}',
+  "A pull request isn't moved from here.": 'Una pull request no se mueve desde aquí.',
+  'Already {status}.': 'Ya está en {status}.',
+  'Its status has no way to done.': 'Desde su estado no hay forma de pasarlo a hecho.',
+  'To Solved, which emails the requester.': 'A Resuelto, lo que envía un correo al solicitante.',
+  'To {status}': 'A {status}',
+  'Closes it as completed.': 'Lo cierra como completado.',
+  'The comment was posted, but: {problem}': 'Se publicó el comentario, pero: {problem}',
+  "Some tickets weren't updated. Try again, or complete it anyway.": 'Algunos tickets no se actualizaron. Inténtalo de nuevo o complétala de todos modos.',
   'The ticket systems sessions can be linked to: Jira, Linear, GitHub Issues and Zendesk. Several can be connected at once. Each signs in with its own token.':
     'Los sistemas de tickets a los que se pueden vincular las sesiones: Jira, Linear, GitHub Issues y Zendesk. Se pueden conectar varios a la vez. Cada uno inicia sesión con su propio token.',
   'Add a tracker': 'Añadir un gestor de tickets',
@@ -493,6 +541,21 @@
     'Zendesk rechazó el inicio de sesión. Revisa el correo y el token, y que el acceso con token de API esté activado en Admin Center.',
   "It didn't answer in time.": 'No respondió a tiempo.',
   "Couldn't reach it. Check the address and your connection.": 'No se pudo conectar. Revisa la dirección y tu conexión.',
+  // Looking up a ticket, and linking one.
+  'It refused the sign-in. Check its token.': 'Rechazó el inicio de sesión. Revisa su token.',
+  "Couldn't reach it.": 'No se pudo conectar.',
+  "gh couldn't read it.": 'gh no pudo leerlo.',
+  'Paste a ticket link or key, such as ABC-123.': 'Pega el enlace o la clave de un ticket, como ABC-123.',
+  'Add your trackers in Settings → Tickets first.': 'Primero añade tus gestores en Configuración → Tickets.',
+  'Not a ticket.': 'No es un ticket.',
+  'Give at most 10 tickets.': 'Indica 10 tickets como máximo.',
+  // Writing to a ticket on Complete.
+  'It refused: check that its token can write.': 'Lo rechazó: comprueba que su token puede escribir.',
+  "gh couldn't post the comment.": 'gh no pudo publicar el comentario.',
+  "gh couldn't close it.": 'gh no pudo cerrarlo.',
+  "Linear didn't take the comment.": 'Linear no aceptó el comentario.',
+  "Linear didn't move it.": 'Linear no lo movió.',
+  'That ticket is no longer on its card.': 'Ese ticket ya no está en su tarjeta.',
   "Windows' data protection didn't answer.": 'La protección de datos de Windows no respondió.',
   "The Keychain didn't give the key.": 'El llavero no dio la clave.',
   'A to-do starts Claude in its folder. Without one, it starts in the folder below, where Claude can make a new project. <b>Choose folder</b> on a to-do picks one from:':
@@ -557,6 +620,10 @@
     'Esta copia se ejecuta desde un clon del repositorio. Trae la versión nueva y vuelve a iniciar el servidor:',
   'Installed with Homebrew:': 'Instalado con Homebrew:',
   'Installed with winget:': 'Instalado con winget:',
+  'Installed with npm. Stop the server with Ctrl+C in its terminal, then install the new version and start it again:':
+    'Instalado con npm. Detén el servidor con Ctrl+C en su terminal, luego instala la nueva versión y vuelve a iniciarlo:',
+  'Run with npx. Stop the server with Ctrl+C in its terminal, then start the new version:':
+    'Ejecutado con npx. Detén el servidor con Ctrl+C en su terminal y luego inicia la nueva versión:',
   'Download the new installer from the release and run it. It installs over this version.':
     'Descarga el nuevo instalador desde la versión publicada y ejecútalo. Se instala sobre esta versión.',
   "Download the new zip from the release, and put its folder in place of this one's.":

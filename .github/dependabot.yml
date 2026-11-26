@@ -1,0 +1,31 @@
+# Dependabot keeps the GitHub Actions the workflows use, and the desktop
+# app's Rust crates, up to date with weekly pull requests into develop. Each
+# week's updates come grouped, so there are only a few to review. A release is
+# only proposed once it's been out a week, to give a bad or compromised one
+# time to be pulled. Security updates come as soon as they're found, whatever
+# the schedule. The dashboard itself has no dependencies.
+#
+# Its branches are named dependabot/..., which the Gitflow check lets into
+# develop (scripts/gitflow.js).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ['*']
+
+  - package-ecosystem: cargo
+    directory: /app/src-tauri
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    # Minor and patch updates together; a new major version gets its own.
+    groups:
+      crates:
+        update-types: [minor, patch]

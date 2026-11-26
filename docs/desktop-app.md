@@ -159,7 +159,7 @@ gh secret set APPLE_API_PRIVATE_KEY --env release < AuthKey_XXXXXXXXXX.p8
 
 - Tauri imports the certificate into a temporary keychain. It signs the app and the Node sidecar with the hardened runtime and the entitlements above, sends the app to Apple for notarization, and staples the ticket.
 - The job then checks the result with `codesign --verify --deep --strict`, `spctl --assess` and `xcrun stapler validate`. It fails rather than release an app that doesn't pass, as the Windows job does with SignPath's signature.
-- **The switch:** a variable, `APPLE_SIGNING`, turns this on, as `SIGNPATH_ORGANIZATION_ID` does for Windows. Until it's set, the macOS app is left out of releases and the current `tar.gz` ships instead (*decision 4*). An unsigned app downloaded from GitHub is blocked by Gatekeeper. A prerelease (a tag with a hyphen) has the app all the same, signed ad hoc with no identity, so it can be tried: Apple silicon won't open a downloaded app that isn't signed at all, and with an ad hoc signature macOS asks once, in System Settings → Privacy & Security → *Open Anyway*. With signing off, the build isn't given the Apple secrets.
+- **The switch:** a variable, `APPLE_SIGNING`, turns this on, as `SIGNPATH_ORGANIZATION_ID` does for Windows. Until it's set, releases have the app signed ad hoc, with no identity (*decision 4*): Apple silicon won't open a downloaded app that isn't signed at all, and with an ad hoc signature macOS asks before opening each download, in System Settings → Privacy & Security → *Open Anyway*. The first signed version's notes tell Mac users to update to it. With signing off, the build isn't given the Apple secrets.
 
 ## Testing
 
@@ -199,7 +199,7 @@ gh secret set APPLE_API_PRIVATE_KEY --env release < AuthKey_XXXXXXXXXX.p8
 1. **Windows:** installer only, or installer and portable zip? *Suggested:* both for the first release, with winget pointing at the installer.
 2. **The close button:** quit, as now, or close to the tray? *Suggested:* quit for the first release, and the tray later.
 3. **Homebrew:** a cask for the app and the formula kept for `tabherd` with a browser window, or the cask only? *Suggested:* both.
-4. **Until Apple signing is set up:** leave the macOS app out and keep the `tar.gz`? *Suggested:* yes.
+4. **Until Apple signing is set up:** leave the macOS app out and keep the `tar.gz`? *Decided* (2026-11-26): ship the app signed ad hoc, beside the `tar.gz`, from 0.6.0, and tell Mac users to update once it's signed.
 5. **The version** the app first ships in.
 
 ## To check first
@@ -229,5 +229,5 @@ A short spike on Windows, before the rest:
 - **Checked by hand on Windows** (the owner, 2026-11-24): Go to window, Catch up and the folder picker bring their windows forward with Tabherd in front, and PR links open in the browser.
 - **Still to check:** the first signed release.
 - **The header as the title bar** (2026-11-25), checked on Windows with a debug build over the DevTools port: the window buttons, Restore while maximized, double-clicking the header, the starting page's buttons when the server can't start, and the system's title bar coming back for a page without the meta tag. Still to see: the overlay title bar on a Mac, and the buttons, dragging and resizing on a Linux desktop.
-- **Phase 2, macOS, is ready for its keys** (2026-11-24). `build-release.js --target macos-<arch> --app` builds the disk image; the Release workflow's `build-macos` job runs it for Apple silicon once `APPLE_SIGNING` is on, then checks the signature, Gatekeeper and the stapled ticket. CI builds the same image unsigned on every change. CONTRIBUTING has the setup. Still to see: the first signed, notarized build, and the app on a Mac.
-- **Phase 3, Linux, in releases** (2026-11-24). `build-release.js --target linux-<arch> --app` builds the .deb, .rpm and AppImage; the Release workflow's `build-linux` job runs it on Ubuntu 22.04 for x64 and arm64, and CI builds the x64 ones on every change. A prerelease has the macOS app signed ad hoc while Apple signing is off, so both can be tried before a release has them. Still to see: the app on a Linux desktop.
+- **Phase 2, macOS, is ready for its keys** (2026-11-24). `build-release.js --target macos-<arch> --app` builds the disk image; the Release workflow's `build-macos` job runs it for Apple silicon once `APPLE_SIGNING` is on, then checks the signature, Gatekeeper and the stapled ticket. CI builds the same image unsigned on every change. CONTRIBUTING has the setup. The owner checked the ad hoc app on a Mac (2026-11-26). Still to see: the first signed, notarized build.
+- **Phase 3, Linux, in releases** (2026-11-24). `build-release.js --target linux-<arch> --app` builds the .deb, .rpm and AppImage; the Release workflow's `build-linux` job runs it on Ubuntu 22.04 for x64 and arm64, and CI builds the x64 ones on every change. From 0.6.0, releases have the macOS app too, signed ad hoc while Apple signing is off. Still to see: the app on a Linux desktop.

@@ -11,6 +11,7 @@
 //   feature/<name>       From develop, back into develop. bugfix/<name> too.
 //   release/<version>    From develop, into main, then back into develop.
 //   hotfix/<version>     From main, into main, then back into develop.
+//   dependabot/...       Dependabot's dependency updates, into develop.
 //
 //   node scripts/gitflow.js setup            turn on the git hooks for this clone
 //   node scripts/gitflow.js github           apply the rules to the GitHub repo, with gh
@@ -31,11 +32,13 @@ const PATTERNS = {
   bugfix: /^bugfix\/[a-z0-9][a-z0-9._-]*$/,
   release: new RegExp(`^release/(${VERSION})$`),
   hotfix: new RegExp(`^hotfix/(${VERSION})$`),
+  // Named by Dependabot, such as dependabot/cargo/app/src-tauri/tauri-2.13.0.
+  dependabot: /^dependabot\/\S+$/,
 };
 // The kinds of branch each protected branch takes pull requests from.
 const MERGES_INTO = {
   main: ['release', 'hotfix'],
-  develop: ['feature', 'bugfix', 'release', 'hotfix', 'main'],
+  develop: ['feature', 'bugfix', 'release', 'hotfix', 'main', 'dependabot'],
 };
 const NAMING =
   'Use feature/<name> or bugfix/<name> (lowercase, with dashes), or release/<version> or hotfix/<version>.';

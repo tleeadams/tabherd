@@ -1,6 +1,6 @@
 # Ticket links
 
-*Spec, 2026-11-25, revised with the owner's answers. Phase 1, trackers and encrypted settings, is built; see [Phases](#phases).*
+*Spec, 2026-11-25, revised with the owner's answers. All three phases are built: trackers and encrypted settings, links, and writing back on Complete; see [Phases](#phases). A to-do from a ticket, from [Later](#later), is built too (2026-11-26).*
 
 A session's card shows the tickets it's working on, from Jira, Linear, GitHub Issues and Zendesk, as chips with each ticket's status that open it. Several systems can be connected at once. Completing a session can then comment on its tickets and move them to done, after asking.
 
@@ -62,7 +62,7 @@ Each one is looked up. One that doesn't exist isn't linked. A key without a trac
 
 - **Card:** a row of chips under the folder, beside the pull request links: `ABC-123 · In progress`, with a dot in the status's colour. Hovering shows the title and assignee, and clicking opens the ticket. Then **+ Ticket**.
 - **History:** the same chips on each closed session, as they were when it closed. History's filter finds sessions by ticket key.
-- **To-do cards and dialog:** their chips, and a field to add one. Pasting a ticket link as a new to-do's title fills in the title from the ticket and puts its description in the notes.
+- **To-do cards and dialog:** their chips, and a field to add one. Pasting a ticket's link or key as a new to-do's title fills in the title from the ticket, puts its description in the notes if they're empty, and adds the ticket to the to-do's tickets. Only what looks like one ticket is looked up: a ticket link, `ABC-123` or `owner/repo#12`.
 
 Statuses fall into the dashboard's own groups:
 
@@ -73,12 +73,16 @@ Statuses fall into the dashboard's own groups:
 | **GitHub** | | `open` | `closed`, reason `completed` | `closed`, reason `not_planned` |
 | **Zendesk** | `new` | `open`, `pending`, `hold` | `solved`, `closed` | |
 
+**Filters** can pick cards by these groups, or *No ticket* (built 2026-11-26). A card with several tickets goes by its least finished one, closed counting as finished, so it's done only once every ticket is done or closed. **Ticket done**, which picks done and closed, is one of the usual filters, and was added once to filters saved before it. A filter that picks tickets shows once there's a tracker.
+
 ## Reading a ticket
 
 - **Jira:** `GET <site>/rest/api/3/issue/<key>?fields=summary,status,assignee`, with Basic authorization from the email and API token. A *scoped* API token is refused at the site's own address. It has to go through `https://api.atlassian.com/ex/jira/<cloudId>/rest/api/3/…`, with the cloud ID read once from `<site>/_edge/tenant_info`. Tabherd tries the site first and falls back to that address if refused. **Test** reads `/rest/api/3/myself`.
 - **Linear:** `POST https://api.linear.app/graphql` with the key as `Authorization: <key>`, no "Bearer". The query is `issue(id: "ENG-42") { identifier title url state { name type } assignee { name } }`. **Test** reads `viewer { name }`.
 - **GitHub:** `gh api repos/<owner>/<repo>/issues/<n>`. A pull request number answers too, and is shown as a pull request. **Test** runs `gh api user`.
 - **Zendesk:** `GET <subdomain>/api/v2/tickets/<id>.json`. With an API token, Basic authorization from `<email>/token:<token>`; with an OAuth access token, `Bearer`. Zendesk has deprecated API tokens in favour of OAuth, with removal reported for 2027-04-30, so both are taken. **Test** reads `/api/v2/users/me.json`.
+
+For a to-do from a ticket, the description is asked for too: Jira's `description` field, which Cloud gives in Atlassian Document Format and Tabherd turns into text (headings and paragraphs, lists, links with their addresses, code and quotes, leaving out images); Linear's `description` and GitHub's `body`, in Markdown; and Zendesk's `description`, the ticket's first comment. That read isn't cached, and only the ticket's status is kept from it.
 
 Reads are cached for five minutes per ticket, and a ticket found not to exist for an hour. Only tickets on cards that are shown, or in History while it's open, are read, at most four at a time. A tracker that refuses its sign-in, or can't be reached, says so in Settings → Tickets; its tickets keep their last known status until it answers again.
 
@@ -137,7 +141,6 @@ Each is one pull request:
 
 - **Create a ticket** from **+ Ticket**, in a tracker you choose, from the session's title and recap.
 - Comment on a ticket from a card at any time, not only on Complete.
-- A filter tab by ticket status, such as "Ticket done, session still open".
 - Other trackers: Azure DevOps, GitLab issues, Shortcut, YouTrack, Freshdesk, ServiceNow. Each is a reader and a writer behind the same tracker interface.
 - Zendesk OAuth sign-in from Settings, rather than pasting a token made in Zendesk's Admin Center.
 
