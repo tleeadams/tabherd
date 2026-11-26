@@ -102,8 +102,13 @@
   'Name or folder has': 'El nombre o la carpeta contiene',
   'Any words': 'Cualquier palabra',
   'Show to-dos': 'Mostrar tareas',
-  "To-dos have no status, so they show if they're from an app, in a group and have words that match.":
-    'Las tareas no tienen estado, así que se muestran si son de una app, están en un grupo y tienen palabras que coinciden.',
+  'To-dos have no status, so they show if their app, group, tickets and words match.':
+    'Las tareas no tienen estado, así que se muestran si coinciden su app, su grupo, sus tickets y sus palabras.',
+  'Ticket done': 'Ticket hecho',
+  'To do': 'Por hacer',
+  'In progress': 'En curso',
+  'No ticket': 'Sin ticket',
+  'ticket: {statuses}': 'ticket: {statuses}',
   'Shows {n} card now.': 'Ahora muestra {n} tarjeta.',
   'Shows {n} cards now.': 'Ahora muestra {n} tarjetas.',
   'Move up': 'Subir',
@@ -269,6 +274,10 @@
   'As in Settings ({app})': 'Como en Configuración ({app})',
   "Nothing here is sent to the session. To use it as a prompt, copy it in once it's started.":
     'Nada de esto se envía a la sesión. Para usarlo como prompt, cópialo en ella cuando haya empezado.',
+  'Or paste a ticket link or key': 'O pega el enlace o la clave de un ticket',
+  'Looking up the ticket…': 'Buscando el ticket…',
+  'Filled in from {key}, in {tracker}.': 'Rellenada a partir de {key}, en {tracker}.',
+  "That ticket wasn't found in your trackers.": 'Ese ticket no está en tus gestores.',
   Copy: 'Copiar',
   'Copy the title and notes, to paste into Claude': 'Copia el título y las notas para pegarlos en Claude',
   Edit: 'Editar',

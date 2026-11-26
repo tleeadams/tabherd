@@ -10,7 +10,9 @@ Notable changes in each release. Version numbers follow [Semantic Versioning](ht
   - **Where they come from:** its branch's name, `Claim: ABC-123` lines in prompts or the session's replies (`Unclaim:` takes one off), ticket links in prompts, its to-do's new *Tickets* field, and **+ Ticket** on the card.
   - **What's linked:** a ticket is only linked if its tracker has it. ✕ takes one off.
   - **History** keeps each closed session's tickets, and finds sessions by them.
+  - **A to-do from a ticket:** paste a ticket's link or key as a new to-do's title, and the to-do is filled in from it: the ticket's title, its description as the notes, and the ticket in *Tickets*. See [To-dos](README.md#to-dos).
   - **Complete** on a card with tickets opens a dialog first. It can comment on each ticket, with what the session did and its pull requests, and move it to done: a Jira transition, Linear's completed state, a GitHub issue closed as completed, or a Zendesk ticket solved. Nothing is posted unless it's ticked, and Zendesk comments are internal notes unless *Public reply* is ticked.
+  - **Ticket done**, a new filter tab, shows the sessions whose tickets are all done or cancelled, still open. Any filter can pick by its cards' tickets: to do, in progress, done, cancelled, or none. It's added to the filters you already have, and shows once there's a tracker. See [What it shows](README.md#what-it-shows).
   - See [Tickets](README.md#tickets).
 - **On npm.** With Node 18 or later, `npx tabherd@latest` runs the dashboard on any system, or `npm install -g tabherd` adds a `tabherd` command. It starts the server in the terminal and opens the dashboard. The update alert gives the npm command for a copy installed this way. See [With npm](README.md#with-npm).
 

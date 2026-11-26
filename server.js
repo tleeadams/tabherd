@@ -673,6 +673,15 @@ const server = http.createServer(async (req, res) => {
       return send(res, result.ok ? 200 : 400, result);
     }
 
+    // A ticket's link or key pasted as a new to-do's title: its title and
+    // description, to fill in the to-do.
+    if (url.pathname === '/api/tickets/describe') {
+      if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
+      if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
+      const answer = await tickets.describe((await readJson(req))?.text);
+      return send(res, answer.ok ? 200 : 400, answer);
+    }
+
     // A card's + Ticket, a ticket's ✕, and the Complete dialog's options and
     // what it posts to the tickets. The session must be on the dashboard now,
     // and only the tickets on its card are written to.

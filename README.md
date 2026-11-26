@@ -17,7 +17,7 @@ On Windows, Tabherd is a desktop app with a window of its own.
 - **With the installer:** download `tabherd-v<version>-windows-x64-setup.exe` and run it. It installs for you alone, without asking for administrator rights, into `%LOCALAPPDATA%\Tabherd`, and adds Tabherd to the Start menu.
 - **From the zip,** without installing: download `tabherd-v<version>-windows-x64.zip` and extract it somewhere to keep it, such as `%LOCALAPPDATA%\Programs`. It holds one folder, `tabherd-windows-x64`. Run **Tabherd.exe** in it.
 
-Neither is code-signed yet: signing through SignPath Foundation is waiting on their approval (see the [code signing policy](#code-signing-policy)). Until then, Windows SmartScreen may warn about them the first time. Choose **More info**, then **Run anyway**.
+Neither is code-signed yet: signing through SignPath Foundation is waiting on their approval (see the [code signing policy](#code-signing-policy)). Until then, your browser and Windows SmartScreen may warn about them; see [Warnings when downloading and installing](#warnings-when-downloading-and-installing).
 
 Tabherd starts the dashboard server in the background, with no console window, unless one is already running. It shows the dashboard in WebView2, the engine Edge uses, which comes with Windows. Nothing from your browser shows in its window, and sound plays without a click first. Links to pull requests and other sites open in your browser. Opening Tabherd while it's open brings its window to the front. Closing the window stops the server it started.
 
@@ -59,6 +59,29 @@ tabherd
 ```
 
 This `tabherd` starts the dashboard server in that terminal and opens the dashboard, as above; Ctrl+C stops it. If the dashboard is already running, it opens that one instead. Betas are under `next`: `npx tabherd@next`. There's no desktop app window or applications menu entry this way.
+
+### Warnings when downloading and installing
+
+The downloads aren't code-signed yet (see the [code signing policy](#code-signing-policy)), so your browser, Windows and macOS may warn about them. Those warnings say the file is unsigned or new to them, which is expected for now. A warning that names a virus or other threat is different: don't open that file, and please [report it](SECURITY.md).
+
+Before opening a download, you can check that it's the file the release published, with the `.sha256` file beside it. In the folder you downloaded both to:
+
+- **Windows,** in PowerShell: `$f = 'tabherd-v<version>-windows-x64-setup.exe'; (Get-FileHash $f).Hash -eq (Get-Content "$f.sha256").Split(' ')[0]` answers `True`.
+- **macOS:** `shasum -a 256 -c tabherd-v<version>-macos-arm64.tar.gz.sha256` answers `OK`.
+- **Linux:** `sha256sum -c tabherd-v<version>-linux-x64.deb.sha256` answers `OK`.
+
+**Windows:**
+
+- **Downloading:** Edge may say the installer *isn't commonly downloaded*. Open the download's **⋯** menu, choose **Keep**, then **Show more** and **Keep anyway**. Other browsers have a similar **Keep**.
+- **Running:** SmartScreen may say *Windows protected your PC*. Choose **More info**, then **Run anyway**.
+- **The zip:** Windows marks the files extracted from a downloaded zip as downloaded too, so **Tabherd.exe** gets SmartScreen's warning the first time it runs. To skip it, right-click the zip before extracting it, choose **Properties**, tick **Unblock**, and choose **OK**.
+
+**macOS:**
+
+- Installing with Homebrew doesn't bring up these warnings.
+- **The desktop app**, in prereleases until it's signed by Apple, is signed ad hoc, so the first time you open it macOS says it can't check it for malware. Choose **Done**, then go to System Settings → Privacy & Security, where Tabherd is named near the bottom, choose **Open Anyway**, and confirm.
+
+**Linux:** `sudo apt install ./tabherd-v<version>-linux-x64.deb` may end with *Download is performed unsandboxed as root as file … couldn't be accessed by user '_apt'*. That's apt reading the file as root, because its own user can't read your home folder. The package is installed all the same.
 
 ### Updating and uninstalling
 
@@ -145,10 +168,11 @@ The first time a browser opens the dashboard, a short tour points out each part 
 
 A card across the top, **Memory and models**, shows the computer's memory in use against what it has, and each NVIDIA graphics card's, from `nvidia-smi` when it's there. Under them it lists the models loaded in ComfyUI, LocalAI, Ollama, LM Studio and llama.cpp, each with the memory it takes and **Unload** where the app allows it. Where the app doesn't say what a model takes, as ComfyUI, LM Studio and llama.cpp don't, it's the model's size, marked ≈, as that's about what it takes; where some of an Ollama model is in the computer's memory rather than graphics memory, the line says how much is on the GPU. The line above the models, with how many there are and what they take together, closes the list and opens it again, which the browser remembers. It shows whatever the filter. Settings → Appearance → *Keep it in view* keeps it under the header while the cards below it scroll, with a long list of models scrolling inside it. *Memory and models* turns it off, and each loaded model then gets a card of its own, shown under All.
 
-The tabs in the header filter the cards. **All** shows everything. The others are yours to change, and start as **Todo** (*Needs you* and *Idle*, with the to-do cards: everything whose turn it is), **Needs you**, **Working** and **Idle**. *Queued* counts as Working, and so does *Shell running* on the Working tab, though a filter can pick Shell running on its own. Each tab counts its cards, in amber when one of them needs you.
+The tabs in the header filter the cards. **All** shows everything. The others are yours to change, and start as **Todo** (*Needs you* and *Idle*, with the to-do cards: everything whose turn it is), **Needs you**, **Working**, **Idle** and **Ticket done**. Ticket done shows the sessions whose [tickets](#tickets) are all done or cancelled, whatever the session is doing, so work that's finished but still open stands out. It shows once Settings → Tickets has a tracker. *Queued* counts as Working, and so does *Shell running* on the Working tab, though a filter can pick Shell running on its own. Each tab counts its cards, in amber when one of them needs you.
 
-- **Make one** from the **⋯** menu after the tabs, with **New filter…**. A filter picks statuses, apps and groups, and words that must be in the card's name or folder. A row with nothing ticked matches any. To-dos have no status, so a filter shows them only when *Show to-dos* is ticked, and then only those from its apps, in its groups and with its words.
-- **Change or delete one**: the same menu's **Edit** changes the tab you're on, and **Edit filters…** opens Settings → **Filters**, which lists them all to change, delete or move up and down the tabs, and has **Restore the usual filters** to put back the four above.
+- **Make one** from the **⋯** menu after the tabs, with **New filter…**. A filter picks statuses, apps, groups and tickets, and words that must be in the card's name or folder. A row with nothing ticked matches any. To-dos have no status, so a filter shows them only when *Show to-dos* is ticked, and then only those from its apps, in its groups, with its tickets and with its words.
+- **Tickets** in a filter are the card's tickets' status: *To do*, *In progress*, *Done*, *Cancelled* (closed without being done), or *No ticket*. A card with several tickets goes by its least finished one, so it's *Done* only once every ticket is done or cancelled. A filter that picks tickets shows once Settings → Tickets has a tracker.
+- **Change or delete one**: the same menu's **Edit** changes the tab you're on, and **Edit filters…** opens Settings → **Filters**, which lists them all to change, delete or move up and down the tabs, and has **Restore the usual filters** to put back the five above.
 
 Filters are saved in `~/.tabherd/filters.json`, for every browser. The tab you're on is remembered in the browser.
 
@@ -251,6 +275,8 @@ The colours are a set of eight, each tuned for light and dark and kept apart fro
 ## To-dos
 
 **+ To-do** in the header adds a card with a title and notes, for work you want to give Claude later. To-do cards sit at the top of the grid, with a dashed border, and count under All and Todo. Ctrl+Enter saves from the notes box.
+
+With a tracker in Settings → Tickets, pasting a ticket's link or key as a new to-do's title fills it in from the ticket: the ticket's title, its description as the notes if they're empty, and the ticket in *Tickets*, so the session starts linked to it. The line under the title says which ticket it came from, or why it couldn't. Jira Cloud's descriptions come as text, with lists, links and code kept. See [Tickets](#tickets).
 
 **Start** opens Claude in the to-do's folder, in your terminal, running `claude --session-id <new id> --name "<the to-do's title>"`, so the session is named after the to-do in its tab's title and Claude's session list. Once Codex is installed, the to-do's **Start with** chooses Claude or Codex, or leaves it to Settings; for Codex, see [Codex](#codex). A to-do doesn't need a folder: without one, it starts in Settings → To-dos → **Start in**, your repos folder unless you set another, where Claude can make a new project. The card says where it will start.
 
@@ -374,11 +400,13 @@ A ticket is only linked if its tracker has it. A session's tickets come from:
   A key mentioned in passing isn't linked. A session that creates an issue can claim it in its reply, so it's linked once it exists.
 - **Links in prompts:** a link you send to a Jira issue, a Linear issue, a GitHub issue or a Zendesk ticket.
 - **+ Ticket:** paste a link or key, as in a Claim: line. It says which it couldn't find.
-- **Its to-do:** a to-do's *Tickets* field, which its session starts with.
+- **Its to-do:** a to-do's *Tickets* field, which its session starts with. Pasting a ticket's link or key as a new to-do's title fills the to-do in from it; see [To-dos](#to-dos).
 
 A key is looked up in every tracker it could be in, unless the tracker is named. With key prefixes in Settings → Tickets, a Jira or Linear tracker is only asked about keys with those prefixes. ✕ on a chip takes it off that session's card for good, and + Ticket links it again. History keeps each closed session's tickets as they were, and its filter finds sessions by a ticket's key or title.
 
 A ticket's status is read again every five minutes while its card is shown, and one that wasn't found is asked about again after an hour. A tracker that refuses its sign-in or can't be reached says so in Settings → Tickets, and its tickets keep their last known status. Only a ticket's key goes to its tracker: a link in a session is read for its key, never fetched. What each session claimed is kept in `~/.tabherd/tickets.json`, with each ticket's last status.
+
+The **Ticket done** filter tab shows the sessions whose tickets are all done or cancelled, still open. Any filter can pick by tickets too; see [What it shows](#what-it-shows).
 
 **Complete** on a card with tickets opens a dialog in place of its second click, to update them before the session closes. Nothing is posted unless it's ticked, and your ticks are remembered for each tracker, in this browser. For each ticket:
 
