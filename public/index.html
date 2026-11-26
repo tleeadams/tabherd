@@ -454,6 +454,23 @@
     </form>
   </dialog>
 
+  <dialog id="complete-dialog" class="settings" aria-labelledby="complete-dialog-title">
+    <form id="complete-form">
+      <div class="settings-head">
+        <h2 id="complete-dialog-title">Complete</h2>
+        <button type="button" id="complete-close" class="icon-btn" title="Close" aria-label="Close">✕</button>
+      </div>
+      <p class="settings-help ticket-for" id="complete-name"></p>
+      <p class="settings-help">It closes, once its turn ends if it's working, and History marks it complete. Its tickets can be updated first: nothing is posted to them unless it's ticked.</p>
+      <div id="complete-tickets"></div>
+      <div class="confirm-actions">
+        <button type="button" id="complete-cancel" class="btn">Cancel</button>
+        <button type="button" id="complete-anyway" class="btn" hidden>Complete anyway</button>
+        <button type="submit" id="complete-save" class="btn btn-primary">Complete</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="tracker-dialog" class="settings" aria-labelledby="tracker-dialog-title">
     <form id="tracker-form">
       <div class="settings-head">

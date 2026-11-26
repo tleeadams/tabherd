@@ -789,19 +789,181 @@ function secondClick(key, button, label) {
 }
 
 // Complete asks for a second click, like Unload, then closes the session,
-// once its turn ends if it's working. History keeps it, marked complete.
+// once its turn ends if it's working. History keeps it, marked complete. A
+// session with tickets opens a dialog instead, to update them first.
 async function completeSession(a, button) {
+  if (a.tickets?.length) {
+    openCompleteDialog(a);
+    return;
+  }
   if (!secondClick(`complete:${a.id}`, button, tr('Complete'))) return;
   button.disabled = true;
+  if (!(await completeNow(a))) button.disabled = false;
+}
+
+async function completeNow(a) {
   try {
     const r = await post(a, 'complete');
     toast(r.waiting ? tr('{name} will close when its turn ends', { name: displayName(a) }) : tr('Completed {name}', { name: displayName(a) }));
+    return true;
   } catch (err) {
     toast(err.message, true);
-    button.disabled = false;
+    return false;
+  } finally {
+    refresh();
   }
-  refresh();
 }
+
+// ---- completing a session with tickets -----------------------------------------
+
+// Each tracker's ticks in the Complete dialog, kept in this browser.
+const TICKS_KEY = 'tabherd:ticket-ticks';
+function savedTicks() {
+  try {
+    return JSON.parse(localStorage.getItem(TICKS_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+function keepTicks(rows) {
+  const all = savedTicks();
+  for (const r of rows) all[r.t.tracker] = { comment: r.comment.checked, move: r.move.checked, publicReply: Boolean(r.pub?.checked) };
+  try {
+    localStorage.setItem(TICKS_KEY, JSON.stringify(all));
+  } catch {}
+}
+
+// The comment a ticket is offered: the session that did the work, what it
+// said last, and its pull requests. It goes to the ticket as written, so
+// it's in English, and can be changed before it's posted.
+const APP_NAMES = { claude: 'Claude Code', codex: 'Codex', copilot: 'GitHub Copilot', opencode: 'OpenCode', cursor: 'Cursor CLI' };
+function doneComment(a) {
+  const said = (a.recap?.text || a.lastReply?.text || '').trim();
+  const parts = [`Done in a ${APP_NAMES[a.app] || 'coding'} session (${displayName(a)})${said ? `: ${said}` : '.'}`];
+  if (a.prs?.length) parts.push(`Pull requests: ${a.prs.map((p) => p.url).join(', ')}`);
+  return parts.join('\n\n');
+}
+
+let completing = null;
+
+// What a ticket's row says about moving it to done.
+function showMoves(row, options) {
+  const moves = options?.moves || [];
+  row.moveTo.replaceChildren(...moves.map((m) => el('option', { value: m.id, text: m.name })));
+  row.moveTo.hidden = moves.length < 2;
+  row.move.disabled = !moves.length || row.done.includes('move');
+  if (!moves.length) row.move.checked = false;
+  const t = row.t;
+  let note = '';
+  if (options?.error) note = tr("Can't move it: {problem}", { problem: tr(options.error) });
+  else if (t.pullRequest) note = tr("A pull request isn't moved from here.");
+  else if (t.category === 'done' || t.category === 'closed') note = tr('Already {status}.', { status: t.status });
+  else if (!moves.length) note = tr('Its status has no way to done.');
+  else if (t.type === 'zendesk') note = tr('To Solved, which emails the requester.');
+  else if (t.type === 'github') note = tr('Closes it as completed.');
+  else if (moves.length === 1) note = tr('To {status}', { status: moves[0].name });
+  row.moveNote.textContent = note;
+}
+
+async function openCompleteDialog(a) {
+  const ticks = savedTicks();
+  const rows = a.tickets.map((t) => {
+    const saved = ticks[t.tracker] || {};
+    const check = (label, checked) => {
+      const box = el('input', { type: 'checkbox' });
+      box.checked = Boolean(checked);
+      return [box, el('label', { class: 'check' }, box, label)];
+    };
+    const [comment, commentLabel] = check(tr('Comment'), saved.comment);
+    const text = el('textarea', { rows: 4, maxlength: 20000, 'aria-label': tr('Comment') });
+    text.value = doneComment(a);
+    text.disabled = !comment.checked;
+    comment.addEventListener('change', () => (text.disabled = !comment.checked));
+    // Zendesk comments are internal notes unless they're a public reply.
+    const [pub, pubLabel] = t.type === 'zendesk' ? check(tr('Public reply'), saved.publicReply) : [null, null];
+    const [move, moveLabel] = check(tr('Move to done'), saved.move);
+    move.disabled = true;
+    const moveTo = el('select', { hidden: true, 'aria-label': tr('Move to') });
+    const moveNote = el('span', { class: 'complete-note', text: tr('Checking how it can be moved…') });
+    const problem = el('p', { class: 'complete-problem', hidden: true });
+    const block = el(
+      'div',
+      { class: 'complete-ticket' },
+      el('div', { class: 'complete-title' }, ticketChip(t), el('span', { class: 'complete-note', text: t.title })),
+      el('div', { class: 'checks' }, commentLabel, pubLabel),
+      el('div', { class: 'field' }, text),
+      pub ? el('p', { class: 'settings-help', text: tr("Without Public reply, it's an internal note. A public reply emails the requester.") }) : null,
+      el('div', { class: 'checks' }, moveLabel, moveTo, moveNote),
+      problem,
+    );
+    return { t, comment, text, pub, move, moveTo, moveNote, problem, block, done: [] };
+  });
+  completing = { a, rows };
+  $('complete-name').textContent = displayName(a);
+  $('complete-tickets').replaceChildren(...rows.map((r) => r.block));
+  $('complete-anyway').hidden = true;
+  $('complete-save').disabled = false;
+  $('complete-dialog').showModal();
+  try {
+    const r = await api('/api/tickets/done-options', { id: a.id });
+    for (const row of rows) showMoves(row, r.tickets.find((x) => x.chip === row.t.id));
+  } catch (err) {
+    for (const row of rows) showMoves(row, { moves: [], error: err.message });
+  }
+}
+
+// Posts what's ticked to the tickets, then completes the session. If any
+// fails, the dialog stays, saying why, with Complete anyway. What was posted
+// isn't posted again.
+$('complete-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const { a, rows } = completing;
+  const save = $('complete-save');
+  save.disabled = true;
+  try {
+    keepTicks(rows);
+    const writes = rows
+      .map((r) => ({
+        chip: r.t.id,
+        comment: r.comment.checked && !r.done.includes('comment') ? r.text.value : null,
+        publicReply: Boolean(r.pub?.checked),
+        move: r.move.checked && !r.move.disabled && !r.done.includes('move') ? r.moveTo.value || null : null,
+      }))
+      .filter((w) => w.comment || w.move);
+    let failed = false;
+    if (writes.length) {
+      const res = await api('/api/tickets/write', { id: a.id, writes });
+      for (const result of res.results) {
+        const row = rows.find((r) => r.t.id === result.chip);
+        if (!row) continue;
+        row.done.push(...result.done);
+        if (row.done.includes('comment')) row.comment.disabled = row.text.disabled = true;
+        if (row.done.includes('move')) row.move.disabled = true;
+        row.problem.hidden = result.ok;
+        if (!result.ok) {
+          failed = true;
+          row.problem.textContent = result.done.includes('comment') ? tr('The comment was posted, but: {problem}', { problem: tr(result.error) }) : tr(result.error);
+        }
+      }
+    }
+    if (failed) {
+      $('complete-anyway').hidden = false;
+      toast(tr("Some tickets weren't updated. Try again, or complete it anyway."), true);
+      return;
+    }
+    $('complete-dialog').close();
+    await completeNow(a);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    save.disabled = false;
+  }
+});
+$('complete-anyway').addEventListener('click', async () => {
+  $('complete-dialog').close();
+  await completeNow(completing.a);
+});
+for (const id of ['complete-cancel', 'complete-close']) $(id).addEventListener('click', () => $('complete-dialog').close());
 
 // A card for a ComfyUI job, or a LocalAI model, download or chat. The server
 // gives what it shows, `facts` as label and value pairs, and which buttons it

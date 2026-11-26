@@ -501,6 +501,23 @@ button.ticket-add { cursor: pointer; padding: 1px 7px; color: var(--muted); bord
 button.ticket-add:hover { color: var(--accent); }
 .ticket-for { font-weight: 600; margin: 0 0 8px; }
 
+/* Complete's dialog, for a session with tickets: each ticket's comment and move */
+
+#complete-dialog { width: min(600px, calc(100vw - 32px)); }
+#complete-dialog form { padding: 16px 20px 18px; }
+.complete-ticket { border-top: 1px solid var(--border); padding: 12px 0; display: grid; gap: 8px; }
+.complete-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.complete-title .complete-note { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.complete-note { color: var(--muted); font-size: 12.5px; }
+.complete-ticket .checks { align-items: center; }
+.complete-ticket .field { margin: 0; }
+.complete-ticket textarea { min-height: 90px; }
+.complete-ticket textarea:disabled { opacity: 0.6; }
+.complete-ticket select { padding: 3px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); color: var(--text); font: inherit; font-size: 12.5px; }
+.complete-ticket .settings-help { margin: 0; }
+.complete-problem { margin: 0; color: var(--danger); font-size: 12.5px; }
+.check:has(input:disabled) { opacity: 0.55; cursor: default; }
+
 .actions { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
 .btn {
   padding: 5px 11px;

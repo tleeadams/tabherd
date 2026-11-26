@@ -336,7 +336,7 @@ Only the last saved set is kept, in `~/.tabherd/saved-sessions.json`; the next S
 
 ## Complete
 
-**Complete**, beside **Stop…** on a Claude, Codex or Copilot CLI card, is for a session whose work is done. After a second click it closes the session and its tab, as Save and close does, and History marks it *Completed*, so it's told apart from work that was only closed. A session that's working finishes its turn first; until then its card says *Completes when done*, and clicking that keeps it open and takes the mark off.
+**Complete**, beside **Stop…** on a session's card, is for a session whose work is done. After a second click it closes the session and its tab, as Save and close does, and History marks it *Completed*, so it's told apart from work that was only closed. A session that's working finishes its turn first; until then its card says *Completes when done*, and clicking that keeps it open and takes the mark off.
 
 A completed session can still be resumed from History. It stays complete if you only look, and stops being complete once you ask it something new. Save and close doesn't save a completed session, so Resume last session doesn't bring it back. Sessions marked complete are kept in `~/.tabherd/completed.json`.
 
@@ -363,7 +363,18 @@ A key is looked up in every tracker it could be in, unless the tracker is named.
 
 A ticket's status is read again every five minutes while its card is shown, and one that wasn't found is asked about again after an hour. A tracker that refuses its sign-in or can't be reached says so in Settings → Tickets, and its tickets keep their last known status. Only a ticket's key goes to its tracker: a link in a session is read for its key, never fetched. What each session claimed is kept in `~/.tabherd/tickets.json`, with each ticket's last status.
 
-Writing back to tickets on Complete is next; see [the plan](docs/ticket-links.md).
+**Complete** on a card with tickets opens a dialog in place of its second click, to update them before the session closes. Nothing is posted unless it's ticked, and your ticks are remembered for each tracker, in this browser. For each ticket:
+
+- **Comment** posts a comment. It's filled in with the session that did the work, its recap or last reply, and its pull requests, and can be changed first. Jira gets it as a document, with its links as links. A Zendesk comment is an internal note unless *Public reply* is ticked, as a public reply emails the requester.
+- **Move to done** moves the ticket to done:
+  - **Jira:** a transition from its status into a done one, chosen if there's more than one.
+  - **Linear:** its team's completed state.
+  - **GitHub:** the issue is closed as completed.
+  - **Zendesk:** the ticket is solved, which emails the requester.
+
+  A ticket that's already done, or a pull request, isn't moved.
+
+**Complete** posts what's ticked, then closes the session. If something fails, the dialog stays open and says why; what was already posted isn't posted again, and **Complete anyway** closes the session without the rest. Writing needs a token that can write: for a Jira scoped token, `write:jira-work`.
 
 ## History
 

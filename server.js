@@ -673,19 +673,26 @@ const server = http.createServer(async (req, res) => {
       return send(res, result.ok ? 200 : 400, result);
     }
 
-    // A card's + Ticket, and a ticket's ✕. The session must be on the
-    // dashboard now.
-    const ticketRoute = url.pathname.match(/^\/api\/tickets\/(add|remove)$/);
+    // A card's + Ticket, a ticket's ✕, and the Complete dialog's options and
+    // what it posts to the tickets. The session must be on the dashboard now,
+    // and only the tickets on its card are written to.
+    const ticketRoute = url.pathname.match(/^\/api\/tickets\/(add|remove|done-options|write)$/);
     if (ticketRoute) {
       if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
       if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
       const body = await readJson(req);
       const agent = (await currentSnapshot()).agents.find((a) => a.id === body?.id);
       if (!agent) return send(res, 404, { ok: false, error: 'That session is no longer running.' });
-      const result = ticketRoute[1] === 'add' ? await tickets.add(agent, body.text) : tickets.remove(agent.id, body.chip);
+      const run = {
+        add: () => tickets.add(agent, body.text),
+        remove: () => tickets.remove(agent.id, body.chip),
+        'done-options': () => tickets.doneOptions(agent),
+        write: () => tickets.writeBack(agent, body.writes),
+      }[ticketRoute[1]];
+      const answer = await run();
       cached = null;
       pushSnapshot();
-      return send(res, result.ok ? 200 : 400, result);
+      return send(res, answer.ok ? 200 : 400, answer);
     }
 
     if (url.pathname === '/api/todos') {
