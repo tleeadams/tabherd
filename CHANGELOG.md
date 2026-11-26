@@ -10,6 +10,7 @@ Notable changes in each release. Version numbers follow [Semantic Versioning](ht
   - **Where they come from:** its branch's name, `Claim: ABC-123` lines in prompts or the session's replies (`Unclaim:` takes one off), ticket links in prompts, its to-do's new *Tickets* field, and **+ Ticket** on the card.
   - **What's linked:** a ticket is only linked if its tracker has it. ✕ takes one off.
   - **History** keeps each closed session's tickets, and finds sessions by them.
+  - **Complete** on a card with tickets opens a dialog first. It can comment on each ticket, with what the session did and its pull requests, and move it to done: a Jira transition, Linear's completed state, a GitHub issue closed as completed, or a Zendesk ticket solved. Nothing is posted unless it's ticked, and Zendesk comments are internal notes unless *Public reply* is ticked.
   - See [Tickets](README.md#tickets).
 
 ## 0.6.0-beta.3 - 2026-11-25
