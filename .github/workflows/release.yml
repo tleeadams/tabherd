@@ -1,11 +1,10 @@
 name: Release
 
 # Pushing a version tag, such as v0.1.0, on main builds the releases (an
-# installer and a zip for Windows, archives for macOS and Linux, the desktop
-# app for Linux, and for macOS once it's signed) and creates a draft GitHub
-# release with them. Check the draft, then publish it.
-# A tag with a hyphen (v0.2.0-beta.1) makes a prerelease, which has the macOS
-# app even while it isn't signed, to try.
+# installer and a zip for Windows, the desktop app for macOS and Linux, and
+# archives for both) and creates a draft GitHub release with them. Check the
+# draft, then publish it.
+# A tag with a hyphen (v0.2.0-beta.1) makes a prerelease.
 on:
   push:
     tags: ['v*']
@@ -153,12 +152,11 @@ jobs:
             dist/*.tar.gz.sha256
 
   build-macos:
-    # The macOS desktop app, signed and notarized, once the APPLE_SIGNING
+    # The macOS desktop app, signed and notarized once the APPLE_SIGNING
     # variable is "on" and the Apple secrets are in the release environment
-    # (see CONTRIBUTING.md). Until then a release ships without it, with the
-    # archives build-unix makes, and a prerelease has it signed ad hoc, to
-    # try. It's for Apple silicon only: the app doesn't support Intel Macs.
-    if: vars.APPLE_SIGNING == 'on' || contains(github.ref_name, '-')
+    # (see CONTRIBUTING.md). Until then it's signed ad hoc, and macOS asks
+    # before opening each download of it the first time. It's for Apple
+    # silicon only: the app doesn't support Intel Macs.
     environment: release
     runs-on: macos-latest
     steps:
@@ -254,10 +252,8 @@ jobs:
             dist/*.sha256
 
   release:
-    # Waits for every build, and goes ahead without the macOS app when its
-    # build is switched off.
+    # Waits for every build.
     needs: [build, build-unix, build-macos, build-linux]
-    if: ${{ !cancelled() && needs.build.result == 'success' && needs.build-unix.result == 'success' && needs.build-linux.result == 'success' && contains(fromJSON('["success", "skipped"]'), needs.build-macos.result) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -281,8 +277,6 @@ jobs:
             printf '\n[Code signing policy](%s#code-signing-policy)\n' "$repo"
           } > dist/notes.md
           mv dist/notes.md dist/RELEASE_NOTES.md
-          # The macOS app's disk images are there only when it was built.
-          shopt -s nullglob
           gh release create "$GITHUB_REF_NAME" dist/*.exe dist/*.dmg dist/*.deb dist/*.rpm dist/*.AppImage dist/*.zip dist/*.tar.gz dist/*.sha256 \
             --repo "$GITHUB_REPOSITORY" --draft $prerelease \
             --title "Tabherd $GITHUB_REF_NAME" --notes-file dist/RELEASE_NOTES.md
