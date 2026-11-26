@@ -17,7 +17,7 @@ On Windows, Tabherd is a desktop app with a window of its own.
 - **With the installer:** download `tabherd-v<version>-windows-x64-setup.exe` and run it. It installs for you alone, without asking for administrator rights, into `%LOCALAPPDATA%\Tabherd`, and adds Tabherd to the Start menu.
 - **From the zip,** without installing: download `tabherd-v<version>-windows-x64.zip` and extract it somewhere to keep it, such as `%LOCALAPPDATA%\Programs`. It holds one folder, `tabherd-windows-x64`. Run **Tabherd.exe** in it.
 
-Neither is code-signed yet: signing through SignPath Foundation is waiting on their approval (see the [code signing policy](#code-signing-policy)). Until then, Windows SmartScreen may warn about them the first time. Choose **More info**, then **Run anyway**.
+Neither is code-signed yet: signing through SignPath Foundation is waiting on their approval (see the [code signing policy](#code-signing-policy)). Until then, your browser and Windows SmartScreen may warn about them; see [Warnings when downloading and installing](#warnings-when-downloading-and-installing).
 
 Tabherd starts the dashboard server in the background, with no console window, unless one is already running. It shows the dashboard in WebView2, the engine Edge uses, which comes with Windows. Nothing from your browser shows in its window, and sound plays without a click first. Links to pull requests and other sites open in your browser. Opening Tabherd while it's open brings its window to the front. Closing the window stops the server it started.
 
@@ -42,6 +42,29 @@ Or from a download:
 **Intel Macs:** the `macos-x64` download won't be supported forever. We'll try to keep it updated until the official cutoff in 2029, but support may end sooner if it becomes too much for the team to keep up. The macOS desktop app is for Apple silicon only.
 
 `tabherd` starts the dashboard server in the background if it isn't running, then opens the dashboard: as an app window, with no tabs or address bar, if Chrome, Edge, Brave, Chromium or Vivaldi is installed, otherwise in your browser.
+
+### Warnings when downloading and installing
+
+The downloads aren't code-signed yet (see the [code signing policy](#code-signing-policy)), so your browser, Windows and macOS may warn about them. Those warnings say the file is unsigned or new to them, which is expected for now. A warning that names a virus or other threat is different: don't open that file, and please [report it](SECURITY.md).
+
+Before opening a download, you can check that it's the file the release published, with the `.sha256` file beside it. In the folder you downloaded both to:
+
+- **Windows,** in PowerShell: `$f = 'tabherd-v<version>-windows-x64-setup.exe'; (Get-FileHash $f).Hash -eq (Get-Content "$f.sha256").Split(' ')[0]` answers `True`.
+- **macOS:** `shasum -a 256 -c tabherd-v<version>-macos-arm64.tar.gz.sha256` answers `OK`.
+- **Linux:** `sha256sum -c tabherd-v<version>-linux-x64.deb.sha256` answers `OK`.
+
+**Windows:**
+
+- **Downloading:** Edge may say the installer *isn't commonly downloaded*. Open the download's **⋯** menu, choose **Keep**, then **Show more** and **Keep anyway**. Other browsers have a similar **Keep**.
+- **Running:** SmartScreen may say *Windows protected your PC*. Choose **More info**, then **Run anyway**.
+- **The zip:** Windows marks the files extracted from a downloaded zip as downloaded too, so **Tabherd.exe** gets SmartScreen's warning the first time it runs. To skip it, right-click the zip before extracting it, choose **Properties**, tick **Unblock**, and choose **OK**.
+
+**macOS:**
+
+- Installing with Homebrew doesn't bring up these warnings.
+- **The desktop app**, in prereleases until it's signed by Apple, is signed ad hoc, so the first time you open it macOS says it can't check it for malware. Choose **Done**, then go to System Settings → Privacy & Security, where Tabherd is named near the bottom, choose **Open Anyway**, and confirm.
+
+**Linux:** `sudo apt install ./tabherd-v<version>-linux-x64.deb` may end with *Download is performed unsandboxed as root as file … couldn't be accessed by user '_apt'*. That's apt reading the file as root, because its own user can't read your home folder. The package is installed all the same.
 
 ### Updating and uninstalling
 
