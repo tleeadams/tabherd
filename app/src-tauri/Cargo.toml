@@ -1,6 +1,6 @@
 [package]
 name = "tabherd"
-version = "0.6.0-beta.3"
+version = "0.6.1"
 description = "Tabherd: a dashboard for your coding agents, in a window of its own"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/tleeadams/tabherd"

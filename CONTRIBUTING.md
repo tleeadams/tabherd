@@ -92,7 +92,7 @@ The page is written in English and shown in the language chosen in Settings. Eac
 
 ## Releasing
 
-1. Start the release from `develop`: `git switch -c release/<version> develop`. Set the version in `package.json` and add a `## <version>` section to `CHANGELOG.md`; the release notes come from it. Commit, push, and open a pull request into `main`.
+1. Start the release from `develop`: `git switch -c release/<version> develop`. Set the version in `package.json`, `app/src-tauri/Cargo.toml` and the `tabherd` entry in `app/src-tauri/Cargo.lock` (a test checks they match), and add a `## <version>` section to `CHANGELOG.md`; the release notes come from it. Commit, push, and open a pull request into `main`.
 2. Merge it once the checks pass and it's been reviewed.
 3. Tag the merge on `main`: `git switch main && git pull && git tag v<version> && git push origin v<version>`.
 4. The Release workflow tests, builds the downloads and makes a draft release. Once signing is set up, it waits up to an hour each for two signing requests to be approved on [signpath.io](https://app.signpath.io): the Windows app's, then its installer's. An approver approves them there. Check the draft and publish it.
@@ -111,7 +111,7 @@ A hotfix starts from `main` and goes back into it:
 ```
 git switch main && git pull
 git switch -c hotfix/<version>
-# fix it, set the version in package.json, add a "## <version>" section to CHANGELOG.md, commit
+# fix it, set the version in package.json, Cargo.toml and Cargo.lock, add a "## <version>" section to CHANGELOG.md, commit
 git push -u origin hotfix/<version>
 gh pr create --base main --fill
 gh pr merge --merge --admin      # the admin's fast path; otherwise wait for review and CI
