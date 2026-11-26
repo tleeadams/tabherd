@@ -23,6 +23,7 @@
   'A Codex session': 'Una sesión de Codex',
   'A GitHub Copilot session': 'Una sesión de GitHub Copilot',
   'An OpenCode session': 'Una sesión de OpenCode',
+  'A Cursor CLI session': 'Una sesión de Cursor CLI',
   'A ComfyUI job': 'Un trabajo de ComfyUI',
   'From LocalAI': 'De LocalAI',
   'From Ollama': 'De Ollama',
