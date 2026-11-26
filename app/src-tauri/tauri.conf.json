@@ -16,6 +16,7 @@
   "bundle": {
     "active": true,
     "category": "DeveloperTool",
+    "publisher": "tleeadams",
     "shortDescription": "A dashboard for your coding agents",
     "license": "GPL-3.0-or-later",
     "icon": ["icons/icon.ico", "icons/icon.png"],

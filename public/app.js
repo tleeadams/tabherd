@@ -2427,7 +2427,8 @@ function releaseNotes(markdown) {
   const blocks = [];
   let items = null;
   for (const line of String(markdown || '').split(/\r?\n/)) {
-    const text = line.trim();
+    // A quote or a heading reads as its text.
+    const text = line.trim().replace(/^(>\s*|#{1,6}\s+)/, '');
     const item = /^[-*]\s+(.*)$/.exec(text);
     if (!text || text.startsWith('**Tabherd** is a dashboard') || text.startsWith('[Code signing policy]')) items = null;
     else if (item) {
