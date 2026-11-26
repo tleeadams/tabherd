@@ -12,6 +12,7 @@ Notable changes in each release. Version numbers follow [Semantic Versioning](ht
   - **History** keeps each closed session's tickets, and finds sessions by them.
   - **Complete** on a card with tickets opens a dialog first. It can comment on each ticket, with what the session did and its pull requests, and move it to done: a Jira transition, Linear's completed state, a GitHub issue closed as completed, or a Zendesk ticket solved. Nothing is posted unless it's ticked, and Zendesk comments are internal notes unless *Public reply* is ticked.
   - See [Tickets](README.md#tickets).
+- **On npm.** With Node 18 or later, `npx tabherd@latest` runs the dashboard on any system, or `npm install -g tabherd` adds a `tabherd` command. It starts the server in the terminal and opens the dashboard. The update alert gives the npm command for a copy installed this way. See [With npm](README.md#with-npm).
 
 ## 0.6.0-beta.3 - 2026-11-25
 

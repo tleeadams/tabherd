@@ -102,6 +102,11 @@ test('how this copy was installed is told from where it runs', () => {
   assert.equal(updates.installKind(path.join(__dirname, '..')), 'git', 'this repository');
   assert.equal(kind('/opt/homebrew/Cellar/tabherd/0.5.0/libexec', 'darwin'), 'homebrew');
   assert.equal(kind('/home/linuxbrew/.linuxbrew/Cellar/tabherd/0.5.0/libexec', 'linux'), 'homebrew');
+  assert.equal(kind('/usr/local/lib/node_modules/tabherd', 'linux'), 'npm');
+  assert.equal(kind('/opt/homebrew/lib/node_modules/tabherd', 'darwin'), 'npm', "with Homebrew's Node");
+  assert.equal(kind('/Users/me/.npm/_npx/0a1b2c3d4e5f6a7b/node_modules/tabherd', 'darwin'), 'npx');
+  assert.equal(kind('C:\\Users\\me\\AppData\\Roaming\\npm\\node_modules\\tabherd', 'win32', { LOCALAPPDATA: 'C:\\Users\\me\\AppData\\Local' }), 'npm');
+  assert.equal(kind('C:\\Users\\me\\AppData\\Local\\npm-cache\\_npx\\0a1b2c3d4e5f6a7b\\node_modules\\tabherd', 'win32', { LOCALAPPDATA: 'C:\\Users\\me\\AppData\\Local' }), 'npx');
   assert.equal(kind('/Applications/Tabherd.app/Contents/Resources/server', 'darwin'), 'mac-app');
   assert.equal(kind('/usr/lib/Tabherd/server', 'linux'), 'linux-package');
   assert.equal(kind('/tmp/.mount_Tabher1/usr/lib/Tabherd/server', 'linux', { APPIMAGE: '/home/me/Tabherd.AppImage' }), 'appimage');

@@ -100,6 +100,7 @@ The page is written in English and shown in the language chosen in Settings. Eac
    Publishing tidies up the prereleases: each upcoming version keeps only its newest on the releases page. The Prune prereleases workflow turns the ones it supersedes back into drafts, which keeps their files and notes, so publishing one again brings it back. A newer prerelease of a version hides its older ones (1.2.3-beta.1 hides 1.2.3-alpha.3), a release hides its version's prereleases and any older version's, and a prerelease of another version stays (1.2.4-alpha.1 doesn't hide 1.2.3-beta.1). Releases are never hidden. Run the workflow from the Actions tab to see what it would hide, or `node scripts/prune-prereleases.js --dry-run`.
 5. Open a pull request from `main` into `develop`, so `develop` has the release's changes.
 6. Package managers:
+   - **npm** gets the version when the release is published: the npm workflow checks the package (`npm run check-package`) and publishes it, a release under `latest` and a prerelease under `next`. A version already on npm is skipped, since npm never takes one twice. `next` keeps pointing at the last prerelease until there's a newer one.
    - **Homebrew** ([tleeadams/homebrew-tap](https://github.com/tleeadams/homebrew-tap)) picks the release up by itself within a day: its Update workflow installs and tests the formula at the new release on macOS and Linux, then commits it. Run that workflow from its Actions tab to do it now.
    - **winget**: submit the new version to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) as a pull request, with the three manifest files for `tleeadams.Tabherd` updated to the new version, URL and SHA-256 (`wingetcreate update tleeadams.Tabherd -v <version> -u <installer url> --submit` does it). Microsoft validates and merges it, typically within a few days. From the first release with the desktop app, the manifest should point at the installer (`-setup.exe`): installer type `nullsoft`, scope `user`, and `UpgradeBehavior: uninstallPrevious`, so that a copy installed from the portable zip is replaced rather than left beside it. The installer adds Tabherd to the Start menu, which a portable install doesn't. The zip still works as a portable install too (`zip`, nested `portable`, `tabherd-windows-x64Tabherd.exe`): the app follows winget's link back to its own folder to find Node and the server.
 
@@ -126,6 +127,15 @@ For maintainers, once, after creating the repository on GitHub:
 
 1. Push `main` and `develop`. The rulesets would stop pushes that create them, so they come first.
 2. With the [GitHub CLI](https://cli.github.com) signed in as an admin of the repository, run `npm run setup-github`. It applies the rulesets in `.github/rulesets`, makes `develop` the default branch, allows only merge commits, deletes branches once merged, and turns on private vulnerability reporting. It also names anyone in `.github/CODEOWNERS` who doesn't have write access yet. Running it again updates the rulesets.
+
+### npm
+
+The npm workflow (`.github/workflows/npm.yml`) publishes with npm's [trusted publishing](https://docs.npmjs.com/trusted-publishers): npm trusts the workflow itself, so there's no npm token in GitHub. It runs in the `release` environment, which only version tags can use (see [Apple signing](#apple-signing), step 4, for making it). To set it up, once, on [npmjs.com](https://www.npmjs.com/package/tabherd) as the package's owner:
+
+1. In the package's **Settings**, under **Trusted Publisher**, choose **GitHub Actions** and enter the user `tleeadams`, the repository `tabherd`, the workflow `npm.yml` and the environment `release`.
+2. Under **Publishing access**, choose *Require two-factor authentication and disallow tokens*. The workflow can still publish; a token can't.
+
+Until it's set up, the workflow fails when a release is published, and nothing reaches npm.
 
 ### Code signing
 

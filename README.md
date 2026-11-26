@@ -8,7 +8,7 @@ Tabherd is an independent project. It isn't made or endorsed by Anthropic or Ope
 
 ## Install
 
-Each [release](../../releases/latest) has a download for Windows, macOS (Apple silicon `arm64`, Intel `x64`) and Linux (`x64`, `arm64`). Each includes Node, so there's nothing else to install, and has a `.sha256` file beside it for checking the download.
+Each [release](../../releases/latest) has a download for Windows, macOS (Apple silicon `arm64`, Intel `x64`) and Linux (`x64`, `arm64`). Each includes Node, so there's nothing else to install, and has a `.sha256` file beside it for checking the download. With Node already installed, it's also [on npm](#with-npm).
 
 ### Windows
 
@@ -43,15 +43,32 @@ Or from a download:
 
 `tabherd` starts the dashboard server in the background if it isn't running, then opens the dashboard: as an app window, with no tabs or address bar, if Chrome, Edge, Brave, Chromium or Vivaldi is installed, otherwise in your browser.
 
+### With npm
+
+On any system with Node 18 or later, run the newest version without installing it:
+
+```
+npx tabherd@latest
+```
+
+Or install it, for a `tabherd` command:
+
+```
+npm install -g tabherd
+tabherd
+```
+
+This `tabherd` starts the dashboard server in that terminal and opens the dashboard, as above; Ctrl+C stops it. If the dashboard is already running, it opens that one instead. Betas are under `next`: `npx tabherd@next`. There's no desktop app window or applications menu entry this way.
+
 ### Updating and uninstalling
 
 On macOS and Linux, a server started by `tabherd` stops by itself 10 minutes after the last dashboard closes, and the next launch starts it again in a couple of seconds.
 
 The dashboard can tell you when a new version is out, and how to update; see [Update alerts](#update-alerts).
 
-To update on Windows, run the new release's installer, which installs over the old one. From the zip, replace the folder with the new release's. On macOS and Linux, replace the folder; its name doesn't change between releases, so the `tabherd` command and its entry in your applications keep working. Settings, history and to-dos are kept in `~/.tabherd`, outside the app.
+To update on Windows, run the new release's installer, which installs over the old one. From the zip, replace the folder with the new release's. On macOS and Linux, replace the folder; its name doesn't change between releases, so the `tabherd` command and its entry in your applications keep working. With npm, run `npm install -g tabherd@latest`; `npx tabherd@latest` already runs the newest. Settings, history and to-dos are kept in `~/.tabherd`, outside the app.
 
-To uninstall on Windows, use Settings › Apps › Installed apps, or delete the zip's folder. On macOS and Linux, run `./tabherd --uninstall`, then delete the folder. Delete `~/.tabherd` too unless you want to keep your settings, history and to-dos.
+To uninstall on Windows, use Settings › Apps › Installed apps, or delete the zip's folder. On macOS and Linux, run `./tabherd --uninstall`, then delete the folder. With npm, run `npm uninstall -g tabherd`. Delete `~/.tabherd` too unless you want to keep your settings, history and to-dos.
 
 ## Run from source
 
@@ -320,7 +337,7 @@ Tabherd can tell you when a new version is out. It's off until you say yes:
 
 When there's a newer version:
 - **The header** gets an **Update to <version>** button, and the notification list says so once.
-- **The button** shows what's new, from the release's notes on GitHub, which are in English. It also says how to update this copy: the command for Homebrew, winget or a clone of the repository, or which download to get. **See the release** opens its page.
+- **The button** shows what's new, from the release's notes on GitHub, which are in English. It also says how to update this copy: the command for Homebrew, npm, winget or a clone of the repository, or which download to get. **See the release** opens its page.
 - **Not now** hides the button, in that browser, until the next version.
 - **Prereleases**, such as betas, are only mentioned if *Tell me about betas and other prereleases too* is on in Settings → Help. Someone already running a prerelease always hears of newer ones.
 

@@ -1,0 +1,52 @@
+name: npm
+
+# Publishing a release on GitHub publishes the same version to npm as
+# `tabherd`: a release under the latest tag, which `npm install tabherd` and
+# `npx tabherd` get, and a prerelease under next. npm trusts this workflow
+# through trusted publishing (see CONTRIBUTING.md), so there's no token to
+# keep, and each version is published with provenance, which ties it to the
+# run that built it.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # Only version tags can use the release environment, and npm trusts this
+    # workflow only there.
+    environment: release
+    permissions:
+      contents: read
+      # For trusted publishing: the run proves to npm which workflow it is.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      # Trusted publishing needs npm 11.5.1 or later, which Node 24 has.
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          registry-url: https://registry.npmjs.org
+      - name: Check the release matches package.json
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::The release $GITHUB_REF_NAME doesn't match version $version in package.json."
+            exit 1
+          fi
+      - run: npm run check-package
+      # A prerelease the Prune prereleases workflow hid can be published
+      # again, and npm never takes a version twice.
+      - name: Publish to npm
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if curl -fsS -o /dev/null "https://registry.npmjs.org/tabherd/$version" 2>/dev/null; then
+            echo "tabherd@$version is already on npm."
+            exit 0
+          fi
+          tag=latest
+          case "$GITHUB_REF_NAME" in *-*) tag=next ;; esac
+          npm publish --tag "$tag"
