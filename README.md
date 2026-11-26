@@ -25,7 +25,14 @@ The header is the window's title bar: drag it to move the window, double-click i
 
 ### macOS and Linux
 
-With [Homebrew](https://brew.sh):
+**The desktop app** has a window of its own, as on Windows:
+
+- **macOS** (Apple silicon): download `tabherd-v<version>-macos-arm64.dmg`, open it and drag Tabherd to Applications.
+- **Linux** (x64 or arm64, with WebKitGTK 4.1): install the .deb with `sudo apt install ./tabherd-v<version>-linux-x64.deb`, or the .rpm with `sudo dnf install ./tabherd-v<version>-linux-x64.rpm`, or make the AppImage executable (`chmod +x`) and run it. On an ARM computer, use the `arm64` ones.
+
+> **Until the macOS app is signed by Apple,** it's signed ad hoc, so macOS asks before opening it the first time, and again for each new version you download; see [Warnings when downloading and installing](#warnings-when-downloading-and-installing). **When the first signed version is out, update to it.** From then on, macOS opens it without asking. Its release notes will say it's signed.
+
+**Without the app,** the dashboard opens in your browser. With [Homebrew](https://brew.sh):
 
 ```
 brew install tleeadams/tap/tabherd
@@ -79,7 +86,7 @@ Before opening a download, you can check that it's the file the release publishe
 **macOS:**
 
 - Installing with Homebrew doesn't bring up these warnings.
-- **The desktop app**, in prereleases until it's signed by Apple, is signed ad hoc, so the first time you open it macOS says it can't check it for malware. Choose **Done**, then go to System Settings → Privacy & Security, where Tabherd is named near the bottom, choose **Open Anyway**, and confirm.
+- **The desktop app** isn't signed by Apple yet. It's signed ad hoc, so the first time you open it, and each new version you download, macOS says it can't check it for malware. Choose **Done**, then go to System Settings → Privacy & Security, where Tabherd is named near the bottom, choose **Open Anyway**, and confirm. Once a version signed by Apple is out, update to it, and this stops.
 
 **Linux:** `sudo apt install ./tabherd-v<version>-linux-x64.deb` may end with *Download is performed unsandboxed as root as file … couldn't be accessed by user '_apt'*. That's apt reading the file as root, because its own user can't read your home folder. The package is installed all the same.
 
@@ -89,9 +96,9 @@ On macOS and Linux, a server started by `tabherd` stops by itself 10 minutes aft
 
 The dashboard can tell you when a new version is out, and how to update; see [Update alerts](#update-alerts).
 
-To update on Windows, run the new release's installer, which installs over the old one. From the zip, replace the folder with the new release's. On macOS and Linux, replace the folder; its name doesn't change between releases, so the `tabherd` command and its entry in your applications keep working. With npm, run `npm install -g tabherd@latest`; `npx tabherd@latest` already runs the newest. Settings, history and to-dos are kept in `~/.tabherd`, outside the app.
+To update on Windows, run the new release's installer, which installs over the old one. From the zip, replace the folder with the new release's. For the macOS app, open the new disk image and drag Tabherd to Applications, replacing the old one. On Linux, install the new .deb or .rpm as you did the first, or use the new AppImage in place of the old. From an archive, replace the folder; its name doesn't change between releases, so the `tabherd` command and its entry in your applications keep working. With npm, run `npm install -g tabherd@latest`; `npx tabherd@latest` already runs the newest. Settings, history and to-dos are kept in `~/.tabherd`, outside the app.
 
-To uninstall on Windows, use Settings › Apps › Installed apps, or delete the zip's folder. On macOS and Linux, run `./tabherd --uninstall`, then delete the folder. With npm, run `npm uninstall -g tabherd`. Delete `~/.tabherd` too unless you want to keep your settings, history and to-dos.
+To uninstall on Windows, use Settings › Apps › Installed apps, or delete the zip's folder. Drag the macOS app from Applications to the Trash. On Linux, remove the package with your package manager, or delete the AppImage. From an archive, run `./tabherd --uninstall`, then delete the folder. With npm, run `npm uninstall -g tabherd`. Delete `~/.tabherd` too unless you want to keep your settings, history and to-dos.
 
 ## Run from source
 

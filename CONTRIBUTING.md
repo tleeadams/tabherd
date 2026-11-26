@@ -150,7 +150,7 @@ The variable turns signing on. The app is signed first, and the installer is the
 
 ### Apple signing
 
-The macOS desktop app is signed with a Developer ID and notarized by Apple in the Release workflow, so a downloaded copy opens without Gatekeeper's warnings. Until it's set up, releases leave the app out and macOS ships the `tar.gz` archives. The keys go into GitHub as secrets, from your own computer, never into the repository or a chat. To set it up:
+The macOS desktop app is signed with a Developer ID and notarized by Apple in the Release workflow, so a downloaded copy opens without Gatekeeper's warnings. Until it's set up, the app is signed ad hoc: it works, but macOS asks before opening each download of it, and Open Anyway in System Settings lets it open. The release notes of the first signed version should tell Mac users to update to it. The keys go into GitHub as secrets, from your own computer, never into the repository or a chat. To set it up:
 
 1. Join the [Apple Developer Program](https://developer.apple.com/programs/). Only the account holder can make the certificate.
 2. Make a **Developer ID Application** certificate: on a Mac, in Xcode, **Settings → Accounts → Manage Certificates → + → Developer ID Application**. Then, in Keychain Access, under **My Certificates**, export it with its private key as a `.p12`, with a password.
