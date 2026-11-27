@@ -1,6 +1,6 @@
 # Security
 
-Tabherd reads your Claude Code prompts and transcripts and can open terminals and stop processes, so security problems matter. Please report them privately, through this repository's **Security** tab ("Report a vulnerability"), rather than in a public issue.
+Tabherd reads your coding agents' prompts and transcripts and can open terminals and stop processes, so security problems matter. Please report them privately, through this repository's **Security** tab ("Report a vulnerability"), rather than in a public issue.
 
 ## What the dashboard does to stay safe
 

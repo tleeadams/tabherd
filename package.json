@@ -1,10 +1,14 @@
 {
   "name": "tabherd",
   "version": "0.6.1",
-  "description": "A dashboard for your Claude Code and Codex sessions: which ones need you, which are working, and what they last said",
+  "description": "A dashboard for your coding agents (Claude Code, Codex, GitHub Copilot, OpenCode and Cursor CLI): which sessions need you, which are working, and what they last said",
   "keywords": [
     "claude-code",
     "codex",
+    "github-copilot",
+    "opencode",
+    "cursor",
+    "coding-agents",
     "dashboard",
     "agents"
   ],
