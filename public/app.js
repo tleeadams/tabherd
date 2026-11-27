@@ -1739,11 +1739,11 @@ function render() {
   }
   const nothing = !snap.agents.length && !snap.todos?.length;
   $('empty').hidden = !nothing && shown.length > 0;
-  $('empty').querySelector('.empty-title').textContent = nothing ? tr('No Claude Code or Codex sessions are running.') : tr('No sessions match this filter.');
+  $('empty').querySelector('.empty-title').textContent = nothing ? tr('No coding agent sessions are running.') : tr('No sessions match this filter.');
 }
 
 // The app and group filters in the header. Each shows once there's a choice:
-// the app filter once a Codex session is running, the group filter once
+// the app filter once another app has something on it, the group filter once
 // there are groups. Kept in this browser.
 const VIEW_KEY = 'tabherd:view';
 let appFilter = 'all';
@@ -2700,7 +2700,7 @@ async function loadRepos(refresh) {
     $('repos-root').textContent = `${shortPath(repoData.root)} · ${trn(repoData.count, '{n} repo', '{n} repos')}${excluded}`;
     $('repos-root').title = excluded ? tr('Change what is hidden in Settings') : '';
     $('repos-command').textContent = repoData.command;
-    // Claude or Codex, once Codex is installed; it's the setting in Settings.
+    // Claude, Codex or Copilot, once another is installed; it's the setting in Settings.
     $('repos-app').hidden = !otherAppsInstalled();
     showInstalledChoices('repos-app');
     for (const r of document.querySelectorAll('input[name="repos-app"]')) r.checked = r.value === repoData.app;
@@ -3361,7 +3361,7 @@ $('localai-key').addEventListener('keydown', noSubmit((input) => input.blur()));
 for (const r of document.querySelectorAll('input[name="new-app"]')) {
   r.addEventListener('change', () => saveServerSetting({ newSessionApp: r.value }).then(() => refresh()));
 }
-// The repo menu's own Claude or Codex choice is the same setting.
+// The repo menu's own choice of app is the same setting.
 for (const r of document.querySelectorAll('input[name="repos-app"]')) {
   r.addEventListener('change', async () => {
     if (await saveServerSetting({ newSessionApp: r.value })) await loadRepos(false);
@@ -3819,7 +3819,7 @@ const TOUR_STEPS = [
     text: () => {
       const n = sessionCount();
       const yours = n ? ` ${trn(n, 'The one running now is on the page.', 'The {n} running now are on the page.')}` : '';
-      return `${tr('Every Claude Code, Codex and Copilot session on this computer gets a card here, and a ding when it needs you.')}${yours} ${tr(
+      return `${tr('Every Claude Code, Codex, Copilot, OpenCode and Cursor session on this computer gets a card here, and a ding when it needs you.')}${yours} ${tr(
         'This is a quick look around: nothing on the page changes while it runs, and your sessions carry on as usual.',
       )}`;
     },

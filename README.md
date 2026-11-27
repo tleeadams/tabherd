@@ -2,9 +2,9 @@
 
 # Tabherd
 
-**A dashboard for your Claude Code and Codex sessions.** Tabherd lists every [Claude Code](https://code.claude.com) and [Codex](https://github.com/openai/codex) session running on your computer and shows what each one is doing: which ones need you, which are working, and what they last said. It watches the sessions you start anyway, in any terminal, with nothing to set up in either. It runs entirely on your computer and has no dependencies beyond Node.
+**A dashboard for your coding agents.** Tabherd lists every [Claude Code](https://code.claude.com), [Codex](https://github.com/openai/codex), [GitHub Copilot](https://github.com/github/copilot-cli), [OpenCode](https://opencode.ai) and [Cursor CLI](https://cursor.com/cli) session running on your computer and shows what each one is doing: which ones need you, which are working, and what they last said. It watches the sessions you start anyway, in any terminal, with nothing to set up in any of them. It runs entirely on your computer and has no dependencies beyond Node.
 
-Tabherd is an independent project. It isn't made or endorsed by Anthropic or OpenAI. It was called Claude Agents up to version 0.1.2. Say it "Tab Herd" or "tabberd": both are right.
+Tabherd is an independent project. It isn't made or endorsed by Anthropic, OpenAI, GitHub, or the makers of any other app it works with. It was called Claude Agents up to version 0.1.2. Say it "Tab Herd" or "tabberd": both are right.
 
 ## Install
 
@@ -183,7 +183,7 @@ The tabs in the header filter the cards. **All** shows everything. The others ar
 
 Filters are saved in `~/.tabherd/filters.json`, for every browser. The tab you're on is remembered in the browser.
 
-Each card says which app the session is, **Claude** or **Codex**. Once a Codex session is running, a list beside the filters shows only one app's sessions, and once there are [groups](#groups), another shows one group, or the sessions in none. The counts on the filters follow both lists, and both are remembered in the browser.
+Each card says which app the session is: **Claude**, **Codex**, **Copilot**, **OpenCode** or **Cursor**, or another app such as [ComfyUI](#comfyui-and-localai). Once an app other than Claude has something on the dashboard, a list beside the filters shows only one app's sessions, and once there are [groups](#groups), another shows one group, or the sessions in none. The counts on the filters follow both lists, and both are remembered in the browser.
 
 ## Codex
 
@@ -194,7 +194,7 @@ Codex sessions get cards like Claude's, marked **Codex** (Claude's are marked **
 - **Go to window** finds the session's tab by its title, which Codex sets to the session's name. A session Codex hasn't named yet is matched only when it's the one unmatched Codex window, so until then its card has no Go to window.
 - **Catch up** sends the question with `codex queue`, through Codex's service, and brings the window forward if it's known. Nothing is typed into the window, so nothing there can be answered by it. An idle session starts on it at once, a busy one after its current turn.
 - **Stop** interrupts the turn the session is running, then ends the Codex in its window. If the window isn't known, it interrupts the turn and says to close the window yourself.
-- **Starting Codex**: the repo menu and to-dos start Claude or Codex, as Settings → New sessions says. The repo menu has the same choice at its top, and a to-do can name its own. A Codex to-do opens `codex` in its folder. Codex chooses its session's ID itself, so the dashboard links the to-do to the first session that starts in that folder within a minute, and names that session after the to-do.
+- **Starting Codex**: the repo menu and to-dos start Claude, Codex or Copilot, as Settings → New sessions says. The repo menu has the same choice at its top, and a to-do can name its own. A Codex to-do opens `codex` in its folder. Codex chooses its session's ID itself, so the dashboard links the to-do to the first session that starts in that folder within a minute, and names that session after the to-do.
 - **History** lists closed Codex sessions too, and **Resume** opens your terminal in the session's folder running `codex resume <id>`.
 
 With *Skip permission prompts* on, Codex sessions the dashboard opens or resumes run with `--dangerously-bypass-approvals-and-sandbox`. A session Codex runs outside its background service, such as one in an Administrator terminal or started with `--profile` or most `-c` options, isn't shown. When a Codex window closes, its card goes at once if the dashboard knew the window, or within about a minute, when Codex unloads the session, if it didn't.
@@ -285,7 +285,7 @@ The colours are a set of eight, each tuned for light and dark and kept apart fro
 
 With a tracker in Settings → Tickets, pasting a ticket's link or key as a new to-do's title fills it in from the ticket: the ticket's title, its description as the notes if they're empty, and the ticket in *Tickets*, so the session starts linked to it. The line under the title says which ticket it came from, or why it couldn't. Jira Cloud's descriptions come as text, with lists, links and code kept. See [Tickets](#tickets).
 
-**Start** opens Claude in the to-do's folder, in your terminal, running `claude --session-id <new id> --name "<the to-do's title>"`, so the session is named after the to-do in its tab's title and Claude's session list. Once Codex is installed, the to-do's **Start with** chooses Claude or Codex, or leaves it to Settings; for Codex, see [Codex](#codex). A to-do doesn't need a folder: without one, it starts in Settings → To-dos → **Start in**, your repos folder unless you set another, where Claude can make a new project. The card says where it will start.
+**Start** opens Claude in the to-do's folder, in your terminal, running `claude --session-id <new id> --name "<the to-do's title>"`, so the session is named after the to-do in its tab's title and Claude's session list. Once Codex or the Copilot CLI is installed, the to-do's **Start with** chooses Claude, Codex or Copilot, or leaves it to Settings; see [Codex](#codex) and [GitHub Copilot](#github-copilot). A to-do doesn't need a folder: without one, it starts in Settings → To-dos → **Start in**, your repos folder unless you set another, where Claude can make a new project. The card says where it will start.
 
 **Choose folder** picks one first, from where Settings → To-dos says:
 
@@ -302,7 +302,7 @@ When the session closes, the to-do goes too. Its title and notes stay with the s
 
 The gear button in the header opens Settings, one section at a time, picked from the list down its left side. It opens at the section last used.
 
-**New sessions**: once Codex is installed, *Claude* or *Codex* chooses the app the repo menu opens, and to-dos start in unless they name one. *Skip permission prompts* (off by default) makes every session the dashboard opens, from the repo menu, Resume or a to-do, run `claude --dangerously-skip-permissions`, or `codex --dangerously-bypass-approvals-and-sandbox`. They then edit files and run commands without asking first. Only turn it on if you'd run them that way yourself in those folders. *Terminal* chooses which terminal they open in, where there's more than one; see [Platform support](#platform-support).
+**New sessions**: once Codex or the Copilot CLI is installed, *Claude*, *Codex* or *Copilot* chooses the app the repo menu opens, and to-dos start in unless they name one. *Skip permission prompts* (off by default) makes every session the dashboard opens, from the repo menu, Resume or a to-do, run `claude --dangerously-skip-permissions`, `codex --dangerously-bypass-approvals-and-sandbox`, `copilot --allow-all`, `opencode --auto` or `cursor-agent --force`. They then edit files and run commands without asking first. Only turn it on if you'd run them that way yourself in those folders. *Terminal* chooses which terminal they open in, where there's more than one; see [Platform support](#platform-support).
 
 **Appearance** has *Language*, *Theme*, *Card size* and the *Memory and models* card, which can be turned off. **Language**: *Automatic* (the default) follows the browser's languages, and *English* or *Español* sets one. Changing it reloads the page. The Spanish is a first translation, so some of it may read oddly; corrections are welcome. A few of the server's messages, those with details in them, stay English. **Theme**: *System* (the default) follows the system's light or dark mode. *Light* or *Dark* sets one regardless.
 
@@ -378,9 +378,9 @@ When there's a newer version:
 
 The box button in the header saves every open session and closes it, so you can stop for the day, restart the computer or switch to other work, and later pick them all up again:
 
-- **Save and close all** lists the Claude and Codex sessions open in terminals and asks first. Any still working are listed apart, with a choice: wait for them to finish their turn and then close them, or close them now, which loses their current turn. A card waiting to close says *Closes when done*; clicking that keeps it open.
+- **Save and close all** lists the sessions open in terminals, whichever agent runs them, and asks first. Any still working are listed apart, with a choice: wait for them to finish their turn and then close them, or close them now, which loses their current turn. A card waiting to close says *Closes when done*; clicking that keeps it open.
 - Closing a session closes its terminal tab too. On Windows the session ends, then `exit` is typed into the tab's shell, so Windows Terminal closes the tab as it would if you'd typed it. Launchers in between, such as npm's wrappers and mise's or nvm's shims, end with it. On macOS and Linux the shell is hung up, and the terminal closes the tab or pane if its settings say to.
-- **Resume last session** opens each saved session again, one tab each, running `claude --resume <id>` or `codex resume <id>` in its folder, so each conversation carries on. Sessions already open, or whose folder has gone, are skipped.
+- **Resume last session** opens each saved session again, one tab each, running its app's resume command, such as `claude --resume <id>` or `codex resume <id>`, in its folder, so each conversation carries on. Sessions already open, or whose folder has gone, are skipped.
 
 Only the last saved set is kept, in `~/.tabherd/saved-sessions.json`; the next Save and close replaces it. A session never asked anything has no conversation to resume, and one marked complete is done, so they're closed but not saved. Sessions in a VS Code panel, background runs, and other apps' jobs and models are left alone. A Codex session's turn is interrupted before its window closes; one whose window isn't known is saved but stays open.
 
@@ -466,7 +466,7 @@ Start the server from a normal terminal. If it's started from a sandboxed shell,
 
 ## Where the data comes from
 
-All of it is read-only, from files Claude Code and Codex already write, and from Codex's, ComfyUI's and LocalAI's own services:
+All of it is read-only, from files the coding agents already write, and from the apps' own services:
 
 | Source | Used for |
 | --- | --- |
@@ -478,6 +478,9 @@ All of it is read-only, from files Claude Code and Codex already write, and from
 | `~/.codex/sessions/<yyyy>/<mm>/<dd>/rollout-<time>-<session>.jsonl` | A Codex session's prompts, replies, tool calls, model and token usage. |
 | `~/.codex/session_index.jsonl` | Closed Codex sessions' names, for History. |
 | The `codex` processes and their tab titles | Which window each Codex session is in, and its memory use. |
+| `~/.copilot/open-sessions-state.json` | Which Copilot sessions are open, and whether each is working. |
+| `~/.copilot/session-state/<session>/workspace.yaml` and `inuse.<pid>.lock` | A Copilot session's folder, name and client, and the process that has it open. |
+| `~/.copilot/session-state/<session>/events.jsonl` | A Copilot session's prompts, replies, approvals, tool calls, model and output tokens. |
 | OpenCode's background service: `/api/session`, `/api/session/active`, and each shown session's permission requests, questions and messages | Which OpenCode sessions are open, their status, titles, prompts and replies. |
 | The `opencode` processes and their tab titles | Which window each OpenCode session is in, and its memory use. |
 | `~/.cursor/chats/<folder hash>/<chat>/meta.json` | Each Cursor chat's folder and title, and when it began and changed. |

@@ -117,8 +117,8 @@
     </div>
     <div id="list" class="list"></div>
     <div id="empty" class="empty" hidden>
-      <p class="empty-title">No Claude Code or Codex sessions are running.</p>
-      <p data-i18n>Start one with <code>claude</code> or <code>codex</code> in any terminal and it will appear here within a few seconds.</p>
+      <p class="empty-title">No coding agent sessions are running.</p>
+      <p data-i18n>Start one in any terminal with <code>claude</code>, <code>codex</code>, <code>copilot</code>, <code>opencode</code> or <code>cursor-agent</code>, and it will appear here within a few seconds.</p>
     </div>
   </main>
 
@@ -285,7 +285,7 @@
               </div>
               <label class="choice">
                 <input type="checkbox" id="skip-permissions">
-                <span class="choice-text"><b>Skip permission prompts</b><span data-i18n>Sessions the dashboard opens run <code>claude --dangerously-skip-permissions</code>, or <code>codex --dangerously-bypass-approvals-and-sandbox</code>, so they edit files and run commands without asking. Only for folders you trust.</span></span>
+                <span class="choice-text"><b>Skip permission prompts</b><span data-i18n>Sessions the dashboard opens edit files and run commands without asking: <code>claude --dangerously-skip-permissions</code>, <code>codex --dangerously-bypass-approvals-and-sandbox</code>, <code>copilot --allow-all</code>, <code>opencode --auto</code> or <code>cursor-agent --force</code>. Only for folders you trust.</span></span>
               </label>
               <div id="terminal-setting" hidden>
                 <label class="field">

@@ -104,7 +104,7 @@ function install(script) {
         '[Desktop Entry]',
         'Type=Application',
         'Name=Tabherd',
-        'Comment=A dashboard for your Claude Code and Codex sessions',
+        'Comment=A dashboard for your coding agents',
         `Exec=${desktopQuote(script)}`,
         `Icon=${ICON}`,
         'Terminal=false',

@@ -60,8 +60,9 @@ test("other apps' addresses must be web addresses, and LocalAI's key one line", 
   assert.equal(settings.update({ comfyUrl: '', localaiUrl: '', localaiKey: '' }).ok, true);
 });
 
-test('new sessions start in Claude or Codex, nothing else', () => {
+test('new sessions start in Claude, Codex or Copilot, nothing else', () => {
   assert.equal(settings.update({ newSessionApp: 'codex' }).settings.newSessionApp, 'codex');
+  assert.equal(settings.update({ newSessionApp: 'copilot' }).settings.newSessionApp, 'copilot');
   assert.equal(settings.update({ newSessionApp: 'bash' }).ok, false);
   assert.equal(settings.update({ newSessionApp: 'claude' }).settings.newSessionApp, 'claude');
 });
