@@ -37,6 +37,25 @@ test('the rulesets and code owners are well formed', () => {
   assert.match(owners, /^\* @[\w-]+/m, 'every file has an owner');
 });
 
+// Secrets, and npm's trust, are only in the release environment, where each
+// run waits for a maintainer's approval. A job that needs one has to say so.
+test('only jobs in the release environment use secrets or ask for an identity token', () => {
+  const dir = path.join(ROOT, '.github', 'workflows');
+  let checked = 0;
+  for (const file of fs.readdirSync(dir).filter((f) => f.endsWith('.yml'))) {
+    const text = fs.readFileSync(path.join(dir, file), 'utf8').replace(/\r\n/g, '\n');
+    const jobs = text.slice(text.search(/^jobs:$/m)).split(/\n(?= {2}[\w-]+:\n)/).slice(1);
+    for (const job of jobs) {
+      const uses = [...job.matchAll(/secrets\.(\w+)/g)].map((m) => m[1]).filter((name) => name !== 'GITHUB_TOKEN');
+      if (/^ +id-token: write/m.test(job)) uses.push('id-token');
+      if (!uses.length) continue;
+      checked++;
+      assert.match(job, /^ {4}environment: release$/m, `${file}: ${job.match(/[\w-]+/)[0]} uses ${uses.join(', ')}`);
+    }
+  }
+  assert.ok(checked >= 3, 'the Windows and macOS builds and npm publishing are among them');
+});
+
 test('release notes come from the changelog, with either line ending', () => {
   const { releaseNotes } = require('../scripts/build-release');
   const changelog = '# Changelog\n\n## 0.2.0 - 2026-12-01\n\n- New.\n\n## 0.1.0 - 2026-11-19\n\n- First.\n';

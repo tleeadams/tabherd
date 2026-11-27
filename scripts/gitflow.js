@@ -152,19 +152,48 @@ function github() {
   // SECURITY.md asks for reports through this.
   gh(['api', '-X', 'PUT', `repos/${repo}/private-vulnerability-reporting`]);
   console.log('Turned on private vulnerability reporting.');
+  releaseEnvironment(repo, gh);
   checkReviewers(repo, gh);
 }
 
-// GitHub ignores code owners without write access, so their reviews wouldn't
-// count. Teams are left to GitHub to check.
-function checkReviewers(repo, gh) {
-  const owners = fs
+// The jobs that sign and publish a release run in the release environment,
+// and only they get its secrets and npm's trust. Only version tags can use
+// it, and each run waits for a code owner to approve it, so a tag pushed by
+// anything else that can write to the repository, such as a token or an app,
+// gets nothing from it. Code owners can approve their own runs: until there
+// are others, there's no one else to.
+function releaseEnvironment(repo, gh) {
+  const owners = codeOwners();
+  const reviewers = owners.map((user) => ({ type: 'User', id: JSON.parse(gh(['api', `users/${user}`])).id }));
+  const settings = {
+    deployment_branch_policy: { protected_branches: false, custom_branch_policies: true },
+    reviewers,
+    prevent_self_review: false,
+    can_admins_bypass: false,
+  };
+  gh(['api', '-X', 'PUT', `repos/${repo}/environments/release`, '--input', '-'], JSON.stringify(settings));
+  const policies = JSON.parse(gh(['api', `repos/${repo}/environments/release/deployment-branch-policies`])).branch_policies;
+  if (!policies.some((p) => p.type === 'tag' && p.name === 'v*')) {
+    gh(['api', '-X', 'POST', `repos/${repo}/environments/release/deployment-branch-policies`, '-f', 'name=v*', '-f', 'type=tag']);
+  }
+  console.log(`Set up the release environment: version tags only, each run approved by ${owners.join(', ')}.`);
+}
+
+// The users in .github/CODEOWNERS. Teams are left out.
+function codeOwners() {
+  const handles = fs
     .readFileSync(path.join(ROOT, '.github', 'CODEOWNERS'), 'utf8')
     .split('\n')
     .filter((line) => !line.trim().startsWith('#'))
     .flatMap((line) => line.match(/@[\w-]+(?![\w/-])/g) || [])
     .map((handle) => handle.slice(1));
-  for (const user of new Set(owners)) {
+  return [...new Set(handles)];
+}
+
+// GitHub ignores code owners without write access, so their reviews wouldn't
+// count. Teams are left to GitHub to check.
+function checkReviewers(repo, gh) {
+  for (const user of codeOwners()) {
     let permission = 'none';
     try {
       permission = JSON.parse(gh(['api', `repos/${repo}/collaborators/${user}/permission`])).permission;
@@ -176,7 +205,8 @@ function checkReviewers(repo, gh) {
   }
   console.log(
     'Pull requests now need CI to pass and an approving review from someone in .github/CODEOWNERS. As the admin, you can ' +
-      'merge one without waiting for either, with "gh pr merge --merge --admin". The Gitflow check still has to pass.',
+      'merge one without waiting for either, with "gh pr merge --merge --admin". The Gitflow check still has to pass. ' +
+      'A release waits for a code owner to approve its signing and publishing jobs.',
   );
 }
 
