@@ -187,6 +187,20 @@
               </div>
             </fieldset>
             <fieldset>
+              <legend>Status colours</legend>
+              <div class="segmented">
+                <label><input type="radio" name="colors" value="standard">Standard</label>
+                <label><input type="radio" name="colors" value="color-blind">Colour-blind</label>
+              </div>
+              <p class="status-sample" aria-hidden="true">
+                <span class="badge s-busy"><span class="dot"></span>Working</span>
+                <span class="badge s-waiting"><span class="dot"></span>Needs you</span>
+                <span class="badge s-idle"><span class="dot"></span>Idle</span>
+                <span class="badge s-shell"><span class="dot"></span>Shell running</span>
+              </p>
+              <p class="settings-help">Colour-blind shows Working in blue and Needs you in orange, which red-green colour blindness keeps apart, and gives each status a shape of its own: a dot, a triangle, a ring and a square.</p>
+            </fieldset>
+            <fieldset>
               <legend>Card size</legend>
               <label class="choice">
                 <input type="radio" name="card-size" value="fit">

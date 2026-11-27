@@ -390,6 +390,11 @@
   System: 'Sistema',
   Light: 'Claro',
   Dark: 'Oscuro',
+  'Status colours': 'Colores de estado',
+  Standard: 'Estándar',
+  'Colour-blind': 'Daltonismo',
+  'Colour-blind shows Working in blue and Needs you in orange, which red-green colour blindness keeps apart, and gives each status a shape of its own: a dot, a triangle, a ring and a square.':
+    'Daltonismo muestra Trabajando en azul y Te necesita en naranja, que el daltonismo rojo-verde distingue bien, y da a cada estado una forma propia: un punto, un triángulo, un anillo y un cuadrado.',
   'Card size': 'Tamaño de las tarjetas',
   'Fit content': 'Ajustar al contenido',
   Default: 'Predeterminado',
