@@ -248,6 +248,8 @@ The dashboard also shows what ComfyUI and LocalAI are doing, as cards marked **C
 - **Queued**, with its place in the queue.
 - **Finished** jobs leave the dashboard at once. Finishing dings, and the notification list says it finished, with its first output image. A **Failed** job keeps its card, with the error, as needing you, until you **Clear** it.
 
+ComfyUI can stop answering for a minute or more, as while it loads a model. Until it answers again, its cards stay as they were, while Comfy Desktop says it's running, or for two minutes for a ComfyUI run some other way.
+
 A job is named after its saved workflow; one queued from an unsaved workflow is called *Unsaved workflow*. **Go to window** brings up Comfy Desktop. **Stop** ends the running job and **Cancel** takes a queued one out of the queue, each after a second click. The output images come through the dashboard's own server, which only passes on those of jobs it has reported, for a day.
 
 The models ComfyUI has loaded are listed on the Memory and models card, each with what it is (diffusion model, text encoder, VAE, LoRA and so on), the workflow that loaded it, and the size of its file, which is about what it takes in memory. ComfyUI doesn't list them itself. They're the model files named in the latest job's workflow, which ComfyUI keeps in memory after the job for the next one. **Unload** frees them, all at once, as ComfyUI only frees them all together. They're listed again once another job runs. If ComfyUI frees them itself, to make room or from its own menu, the list doesn't know until the next job.

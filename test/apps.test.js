@@ -82,6 +82,25 @@ test("each ComfyUI Comfy Desktop runs is found from its records, and a crashed o
   );
 });
 
+test("a ComfyUI that stops answering keeps its cards while it's running, and failed jobs aren't crowded out", () => {
+  const desktop = { id: 'inst-1', name: 'Studio', url: 'http://127.0.0.1:8189', desktopPid: 4321, installPath: '/comfy' };
+  const other = { id: 'comfyui', name: 'ComfyUI', url: 'http://127.0.0.1:8188', desktopPid: null, installPath: null };
+  const last = { inst: { ...desktop, name: 'Old name' }, active: [{ id: 'r', status: 'in_progress' }], recent: [], at: 1000 };
+  assert.deepEqual(comfy.keptThroughStall(last, desktop, 1000 + 60 * 60 * 1000), { ...last, inst: desktop }, 'while Comfy Desktop lists it, however long');
+  const lastOther = { ...last, inst: other };
+  assert.ok(comfy.keptThroughStall(lastOther, other, 1000 + comfy.STALL_KEPT_MS - 1), 'without Comfy Desktop, for a while');
+  assert.equal(comfy.keptThroughStall(lastOther, other, 1000 + comfy.STALL_KEPT_MS + 1), null, 'and no longer');
+  assert.equal(comfy.keptThroughStall(undefined, desktop, 1000), null, 'nothing to keep before it first answers');
+
+  const recent = [{ id: 'failed-new', status: 'failed' }, ...Array.from({ length: 9 }, (_, i) => ({ id: `done-${i}`, status: 'completed' }))];
+  const merged = comfy.withFailed(recent, [{ id: 'failed-new', status: 'failed' }, { id: 'failed-old', status: 'failed' }]);
+  assert.deepEqual(
+    merged.map((j) => j.id),
+    [...recent.map((j) => j.id), 'failed-old'],
+    'a failed job older than the last ten is added, and each job is there once',
+  );
+});
+
 test("ComfyUI's loaded models are the ones its latest job's loaders name", () => {
   const prompt = {
     1: { class_type: 'UNETLoader', inputs: { unet_name: 'flux\\dev.safetensors', weight_dtype: 'default' } },
