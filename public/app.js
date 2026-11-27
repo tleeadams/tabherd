@@ -3010,6 +3010,13 @@ radioSetting('theme', ['system', 'light', 'dark'], (theme) => {
   else document.documentElement.dataset.theme = theme;
 });
 
+// Colour-blind swaps the status colours for ones red-green colour blindness
+// keeps apart, and gives each status a shape (style.css).
+radioSetting('colors', ['standard', 'color-blind'], (colors) => {
+  if (colors === 'standard') delete document.documentElement.dataset.colors;
+  else document.documentElement.dataset.colors = colors;
+});
+
 // The page's language, from those there's a table for. Automatic follows the
 // browser's. Changing it reloads the page, which is translated as it loads,
 // and opens Settings again.

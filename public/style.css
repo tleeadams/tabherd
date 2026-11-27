@@ -33,6 +33,20 @@
 }
 :root[data-theme="light"] { color-scheme: light; }
 :root[data-theme="dark"] { color-scheme: dark; }
+/* Status colours for colour blindness, chosen under Status colours in
+   Settings. Working's green and Idle's grey look alike with red-green colour
+   blindness, and Needs you's amber is close to both. Blue and orange stay
+   apart for every common kind, and each status gets a shape too (below). */
+:root[data-colors="color-blind"] {
+  --busy: light-dark(#0b63b5, #5aaef0);
+  --busy-bg: light-dark(#e2eefa, #132f4a);
+  --wait: light-dark(#b84a00, #f39a45);
+  --wait-bg: light-dark(#fde9da, #3f2611);
+  --idle: light-dark(#73767b, #9a9da2);
+  --idle-bg: light-dark(#eceef0, #2a2b2d);
+  --shell: light-dark(#a4407c, #e58fc2);
+  --shell-bg: light-dark(#f7e4ef, #3b1f31);
+}
 
 * { box-sizing: border-box; }
 
@@ -326,6 +340,19 @@ main { padding: 20px 24px 48px; }
 .badge.s-shell { color: var(--shell); background: var(--shell-bg); }
 .badge.s-waiting { color: var(--wait); background: var(--wait-bg); }
 .badge.s-busy .dot, .badge.s-waiting .dot { animation: pulse 1.6s ease-in-out infinite; }
+/* With colour-blind status colours, a shape for each status as well: a dot
+   for Working, a triangle for Needs you, a ring for Idle and a square for
+   Shell running. An idle card's edge is dashed. */
+:root[data-colors="color-blind"] :is(.badge.s-waiting, .note.k-needs) .dot {
+  width: 9px;
+  height: 8px;
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+:root[data-colors="color-blind"] .badge:is(.s-idle, .s-unknown) .dot { background: none; box-shadow: inset 0 0 0 1.5px currentColor; }
+:root[data-colors="color-blind"] .badge.s-shell .dot { border-radius: 1px; }
+:root[data-colors="color-blind"] .card:is(.s-idle, .s-unknown) { border-left-style: dashed; }
+.status-sample { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 8px; }
 .since { color: var(--muted); font-variant-numeric: tabular-nums; }
 
 @keyframes pulse { 50% { opacity: 0.3; } }
