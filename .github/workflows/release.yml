@@ -5,6 +5,8 @@ name: Release
 # archives for both) and creates a draft GitHub release with them. Check the
 # draft, then publish it.
 # A tag with a hyphen (v0.2.0-beta.1) makes a prerelease.
+# The jobs that use secrets run in the release environment, so they wait for
+# a maintainer's approval (see CONTRIBUTING.md).
 on:
   push:
     tags: ['v*']
@@ -15,7 +17,9 @@ permissions:
 jobs:
   build:
     # The Windows release: the desktop app in app/src-tauri, as an installer
-    # and a zip, built on Windows with Rust and Tauri.
+    # and a zip, built on Windows with Rust and Tauri. It's in the release
+    # environment for the SignPath token.
+    environment: release
     strategy:
       matrix:
         os: [windows-latest]
@@ -51,8 +55,9 @@ jobs:
       - run: npm test
       - run: node scripts/build-release.js --stage
       # The app is signed through SignPath Foundation once the
-      # SIGNPATH_ORGANIZATION_ID variable and SIGNPATH_API_TOKEN secret are
-      # set (see CONTRIBUTING.md); until then it ships unsigned. Only the app
+      # SIGNPATH_ORGANIZATION_ID variable, and the SIGNPATH_API_TOKEN secret in
+      # the release environment, are set (see CONTRIBUTING.md); until then it
+      # ships unsigned. Only the app
       # is sent: the bundled node.exe has the Node.js project's own signature.
       # Each request waits for an approver on signpath.io.
       - name: Upload the app for signing

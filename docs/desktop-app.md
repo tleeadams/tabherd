@@ -135,7 +135,7 @@ Each release tag signs and notarizes the macOS app with no manual steps, once th
 
 **Secrets**
 
-Put these in a `release` environment that only `v*` tags can use. The names are the ones Tauri's bundler reads.
+Put these in the `release` environment, which only `v*` tags can use and which waits for a maintainer's approval (see CONTRIBUTING.md). The names are the ones Tauri's bundler reads.
 
 | Secret | Value |
 |---|---|

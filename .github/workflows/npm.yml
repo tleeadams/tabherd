@@ -16,8 +16,8 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    # Only version tags can use the release environment, and npm trusts this
-    # workflow only there.
+    # Only version tags can use the release environment, and only once a
+    # maintainer approves the run. npm trusts this workflow only there.
     environment: release
     permissions:
       contents: read

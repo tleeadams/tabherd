@@ -95,12 +95,12 @@ The page is written in English and shown in the language chosen in Settings. Eac
 1. Start the release from `develop`: `git switch -c release/<version> develop`. Set the version in `package.json`, `app/src-tauri/Cargo.toml` and the `tabherd` entry in `app/src-tauri/Cargo.lock` (a test checks they match), and add a `## <version>` section to `CHANGELOG.md`; the release notes come from it. Commit, push, and open a pull request into `main`.
 2. Merge it once the checks pass and it's been reviewed.
 3. Tag the merge on `main`: `git switch main && git pull && git tag v<version> && git push origin v<version>`.
-4. The Release workflow tests, builds the downloads and makes a draft release. Once signing is set up, it waits up to an hour each for two signing requests to be approved on [signpath.io](https://app.signpath.io): the Windows app's, then its installer's. An approver approves them there. Check the draft and publish it.
+4. The Release workflow tests, builds the downloads and makes a draft release. Its Windows and macOS builds first wait for a code owner's approval in the `release` environment: open the run from the Actions tab, choose **Review deployments**, tick `release`, and **Approve and deploy**. Approve only a run for a tag you pushed. Once signing is set up, it waits up to an hour each for two signing requests to be approved on [signpath.io](https://app.signpath.io): the Windows app's, then its installer's. An approver approves them there. Check the draft and publish it.
 
    Publishing tidies up the prereleases: each upcoming version keeps only its newest on the releases page. The Prune prereleases workflow turns the ones it supersedes back into drafts, which keeps their files and notes, so publishing one again brings it back. A newer prerelease of a version hides its older ones (1.2.3-beta.1 hides 1.2.3-alpha.3), a release hides its version's prereleases and any older version's, and a prerelease of another version stays (1.2.4-alpha.1 doesn't hide 1.2.3-beta.1). Releases are never hidden. Run the workflow from the Actions tab to see what it would hide, or `node scripts/prune-prereleases.js --dry-run`.
 5. Open a pull request from `main` into `develop`, so `develop` has the release's changes.
 6. Package managers:
-   - **npm** gets the version when the release is published: the npm workflow checks the package (`npm run check-package`) and publishes it, a release under `latest` and a prerelease under `next`. A version already on npm is skipped, since npm never takes one twice. `next` keeps pointing at the last prerelease until there's a newer one.
+   - **npm** gets the version when the release is published, once its run is approved in the same way: the npm workflow checks the package (`npm run check-package`) and publishes it, a release under `latest` and a prerelease under `next`. A version already on npm is skipped, since npm never takes one twice. `next` keeps pointing at the last prerelease until there's a newer one.
    - **Homebrew** ([tleeadams/homebrew-tap](https://github.com/tleeadams/homebrew-tap)) picks the release up by itself within a day: its Update workflow installs and tests the formula at the new release on macOS and Linux, then commits it. Run that workflow from its Actions tab to do it now.
    - **winget**: submit the new version to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) as a pull request, with the three manifest files for `tleeadams.Tabherd` updated to the new version, URL and SHA-256 (`wingetcreate update tleeadams.Tabherd -v <version> -u <installer url> --submit` does it). Microsoft validates and merges it, typically within a few days. From the first release with the desktop app, the manifest should point at the installer (`-setup.exe`): installer type `nullsoft`, scope `user`, and `UpgradeBehavior: uninstallPrevious`, so that a copy installed from the portable zip is replaced rather than left beside it. The installer adds Tabherd to the Start menu, which a portable install doesn't. The zip still works as a portable install too (`zip`, nested `portable`, `tabherd-windows-x64Tabherd.exe`): the app follows winget's link back to its own folder to find Node and the server.
 
@@ -119,18 +119,18 @@ git switch main && git pull && git tag v<version> && git push origin v<version>
 gh pr create --base develop --head main --title "Bring v<version> into develop"
 ```
 
-The tag starts the Release workflow, as for a release. The last pull request brings the fix into `develop`.
+The tag starts the Release workflow, as for a release, and it waits for approval in the same way. The last pull request brings the fix into `develop`.
 
 ## Setting up the GitHub repository
 
 For maintainers, once, after creating the repository on GitHub:
 
 1. Push `main` and `develop`. The rulesets would stop pushes that create them, so they come first.
-2. With the [GitHub CLI](https://cli.github.com) signed in as an admin of the repository, run `npm run setup-github`. It applies the rulesets in `.github/rulesets`, makes `develop` the default branch, allows only merge commits, deletes branches once merged, and turns on private vulnerability reporting. It also names anyone in `.github/CODEOWNERS` who doesn't have write access yet. Running it again updates the rulesets.
+2. With the [GitHub CLI](https://cli.github.com) signed in as an admin of the repository, run `npm run setup-github`. It applies the rulesets in `.github/rulesets`, makes `develop` the default branch, allows only merge commits, deletes branches once merged, and turns on private vulnerability reporting. It makes the `release` environment, too: the jobs that sign and publish a release run in it, and only they get its secrets and npm's trust. Only version tags can use it, and each run waits for someone in `.github/CODEOWNERS` to approve it, so a tag pushed by anything else that can write to the repository, such as a token or an app, gets nothing from it. It also names anyone in `.github/CODEOWNERS` who doesn't have write access yet. Running it again updates the rulesets and the environment.
 
 ### npm
 
-The npm workflow (`.github/workflows/npm.yml`) publishes with npm's [trusted publishing](https://docs.npmjs.com/trusted-publishers): npm trusts the workflow itself, so there's no npm token in GitHub. It runs in the `release` environment, which only version tags can use (see [Apple signing](#apple-signing), step 4, for making it). To set it up, once, on [npmjs.com](https://www.npmjs.com/package/tabherd) as the package's owner:
+The npm workflow (`.github/workflows/npm.yml`) publishes with npm's [trusted publishing](https://docs.npmjs.com/trusted-publishers): npm trusts the workflow itself, so there's no npm token in GitHub. It runs in the `release` environment, which only version tags can use, and only once a code owner approves the run (see [Setting up the GitHub repository](#setting-up-the-github-repository)). To set it up, once, on [npmjs.com](https://www.npmjs.com/package/tabherd) as the package's owner:
 
 1. In the package's **Settings**, under **Trusted Publisher**, choose **GitHub Actions** and enter the user `tleeadams`, the repository `tabherd`, the workflow `npm.yml` and the environment `release`.
 2. Under **Publishing access**, choose *Require two-factor authentication and disallow tokens*. The workflow can still publish; a token can't.
@@ -144,7 +144,7 @@ The Windows app and its installer are signed by [SignPath Foundation](https://si
 1. Apply at [signpath.org/apply](https://signpath.org/apply). Everyone on the team, on GitHub and on SignPath, needs two-factor sign-in.
 2. Once approved, on [app.signpath.io](https://app.signpath.io): link the project to the predefined GitHub.com trusted build system, and paste `.signpath/artifact-configuration.xml` into its default artifact configuration, for the app (`Tabherd.exe`). Add `.signpath/installer-configuration.xml` as a second artifact configuration with the slug `installer`. Releases are built from version tags on `main`, so if the signing policy limits what can be signed by branch, allow the `v*` tags.
 3. Make an API token for a user who can submit signing requests to the release signing policy.
-4. In the repository's settings, under **Secrets and variables → Actions**, add the token as the secret `SIGNPATH_API_TOKEN` and the organization's ID as the variable `SIGNPATH_ORGANIZATION_ID`. If the project, signing policy or installer configuration aren't called `tabherd`, `release-signing` and `installer`, add `SIGNPATH_PROJECT_SLUG`, `SIGNPATH_POLICY_SLUG` or `SIGNPATH_INSTALLER_CONFIGURATION_SLUG` too.
+4. Add the token as a secret in the `release` environment, `gh secret set SIGNPATH_API_TOKEN --env release`, and the organization's ID as the variable `SIGNPATH_ORGANIZATION_ID`: `gh variable set SIGNPATH_ORGANIZATION_ID --body <id>`. If the project, signing policy or installer configuration aren't called `tabherd`, `release-signing` and `installer`, add `SIGNPATH_PROJECT_SLUG`, `SIGNPATH_POLICY_SLUG` or `SIGNPATH_INSTALLER_CONFIGURATION_SLUG` too.
 
 The variable turns signing on. The app is signed first, and the installer is then built around the signed app and signed in a second request. Packaging is told not to touch the app (`--no-binary-patching`), which would break its signature. The workflow checks each signature, and fails rather than release a file that isn't validly signed.
 
@@ -155,11 +155,9 @@ The macOS desktop app is signed with a Developer ID and notarized by Apple in th
 1. Join the [Apple Developer Program](https://developer.apple.com/programs/). Only the account holder can make the certificate.
 2. Make a **Developer ID Application** certificate: on a Mac, in Xcode, **Settings → Accounts → Manage Certificates → + → Developer ID Application**. Then, in Keychain Access, under **My Certificates**, export it with its private key as a `.p12`, with a password.
 3. Make an API key for notarizing: in [App Store Connect](https://appstoreconnect.apple.com), **Users and Access → Integrations → App Store Connect API → Team Keys**, add a key with the Developer role. Download its `.p8` (Apple only lets you do that once), and note its key ID and the issuer ID above the list.
-4. Make a `release` environment that only version tags can use, and put the secrets in it:
+4. Put the secrets in the `release` environment, which `npm run setup-github` makes (see [Setting up the GitHub repository](#setting-up-the-github-repository)):
 
    ```
-   gh api -X PUT repos/tleeadams/tabherd/environments/release -F "deployment_branch_policy[protected_branches]=false" -F "deployment_branch_policy[custom_branch_policies]=true"
-   gh api -X POST repos/tleeadams/tabherd/environments/release/deployment-branch-policies -f name='v*' -f type=tag
    base64 -i DeveloperID.p12 | gh secret set APPLE_CERTIFICATE --env release
    gh secret set APPLE_CERTIFICATE_PASSWORD --env release
    gh secret set APPLE_API_KEY --env release              # the key ID
