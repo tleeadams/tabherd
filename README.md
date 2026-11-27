@@ -169,6 +169,7 @@ The first time a browser opens the dashboard, a short tour points out each part 
 
 - **Status**: *Needs you* (blocked on a prompt or dialog), *Working*, *Shell running* (at the prompt while a background shell runs) or *Idle*, plus how long it has been in that state.
 - **Activity**: the tools running now and for how long, the latest message or recap, and the last prompt. Click a message to expand it.
+- **Time split**: how long the session has spent working, needing you and idle, such as *Working 1h 12m · Needs you 4m · Idle 38m*. Working time comes from the turn times Claude logs, less the time Tabherd saw it needing you; before Tabherd was running, a wait for you counts as working. Every other card's split is added up from the status changes Tabherd sees, and is saved in `~/.tabherd/status-times.json`, so a restart keeps it. ComfyUI jobs show their time queued.
 - **Model and tokens**: the model, how full the context window is, output tokens and number of prompts.
 - **Subagents**: running subagents with their current step, then recently finished ones.
 - **Actions**: go to the session's window, catch up, open its folder, copy a `claude --resume` command, or stop the session. Clicking a session's name also goes to its window.
