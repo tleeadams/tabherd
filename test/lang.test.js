@@ -50,21 +50,33 @@ function pageKeys(html) {
 // Names, which stay as they are in every language.
 const NAMES = new Set(['Tabherd', 'Claude', 'Codex', 'Copilot', 'OpenCode', 'Cursor', 'Antigravity', 'Claude (VS Code)', 'auto']);
 
+// The texts the dashboard and the Config Assistant show.
+const PAGES = () => [
+  ...scriptKeys(read('public', 'app.js')),
+  ...pageKeys(read('public', 'index.html')),
+  ...scriptKeys(read('public', 'assistant.js')),
+  ...pageKeys(read('public', 'assistant.html')),
+];
+
 const placeholders = (s) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 const tags = (s) => [...s.matchAll(/<[^>]+>/g)].map((m) => m[0]).sort();
 
 test('every text the page shows has its Spanish', () => {
   const es = table('es');
-  const used = [...scriptKeys(read('public', 'app.js')), ...pageKeys(read('public', 'index.html'))];
+  const used = PAGES();
   const missing = used.filter((k) => !NAMES.has(k) && !(k in es));
   assert.deepEqual(missing, [], 'add these to public/lang/es.js');
 });
 
 test('every Spanish text is one the page or the server still uses', () => {
   const es = table('es');
-  const used = new Set([...scriptKeys(read('public', 'app.js')), ...pageKeys(read('public', 'index.html'))]);
+  const used = new Set(PAGES());
   // What the server sends, which the page looks up as it shows it.
-  const server = [read('server.js'), ...fs.readdirSync(path.join(ROOT, 'lib')).filter((f) => f.endsWith('.js')).map((f) => read('lib', f))].join('\n');
+  const server = [
+    read('server.js'),
+    ...fs.readdirSync(path.join(ROOT, 'lib')).filter((f) => f.endsWith('.js')).map((f) => read('lib', f)),
+    ...fs.readdirSync(path.join(ROOT, 'lib', 'assistant')).map((f) => read('lib', 'assistant', f)),
+  ].join('\n');
   const said = (k) => [`'${k}'`, `"${k}"`].some((q) => server.includes(q));
   const stale = Object.keys(es).filter((k) => !used.has(k) && !said(k));
   assert.deepEqual(stale, [], 'no longer used: take these out of public/lang/es.js');

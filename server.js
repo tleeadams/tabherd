@@ -22,6 +22,7 @@ const opencode = require('./lib/opencode');
 const cursor = require('./lib/cursor');
 const antigravity = require('./lib/antigravity');
 const vscode = require('./lib/vscode');
+const assistant = require('./lib/assistant');
 const comfy = require('./lib/comfy');
 const localai = require('./lib/localai');
 const ollama = require('./lib/ollama');
@@ -97,6 +98,9 @@ const STATIC = {
   '/': ['index.html', 'text/html; charset=utf-8'],
   '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
   '/style.css': ['style.css', 'text/css; charset=utf-8'],
+  // The Config Assistant's page.
+  '/assistant': ['assistant.html', 'text/html; charset=utf-8'],
+  '/assistant.js': ['assistant.js', 'text/javascript; charset=utf-8'],
   // Each language's words, other than English.
   '/lang/es.js': ['lang/es.js', 'text/javascript; charset=utf-8'],
   // The launchers check for a running server by asking for this one.
@@ -667,6 +671,17 @@ const server = http.createServer(async (req, res) => {
     }
 
     // Check now: asks GitHub at once, whatever Settings says, as someone asked.
+    // The Config Assistant: what it can set up here, and its Apply and Undo.
+    if (req.method === 'GET' && url.pathname === '/api/assistant') return send(res, 200, { tasks: assistant.list() });
+    if (url.pathname === '/api/assistant/run') {
+      if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
+      if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
+      const body = await readJson(req);
+      if (!['apply', 'undo'].includes(body.action)) return send(res, 400, { ok: false, error: 'Say apply or undo.' });
+      const result = await assistant.run(String(body.task || ''), String(body.key || ''), body.action);
+      return send(res, result.ok ? 200 : 500, { ...result, tasks: assistant.list() });
+    }
+
     if (url.pathname === '/api/updates/check') {
       if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
       if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
@@ -831,7 +846,7 @@ const server = http.createServer(async (req, res) => {
     const file = req.method === 'GET' && STATIC[url.pathname];
     if (file) {
       let body = fs.readFileSync(path.join(PUBLIC_DIR, file[0]));
-      if (file[0] === 'index.html') body = body.toString('utf8').replace('%%TOKEN%%', TOKEN);
+      if (file[0].endsWith('.html')) body = body.toString('utf8').replace('%%TOKEN%%', TOKEN);
       return send(res, 200, body, file[1]);
     }
     send(res, 404, { error: 'Not found' });
@@ -850,6 +865,9 @@ async function isDashboard(url) {
   }
 }
 
+// `tabherd setup` opens the Config Assistant rather than the dashboard.
+const SETUP = process.argv.includes('setup');
+
 async function main() {
   if (process.argv.includes('--once')) {
     const snap = await snapshot();
@@ -866,7 +884,7 @@ async function main() {
       // With --open, a dashboard server that's already running is opened
       // instead, so the `tabherd` command works either way.
       if (process.argv.includes('--open') && (await isDashboard(url))) {
-        openDashboard(url);
+        openDashboard(SETUP ? `${url}/assistant` : url);
         console.log(`Tabherd is already running: ${url}`);
         process.exit(0);
       }
@@ -877,7 +895,7 @@ async function main() {
   });
   server.listen(PORT, HOST, () => {
     console.log(`Tabherd dashboard: ${url}  (Ctrl+C to stop)`);
-    if (process.argv.includes('--open')) openDashboard(url);
+    if (process.argv.includes('--open')) openDashboard(SETUP ? `${url}/assistant` : url);
     // Fills in sessions that closed while the server wasn't running. After the
     // first snapshot, so sessions that are still running aren't read.
     currentSnapshot()

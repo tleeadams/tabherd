@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="agents-token" content="%%TOKEN%%">
+  <title>Tabherd Config Assistant</title>
+  <link rel="icon" href="/icons/tabherd-32.png" type="image/png" sizes="32x32">
+  <link rel="icon" href="/icons/tabherd-64.png" type="image/png" sizes="64x64">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    .assistant { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+    .assistant-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+    .assistant-head h1 { font-size: 20px; margin: 0; }
+    .assistant-head a { margin-left: auto; color: var(--accent); text-decoration: none; }
+    .assistant-intro { color: var(--muted); margin: 0 0 24px; }
+    .task { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: var(--shadow); }
+    .task h2 { font-size: 16px; margin: 0 0 4px; }
+    .task-why { color: var(--muted); margin: 0 0 12px; }
+    .item { border-top: 1px solid var(--border); padding: 12px 0 0; margin-top: 12px; }
+    .item-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .item-name { font-weight: 600; }
+    .item-path { color: var(--faint); font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
+    .item-buttons { margin-left: auto; display: flex; gap: 8px; }
+    .state { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+    .state-done { color: var(--busy); background: var(--busy-bg); }
+    .state-needed { color: var(--wait); background: var(--wait-bg); }
+    .state-problem { color: var(--danger); background: var(--wait-bg); }
+    .steps { margin: 10px 0 0; padding-left: 22px; }
+    .steps li { margin: 3px 0; }
+    .steps li.done { color: var(--faint); text-decoration: line-through; }
+    .item-note { margin: 8px 0 0; }
+    .item-note.error, .item-problem { color: var(--danger); }
+    .empty { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <main class="assistant">
+    <div class="assistant-head">
+      <img src="/icons/tabherd-64.png" alt="" width="28" height="28">
+      <h1>Config Assistant</h1>
+      <a href="/">Back to the dashboard</a>
+    </div>
+    <p class="assistant-intro">Setup for other apps that Tabherd works with. Nothing changes until you choose Apply, and Undo puts things back.</p>
+    <div id="tasks"><p class="empty">Looking at this computer…</p></div>
+  </main>
+  <script src="/lang/es.js"></script>
+  <script src="/assistant.js"></script>
+</body>
+</html>

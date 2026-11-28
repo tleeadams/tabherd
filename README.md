@@ -355,6 +355,12 @@ The gear button in the header opens Settings, one section at a time, picked from
 
 Appearance, Notifications and Sections by group are saved in the browser, so each browser profile remembers its own choice. The rest are saved by the server, in `~/.tabherd/settings.json`, `~/.tabherd/filters.json` and `~/.tabherd/groups.json`, so every browser shares them.
 
+## Config Assistant
+
+Setup that changes other apps lives on a page of its own, the Config Assistant, apart from the dashboard: open it from Settings → Claude accounts, at `/assistant`, or with `tabherd setup`. It lists the tasks that apply to this computer. Each shows what it would change before anything changes; **Apply** does it, and **Undo** puts it back. What Undo needs is kept in `~/.tabherd/assistant.json`.
+
+- **A VS Code profile for each Claude account** (with VS Code, the Claude Code extension, and an account other than the default watched): makes the profile "Claude: <account>" (a VS Code window opens in it, which you can close), installs the Claude Code extension in it, sets `CLAUDE_CONFIG_DIR` in its `claudeCode.environmentVariables`, and names it in Settings, so Claude (VS Code) opens folders there for that account. A profile's settings with comments in them are left alone. Undo puts its settings and Settings' choice back; VS Code can't remove a profile from its command line, so remove one you don't want in VS Code (Manage → Profiles).
+
 ## Catch up
 
 **Catch up** goes to the session's window and asks: *"Catch me up: where do things stand? Briefly cover what's done, what's in progress, and anything you need from me."* Set `CATCH_UP_PROMPT` to change the wording. The server holds the prompt, so the API can't be used to type anything else into an agent.
