@@ -119,6 +119,14 @@ const APP_HINTS = {
   llamacpp: tr("From llama.cpp's server"),
 };
 const appTag = (x) => el('span', { class: `app app-${x.app || 'claude'}`, title: APP_HINTS[x.app] || APP_HINTS.claude }, APPS[x.app] || APPS.claude);
+// Which Claude account a Claude session is in, by its Claude Code folder's
+// name, once more than one folder is watched.
+function accountTag(x) {
+  const accounts = snap?.claudeAccounts || [];
+  if ((x.app || 'claude') !== 'claude' || !x.claudeDir || accounts.length < 2) return null;
+  const label = accounts.find((c) => c.dir === x.claudeDir)?.label || baseName(x.claudeDir);
+  return el('span', { class: 'app account', title: tr('Claude Code folder: {folder}', { folder: x.claudeDir }) }, label);
+}
 // The colours a group can have, as the server knows them. Each is set for
 // light and dark in the stylesheet, as .g-<name>.
 const GROUP_COLORS = {
@@ -1149,6 +1157,7 @@ function card(a) {
       el('span', { class: 'spacer' }),
       groupChip(a, a.cwd),
       appTag(a),
+      accountTag(a),
       el('span', { class: 'proc', title: tr('Session {id}\nStarted {time}', { id: a.id, time: new Date(a.startedAt).toLocaleString(lang) }), text: proc.join(' · ') }),
     ),
     el(
@@ -1703,8 +1712,11 @@ function toggleSection(key) {
 
 // The app and group chosen in the header narrow everything, the filters'
 // counts included. To-dos start Claude, so they count as Claude's.
+// A Claude account narrows it to that account's Claude sessions.
 const inView = (x) =>
-  (appFilter === 'all' || (x.app || 'claude') === appFilter) && (groupFilter === 'all' || (groupFilter === 'none' ? !x.group : x.group === groupFilter));
+  (appFilter === 'all' || (x.app || 'claude') === appFilter) &&
+  (accountFilter === 'all' || (x.app === 'claude' && x.claudeDir === accountFilter)) &&
+  (groupFilter === 'all' || (groupFilter === 'none' ? !x.group : x.group === groupFilter));
 
 function render() {
   if (!snap) return;
@@ -1781,9 +1793,11 @@ function render() {
 // there are groups. Kept in this browser.
 const VIEW_KEY = 'tabherd:view';
 let appFilter = 'all';
+let accountFilter = 'all';
 let groupFilter = 'all';
 try {
   const saved = JSON.parse(localStorage.getItem(VIEW_KEY) || '{}');
+  if (typeof saved.account === 'string') accountFilter = saved.account;
   if (['all', ...Object.keys(APPS)].includes(saved.app)) appFilter = saved.app;
   if (typeof saved.group === 'string') groupFilter = saved.group;
   if (typeof saved.filter === 'string') filter = saved.filter;
@@ -1791,7 +1805,7 @@ try {
 
 function saveView() {
   try {
-    localStorage.setItem(VIEW_KEY, JSON.stringify({ app: appFilter, group: groupFilter, filter }));
+    localStorage.setItem(VIEW_KEY, JSON.stringify({ app: appFilter, account: accountFilter, group: groupFilter, filter }));
   } catch {}
 }
 
@@ -1808,6 +1822,17 @@ function renderViewFilters() {
     app.dataset.signature = JSON.stringify(appOptions);
   }
   app.value = appFilter;
+  // The Claude accounts, once more than one Claude Code folder is watched.
+  const accounts = snap?.claudeAccounts || [];
+  if (accountFilter !== 'all' && !accounts.some((c) => c.dir === accountFilter)) accountFilter = 'all';
+  const account = $('account-filter');
+  account.hidden = accounts.length < 2;
+  const accountOptions = [['all', tr('All accounts')], ...accounts.map((c) => [c.dir, c.label])];
+  if (account.dataset.signature !== JSON.stringify(accountOptions)) {
+    account.replaceChildren(...accountOptions.map(([value, text]) => el('option', { value, text })));
+    account.dataset.signature = JSON.stringify(accountOptions);
+  }
+  account.value = accountFilter;
   const select = $('group-filter');
   select.hidden = !groups.length && groupFilter === 'all';
   const options = [['all', tr('All groups')], ...groups.map((g) => [g.id, g.name]), ['none', tr('No group')]];
@@ -1823,6 +1848,11 @@ function renderViewFilters() {
 
 $('app-filter').addEventListener('change', (e) => {
   appFilter = e.currentTarget.value;
+  saveView();
+  render();
+});
+$('account-filter').addEventListener('change', (e) => {
+  accountFilter = e.currentTarget.value;
   saveView();
   render();
 });
@@ -2887,6 +2917,7 @@ function pastItem(s) {
       s.completedAt ? el('span', { class: 'tag complete', title: tr('Marked complete: {when}', { when: new Date(s.completedAt).toLocaleString(lang) }), text: `✓ ${tr('Completed')}` }) : null,
       groupTag(s),
       appTag(s),
+      accountTag(s),
       since(s.closedAt, true),
     ),
     subtitle ? el('p', { class: 'past-title', text: subtitle, title: subtitle }) : null,
@@ -3367,7 +3398,73 @@ function renderServerSettings() {
   if (repoData) input.placeholder = shortPath(repoData.root);
   if (document.activeElement !== input) input.value = shortPath(serverSettings?.todoStartFolder || '');
   renderTerminalChoice();
+  renderClaudeAccounts();
 }
+
+// Settings → Claude accounts: the default folder, the other ~/.claude-*
+// folders to tick, any others added by path, and which new sessions use.
+function renderClaudeAccounts() {
+  const s = serverSettings;
+  if (!s) return;
+  const same = (a, b) => (snap?.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b);
+  const chosen = s.claudeFolders || [];
+  const isChosen = (p) => chosen.some((c) => same(c, p));
+  $('claude-default-name').textContent = baseName(s.claudeDefault || '.claude');
+  $('claude-default-path').textContent = shortPath(s.claudeDefault || '');
+  const found = s.claudeFound || [];
+  $('claude-found').replaceChildren(
+    ...found.map((p) =>
+      el(
+        'label',
+        { class: 'choice' },
+        el('input', {
+          type: 'checkbox',
+          checked: isChosen(p),
+          onchange: (e) => saveServerSetting({ claudeFolders: e.currentTarget.checked ? [...chosen, p] : chosen.filter((c) => !same(c, p)) }).then(() => refresh()),
+        }),
+        el('span', { class: 'choice-text' }, el('b', { text: baseName(p) }), el('span', { text: shortPath(p) })),
+      ),
+    ),
+  );
+  const extra = chosen.filter((p) => !found.some((f) => same(f, p)));
+  $('claude-extra-field').hidden = !extra.length;
+  $('claude-extra').replaceChildren(
+    ...extra.map((p) =>
+      el(
+        'li',
+        {},
+        el('span', { class: 'excluded-path', text: shortPath(p), title: p }),
+        el(
+          'button',
+          {
+            type: 'button',
+            class: 'icon-btn',
+            title: tr('Stop watching it'),
+            'aria-label': tr('Stop watching {folder}', { folder: shortPath(p) }),
+            onclick: () => saveServerSetting({ claudeFolders: chosen.filter((c) => c !== p) }).then(() => refresh()),
+          },
+          '✕',
+        ),
+      ),
+    ),
+  );
+  const watched = [s.claudeDefault, ...chosen].filter(Boolean);
+  $('claude-new-field').hidden = watched.length < 2;
+  const select = $('claude-new');
+  select.replaceChildren(...watched.map((p, i) => el('option', { value: i ? p : '', text: baseName(p) })));
+  select.value = watched.slice(1).find((p) => same(p, s.newSessionClaude || '')) || '';
+}
+
+$('claude-add').addEventListener('keydown', noSubmit((input) => input.blur()));
+$('claude-add').addEventListener('change', async (e) => {
+  const input = e.currentTarget;
+  if (!input.value.trim()) return;
+  if (await saveServerSetting({ claudeFolders: [...(serverSettings?.claudeFolders || []), input.value] })) {
+    input.value = '';
+    refresh();
+  }
+});
+$('claude-new').addEventListener('change', (e) => saveServerSetting({ newSessionClaude: e.currentTarget.value }).then(() => loadRepos(false)));
 
 async function saveServerSetting(changes) {
   try {

@@ -7,6 +7,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { snapshot, findAgent, sessionFile } = require('./lib/agents');
+const claudeDirs = require('./lib/claude-dirs');
 const terminals = require('./lib/terminals');
 const { openDashboard } = require('./lib/open-dashboard');
 const { scanRepos, resolveRepo, SOURCE_DIR } = require('./lib/repos');
@@ -45,13 +46,22 @@ const CATCH_UP_PROMPT = (
 // What new tabs run: plain `claude` or `codex`, so it asks before acting,
 // unless Settings says to skip permission prompts. With `resume`, they carry
 // on that session.
-const claudeCommand = () => (settings.get().skipPermissions ? 'claude --dangerously-skip-permissions' : 'claude');
-function sessionCommand(app, resume = null) {
+// Claude, with the Claude Code folder it's to use when that isn't the
+// default: a closed session's own, or for a new one, Settings' choice.
+function claudeCommand(args = '', claudeDir = newSessionClaude()) {
+  const cmd = `${settings.get().skipPermissions ? 'claude --dangerously-skip-permissions' : 'claude'}${args}`;
+  const dir = claudeDirs.watched(claudeDir);
+  return claudeDirs.isDefault(dir) ? cmd : terminals.withEnv('CLAUDE_CONFIG_DIR', dir, cmd);
+}
+// The Claude Code folder new Claude sessions start with: Settings' choice
+// while it's watched, else the default.
+const newSessionClaude = () => claudeDirs.watched(settings.get().newSessionClaude);
+function sessionCommand(app, resume = null, claudeDir) {
   if (app === 'codex') return codex.command({ skipPermissions: settings.get().skipPermissions, resume });
   if (app === 'copilot') return copilot.command({ skipPermissions: settings.get().skipPermissions, resume });
   if (app === 'opencode') return opencode.command({ skipPermissions: settings.get().skipPermissions, resume });
   if (app === 'cursor') return cursor.command({ skipPermissions: settings.get().skipPermissions, resume });
-  return resume ? `${claudeCommand()} --resume ${resume}` : claudeCommand();
+  return claudeCommand(resume ? ` --resume ${resume}` : '', claudeDir);
 }
 // Whether each app that can start sessions, other than Claude, is installed.
 const INSTALLED = { codex, copilot, opencode, cursor };
@@ -126,6 +136,8 @@ function currentSnapshot() {
         snap.opencodeInstalled = opencode.installed();
         snap.cursorInstalled = cursor.installed();
         snap.newSessionApp = newSessionApp();
+        // The Claude Code folders watched, for the account filter and tags.
+        snap.claudeAccounts = claudeDirs.list().map((dir) => ({ dir, label: claudeDirs.label(dir) }));
         // Each session's and to-do's tickets, before the history takes the
         // sessions that closed.
         tickets.observe(snap.agents, snap.now);
@@ -214,6 +226,9 @@ const forPage = (s) => ({
   lmstudioKey: '',
   lmstudioKeySet: Boolean(s.lmstudioKey),
   trackers: undefined,
+  // The default Claude Code folder, and the other ~/.claude-* folders to choose from.
+  claudeDefault: claudeDirs.DEFAULT,
+  claudeFound: claudeDirs.others(),
 });
 
 // Settings → Tickets: the trackers without their tokens, and how secrets are
@@ -247,6 +262,7 @@ async function trackerAction(res, name, body) {
 // Other apps' addresses and keys, from Settings.
 function configureApps() {
   const s = settings.get();
+  claudeDirs.configure(s.claudeFolders);
   comfy.configure({ url: s.comfyUrl });
   localai.configure({ url: s.localaiUrl, key: s.localaiKey });
   ollama.configure({ url: s.ollamaUrl });
@@ -369,7 +385,7 @@ async function action(res, sessionId, name) {
     const prompt = name === 'catch-up' ? CATCH_UP_PROMPT : null;
     // Claude's registry file is checked again just before typing; other apps
     // were checked above.
-    const result = await terminals.focus(agent.pid, { send: prompt, statusFile: agent.app === 'claude' ? sessionFile(agent.pid) : '' });
+    const result = await terminals.focus(agent.pid, { send: prompt, statusFile: agent.app === 'claude' ? sessionFile(agent) : '' });
     return send(res, result.ok ? 200 : 500, result);
   }
   if (name === 'stop') {
@@ -424,7 +440,9 @@ async function saveAndClose(res, body) {
   const snap = await currentSnapshot();
   const open = snap.agents.filter(closable);
   const set = saved.save(
-    open.filter((a) => a.prompts > 0 && !a.completedAt).map((a) => ({ app: a.app, id: a.id, cwd: a.cwd, name: a.terminalTitle || a.title || a.name })),
+    open
+      .filter((a) => a.prompts > 0 && !a.completedAt)
+      .map((a) => ({ app: a.app, id: a.id, cwd: a.cwd, name: a.terminalTitle || a.title || a.name, claudeDir: a.claudeDir })),
     snap.now,
   );
   const failed = [];
@@ -460,7 +478,7 @@ async function resumeLast(res) {
     else {
       // The ID comes from the saved set, which only holds session IDs, each
       // safe in a command line (session-id.js).
-      const result = await openTab(s.cwd, sessionCommand(s.app, s.id));
+      const result = await openTab(s.cwd, sessionCommand(s.app, s.id, s.claudeDir));
       if (result.ok) opened++;
       else skipped.push({ name: s.name, why: result.error });
       // One at a time, so each tab opens before the next.
@@ -544,7 +562,7 @@ async function todoAction(res, id, name, body) {
       // session list. Straight double quotes become curly ones: Windows
       // PowerShell 5.1 mangles them in a program's arguments.
       const name = terminals.quote(todo.title.replace(/"/g, '”'));
-      const opened = await openTab(cwd, `${claudeCommand()} --session-id ${sessionId} --name ${name}`);
+      const opened = await openTab(cwd, claudeCommand(` --session-id ${sessionId} --name ${name}`));
       if (!opened.ok) return send(res, 500, opened);
       groups.carry(id, sessionId);
       result = todos.started(id, sessionId);
@@ -646,7 +664,7 @@ const server = http.createServer(async (req, res) => {
       if (history.isLive(past.id)) return send(res, 409, { ok: false, error: 'That session is already running.' });
       if (!fs.existsSync(past.cwd)) return send(res, 400, { ok: false, error: `Its folder no longer exists: ${past.cwd}` });
       // The ID comes from the history's own records, which only hold session IDs.
-      const result = await openTab(past.cwd, sessionCommand(past.app || 'claude', past.id));
+      const result = await openTab(past.cwd, sessionCommand(past.app || 'claude', past.id, past.claudeDir));
       return send(res, result.ok ? 200 : 500, result);
     }
 
