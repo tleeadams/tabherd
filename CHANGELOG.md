@@ -4,6 +4,8 @@ Notable changes in each release. Version numbers follow [Semantic Versioning](ht
 
 ## Unreleased
 
+- To-dos and the repo menu start OpenCode and Cursor CLI sessions too: choose them in Settings → New sessions, the repo menu, or a to-do's **Start with**. A to-do's session is made before its window opens, so the to-do knows it from the start, and an OpenCode session is titled after the to-do.
+- OpenCode's closed sessions stay in History after the dashboard restarts, including those that closed while it wasn't running, and Resume works on them.
 - Each card shows where its time went, such as *Working 1h 12m · Needs you 4m · Idle 38m*, kept up to date. A Claude session's working time comes from the turn times Claude logs, so it's right from the first look; the rest are added up from what Tabherd sees and kept across restarts. ComfyUI jobs show their time queued.
 
 ## 0.6.1 - 2026-11-26

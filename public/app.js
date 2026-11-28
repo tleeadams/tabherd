@@ -501,14 +501,15 @@ const APP_ADDRESSES = [
   ['llamacpp-url', 'llamacppUrl'],
 ];
 
-// Codex or the Copilot CLI is installed, so there's an app to choose.
-const otherAppsInstalled = () => Boolean(snap?.codexInstalled || snap?.copilotInstalled);
+// The apps other than Claude that sessions can start in, once installed.
+const OTHER_APPS = ['codex', 'copilot', 'opencode', 'cursor'];
+const appInstalled = (app) => app === 'claude' || Boolean(snap?.[`${app}Installed`]);
+// One of them is installed, so there's an app to choose.
+const otherAppsInstalled = () => OTHER_APPS.some(appInstalled);
 
-// Only the apps that are installed are offered in a Claude, Codex or Copilot choice.
+// Only the apps that are installed are offered in a choice of app.
 function showInstalledChoices(name) {
-  for (const r of document.querySelectorAll(`input[name="${name}"]`)) {
-    r.closest('label').hidden = (r.value === 'codex' && !snap?.codexInstalled) || (r.value === 'copilot' && !snap?.copilotInstalled);
-  }
+  for (const r of document.querySelectorAll(`input[name="${name}"]`)) r.closest('label').hidden = !appInstalled(r.value);
 }
 
 // ---- save and close, resume ----------------------------------------------------
@@ -1291,8 +1292,7 @@ function editTodo(t) {
   $('todo-notes').value = t?.notes || '';
   // Which app it starts in, once Codex is installed too.
   $('todo-app-field').hidden = !otherAppsInstalled();
-  $('todo-app').querySelector('option[value="codex"]').hidden = !snap?.codexInstalled;
-  $('todo-app').querySelector('option[value="copilot"]').hidden = !snap?.copilotInstalled;
+  for (const app of OTHER_APPS) $('todo-app').querySelector(`option[value="${app}"]`).hidden = !appInstalled(app);
   $('todo-app-default').textContent = tr('As in Settings ({app})', { app: APPS[snap?.newSessionApp] || APPS.claude });
   $('todo-app').value = t?.app || '';
   // Its tickets, once there's a tracker to look them up in.
@@ -2734,7 +2734,7 @@ async function loadRepos(refresh) {
     $('repos-root').textContent = `${shortPath(repoData.root)} · ${trn(repoData.count, '{n} repo', '{n} repos')}${excluded}`;
     $('repos-root').title = excluded ? tr('Change what is hidden in Settings') : '';
     $('repos-command').textContent = repoData.command;
-    // Claude, Codex or Copilot, once another is installed; it's the setting in Settings.
+    // Claude or another app, once one is installed; it's the setting in Settings.
     $('repos-app').hidden = !otherAppsInstalled();
     showInstalledChoices('repos-app');
     for (const r of document.querySelectorAll('input[name="repos-app"]')) r.checked = r.value === repoData.app;

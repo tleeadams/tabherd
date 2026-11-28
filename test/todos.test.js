@@ -95,7 +95,9 @@ test('to-dos are saved to disk', () => {
 test("a to-do can name the app it starts in, and a Codex one is linked once its session starts", () => {
   const { todo } = todos.create({ title: 'Try it in Codex', app: 'codex' });
   assert.equal(todo.app, 'codex');
-  assert.equal(todos.create({ title: 'Anything', app: 'bash' }).todo.app, null, 'only Claude or Codex, else as in Settings');
+  assert.equal(todos.create({ title: 'Anything', app: 'bash' }).todo.app, null, 'only an app it can start, else as in Settings');
+  assert.equal(todos.create({ title: 'In OpenCode', app: 'opencode' }).todo.app, 'opencode');
+  assert.equal(todos.create({ title: 'In Cursor', app: 'cursor' }).todo.app, 'cursor');
   todos.started(todo.id, null);
   assert.ok(todos.pending(Date.now()).find((t) => t.id === todo.id).starting, 'waiting for Codex to start');
   const session = '01900000-0000-7000-8000-0000000000c1';
