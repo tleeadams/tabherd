@@ -20,6 +20,7 @@ const codex = require('./lib/codex');
 const copilot = require('./lib/copilot');
 const opencode = require('./lib/opencode');
 const cursor = require('./lib/cursor');
+const antigravity = require('./lib/antigravity');
 const comfy = require('./lib/comfy');
 const localai = require('./lib/localai');
 const ollama = require('./lib/ollama');
@@ -61,10 +62,11 @@ function sessionCommand(app, resume = null, claudeDir) {
   if (app === 'copilot') return copilot.command({ skipPermissions: settings.get().skipPermissions, resume });
   if (app === 'opencode') return opencode.command({ skipPermissions: settings.get().skipPermissions, resume });
   if (app === 'cursor') return cursor.command({ skipPermissions: settings.get().skipPermissions, resume });
+  if (app === 'antigravity') return antigravity.command({ skipPermissions: settings.get().skipPermissions, resume });
   return claudeCommand(resume ? ` --resume ${resume}` : '', claudeDir);
 }
 // Whether each app that can start sessions, other than Claude, is installed.
-const INSTALLED = { codex, copilot, opencode, cursor };
+const INSTALLED = { codex, copilot, opencode, cursor, antigravity };
 // The app new sessions start in, from Settings: Claude unless another is
 // chosen and installed.
 function newSessionApp() {
@@ -135,6 +137,7 @@ function currentSnapshot() {
         snap.copilotInstalled = copilot.installed();
         snap.opencodeInstalled = opencode.installed();
         snap.cursorInstalled = cursor.installed();
+        snap.antigravityInstalled = antigravity.installed();
         snap.newSessionApp = newSessionApp();
         // The Claude Code folders watched, for the account filter and tags.
         snap.claudeAccounts = claudeDirs.list().map((dir) => ({ dir, label: claudeDirs.label(dir) }));
@@ -397,14 +400,15 @@ async function action(res, sessionId, name) {
 
 // ---- Save and close, and Resume last session ----------------------------------
 
-// The sessions Save and close takes: Claude's, Codex's, OpenCode's and
-// Cursor's in a terminal. Not background runs, which have no tab, nor
+// The sessions Save and close takes: Claude's, Codex's, OpenCode's,
+// Cursor's and Antigravity's in a terminal. Not background runs, which have no tab, nor
 // sessions in a VS Code panel, which has no shell to close.
 const closable = (a) =>
   (a.app === 'claude' && !a.background && (!a.kind || a.kind === 'interactive') && (!a.entrypoint || a.entrypoint === 'cli')) ||
   a.app === 'codex' ||
   a.app === 'opencode' ||
   a.app === 'cursor' ||
+  a.app === 'antigravity' ||
   (a.app === 'copilot' && a.entrypoint === 'cli');
 const working = (a) => a.status === 'busy' || a.status === 'shell';
 // Waiting to close once they're done: session ID -> its name.
@@ -544,6 +548,17 @@ async function todoAction(res, id, name, body) {
       if (!opened.ok) return send(res, 500, opened);
       groups.carry(id, made.id);
       result = todos.started(id, made.id);
+    } else if (app === 'antigravity') {
+      if (!antigravity.installed()) return send(res, 400, { ok: false, error: "Antigravity isn't installed on this computer." });
+      const opened = await openTab(cwd, sessionCommand('antigravity'));
+      if (!opened.ok) return send(res, 500, opened);
+      // Antigravity picks its conversation's ID itself, when it's first asked
+      // something, so the to-do is linked to it then.
+      antigravity.expect(cwd, (conversationId) => {
+        todos.linked(id, conversationId);
+        groups.carry(id, conversationId);
+      });
+      result = todos.started(id, null);
     } else if (app === 'codex') {
       if (!codex.installed()) return send(res, 400, { ok: false, error: "Codex isn't installed on this computer." });
       const opened = await openTab(cwd, sessionCommand('codex'));
