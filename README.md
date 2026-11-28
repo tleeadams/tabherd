@@ -498,7 +498,7 @@ All of it is read-only, from files the coding agents already write, and from the
 
 A session file whose process has exited, or whose PID now belongs to another process, is ignored.
 
-The only files the server writes are its own, in `~/.tabherd`: `settings.json` holds the settings that aren't kept in the browser, with its secrets encrypted (see [Secrets](#secrets)), `secret.key` the key for them on Windows, `history.json` the closed sessions, `todos.json` the to-dos, `groups.json` the groups, with the sessions moved between them by hand, `saved-sessions.json` the sessions Save and close saved last, `completed.json` the sessions marked complete, `tickets.json` the tickets sessions claimed and the last status of each, and `updates.json` what the last check for a new version found.
+The only files the server writes are its own, in `~/.tabherd`: `settings.json` holds the settings that aren't kept in the browser, with its secrets encrypted (see [Secrets](#secrets)), `secret.key` the key for them on Windows, `history.json` the closed sessions, `todos.json` the to-dos, `groups.json` the groups, with the sessions moved between them by hand, `saved-sessions.json` the sessions Save and close saved last, `completed.json` the sessions marked complete, `tickets.json` the tickets sessions claimed and the last status of each, `status-times.json` how long each card has spent in each status, and `updates.json` what the last check for a new version found.
 
 ## Safety
 
