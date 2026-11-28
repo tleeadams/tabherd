@@ -39,6 +39,15 @@ test('a closed Codex session is kept as Codex, so Resume runs Codex', () => {
   assert.equal(history.find(USED).app, 'claude', 'Claude sessions say so too');
 });
 
+test("a closed OpenCode session is still there after a restart, with its ses_ ID", () => {
+  const id = 'ses_deb15829affe6HItxXY7Sc1fxV';
+  history.observe([{ ...session(id, 2), app: 'opencode', title: 'Git status check' }], 6500);
+  history.observe([], 6600);
+  delete require.cache[require.resolve('../lib/history')];
+  const again = require('../lib/history');
+  assert.equal(again.find(id)?.app, 'opencode', 'kept, so Resume runs OpenCode on it');
+});
+
 test('a background run is kept as one, to list or hide in History', () => {
   const id = '01900000-0000-7000-8000-0000000000d0';
   history.observe([{ ...session(id, 1), background: true, name: 'PR review api#12' }], 8000);

@@ -201,6 +201,38 @@ function tick() {
   for (const node of document.querySelectorAll('[data-since]')) {
     node.textContent = sinceText(Number(node.dataset.since), 'ago' in node.dataset);
   }
+  for (const node of document.querySelectorAll('[data-split]')) {
+    node.textContent = dur(Number(node.dataset.split) + now() - Number(node.dataset.at));
+  }
+}
+
+// How a card's time was spent, from the server's `times`: working, waiting on
+// you, queued and idle, the growing one kept up to date by tick(). Left off
+// until there's more than one to show, when it would only repeat the status.
+const SPLIT = [
+  ['working', 'busy', 'Working'],
+  ['waiting', 'waiting', 'Needs you'],
+  ['queued', 'queued', 'Queued'],
+  ['idle', 'idle', 'Idle'],
+];
+function timeSplit(t) {
+  if (!t) return null;
+  const shown = SPLIT.filter(([key]) => t[key] >= 1000 || key === t.live);
+  if (shown.length < 2) return null;
+  return el(
+    'div',
+    { class: 'split', title: tr('Time spent working, waiting on you, queued and idle') },
+    shown.map(([key, st, label]) => {
+      const live = key === t.live;
+      return el(
+        'span',
+        { class: `split-part s-${st}${live ? ' live' : ''}` },
+        el('span', { class: 'dot' }),
+        `${tr(label)} `,
+        el('span', { class: 'split-time', ...(live ? { 'data-split': t[key], 'data-at': t.at } : {}) }, live ? dur(t[key] + now() - t.at) : dur(t[key])),
+      );
+    }),
+  );
 }
 
 function tokens(n) {
@@ -477,14 +509,15 @@ const APP_ADDRESSES = [
   ['llamacpp-url', 'llamacppUrl'],
 ];
 
-// Codex or the Copilot CLI is installed, so there's an app to choose.
-const otherAppsInstalled = () => Boolean(snap?.codexInstalled || snap?.copilotInstalled);
+// The apps other than Claude that sessions can start in, once installed.
+const OTHER_APPS = ['codex', 'copilot', 'opencode', 'cursor'];
+const appInstalled = (app) => app === 'claude' || Boolean(snap?.[`${app}Installed`]);
+// One of them is installed, so there's an app to choose.
+const otherAppsInstalled = () => OTHER_APPS.some(appInstalled);
 
-// Only the apps that are installed are offered in a Claude, Codex or Copilot choice.
+// Only the apps that are installed are offered in a choice of app.
 function showInstalledChoices(name) {
-  for (const r of document.querySelectorAll(`input[name="${name}"]`)) {
-    r.closest('label').hidden = (r.value === 'codex' && !snap?.codexInstalled) || (r.value === 'copilot' && !snap?.copilotInstalled);
-  }
+  for (const r of document.querySelectorAll(`input[name="${name}"]`)) r.closest('label').hidden = !appInstalled(r.value);
 }
 
 // ---- save and close, resume ----------------------------------------------------
@@ -1024,6 +1057,7 @@ function itemCard(a) {
       pct !== null
         ? el('div', { class: 'progress', title: `${Math.round(pct)}%` }, el('span', { class: 'bar' }, fill), el('span', { text: `${Math.round(pct)}%` }))
         : null,
+      timeSplit(a.times),
       a.preview ? el('img', { class: 'preview', src: a.preview, alt: tr('Output of {name}', { name: tr(a.name) }), loading: 'lazy' }) : null,
       a.facts?.length ? el('dl', { class: 'facts' }, a.facts.flatMap(([k, v]) => [el('dt', { text: tr(k) }), el('dd', { text: tr(v), title: tr(v) })])) : null,
       a.lastReply ? message(a, 'reply', tr('Last reply'), a.lastReply) : null,
@@ -1141,6 +1175,7 @@ function card(a) {
       'div',
       { class: 'card-body' },
       activity(a),
+      timeSplit(a.times),
       stats(a),
       subagents(a),
       a.prs?.length
@@ -1266,8 +1301,7 @@ function editTodo(t) {
   $('todo-notes').value = t?.notes || '';
   // Which app it starts in, once Codex is installed too.
   $('todo-app-field').hidden = !otherAppsInstalled();
-  $('todo-app').querySelector('option[value="codex"]').hidden = !snap?.codexInstalled;
-  $('todo-app').querySelector('option[value="copilot"]').hidden = !snap?.copilotInstalled;
+  for (const app of OTHER_APPS) $('todo-app').querySelector(`option[value="${app}"]`).hidden = !appInstalled(app);
   $('todo-app-default').textContent = tr('As in Settings ({app})', { app: APPS[snap?.newSessionApp] || APPS.claude });
   $('todo-app').value = t?.app || '';
   // Its tickets, once there's a tracker to look them up in.
@@ -2730,7 +2764,7 @@ async function loadRepos(refresh) {
     $('repos-root').textContent = `${shortPath(repoData.root)} · ${trn(repoData.count, '{n} repo', '{n} repos')}${excluded}`;
     $('repos-root').title = excluded ? tr('Change what is hidden in Settings') : '';
     $('repos-command').textContent = repoData.command;
-    // Claude, Codex or Copilot, once another is installed; it's the setting in Settings.
+    // Claude or another app, once one is installed; it's the setting in Settings.
     $('repos-app').hidden = !otherAppsInstalled();
     showInstalledChoices('repos-app');
     for (const r of document.querySelectorAll('input[name="repos-app"]')) r.checked = r.value === repoData.app;
@@ -4001,6 +4035,7 @@ function tourSessionCard() {
     status: 'busy',
     statusSince: t - 95e3,
     startedAt: t - 42 * 60e3,
+    times: { working: 14 * 60e3, waiting: 3 * 60e3, idle: 25 * 60e3, queued: 0, live: 'working', at: t },
     tools: [{ name: 'Bash', detail: 'npm test', at: t - 8e3 }],
     lastReply: { text: tr('The form and its checks are in. Running the tests now.'), at: t - 20e3 },
     lastPrompt: { text: tr('Add a sign-up page with email and password, and tests for it.'), at: t - 6 * 60e3 },

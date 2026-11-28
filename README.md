@@ -169,6 +169,7 @@ The first time a browser opens the dashboard, a short tour points out each part 
 
 - **Status**: *Needs you* (blocked on a prompt or dialog), *Working*, *Shell running* (at the prompt while a background shell runs) or *Idle*, plus how long it has been in that state.
 - **Activity**: the tools running now and for how long, the latest message or recap, and the last prompt. Click a message to expand it.
+- **Time split**: how long the session has spent working, needing you and idle, such as *Working 1h 12m · Needs you 4m · Idle 38m*. Working time comes from the turn times Claude logs, less the time Tabherd saw it needing you; before Tabherd was running, a wait for you counts as working. Every other card's split is added up from the status changes Tabherd sees, and is saved in `~/.tabherd/status-times.json`, so a restart keeps it. ComfyUI jobs show their time queued.
 - **Model and tokens**: the model, how full the context window is, output tokens and number of prompts.
 - **Subagents**: running subagents with their current step, then recently finished ones.
 - **Actions**: go to the session's window, catch up, open its folder, copy a `claude --resume` command, or stop the session. Clicking a session's name also goes to its window.
@@ -194,7 +195,7 @@ Codex sessions get cards like Claude's, marked **Codex** (Claude's are marked **
 - **Go to window** finds the session's tab by its title, which Codex sets to the session's name. A session Codex hasn't named yet is matched only when it's the one unmatched Codex window, so until then its card has no Go to window.
 - **Catch up** sends the question with `codex queue`, through Codex's service, and brings the window forward if it's known. Nothing is typed into the window, so nothing there can be answered by it. An idle session starts on it at once, a busy one after its current turn.
 - **Stop** interrupts the turn the session is running, then ends the Codex in its window. If the window isn't known, it interrupts the turn and says to close the window yourself.
-- **Starting Codex**: the repo menu and to-dos start Claude, Codex or Copilot, as Settings → New sessions says. The repo menu has the same choice at its top, and a to-do can name its own. A Codex to-do opens `codex` in its folder. Codex chooses its session's ID itself, so the dashboard links the to-do to the first session that starts in that folder within a minute, and names that session after the to-do.
+- **Starting Codex**: the repo menu and to-dos start Claude, Codex, Copilot, OpenCode or Cursor, as Settings → New sessions says. The repo menu has the same choice at its top, and a to-do can name its own. A Codex to-do opens `codex` in its folder. Codex chooses its session's ID itself, so the dashboard links the to-do to the first session that starts in that folder within a minute, and names that session after the to-do.
 - **History** lists closed Codex sessions too, and **Resume** opens your terminal in the session's folder running `codex resume <id>`.
 
 With *Skip permission prompts* on, Codex sessions the dashboard opens or resumes run with `--dangerously-bypass-approvals-and-sandbox`. A session Codex runs outside its background service, such as one in an Administrator terminal or started with `--profile` or most `-c` options, isn't shown. When a Codex window closes, its card goes at once if the dashboard knew the window, or within about a minute, when Codex unloads the session, if it didn't.
@@ -224,8 +225,8 @@ OpenCode's sessions get cards marked **OpenCode**. OpenCode 2 runs a background 
 - **Status:** *Needs you* while it asks permission or a question; *Working* while a turn runs; otherwise *Idle*. A turn that failed needs you too.
 - **Activity:** the last prompt and reply, the model and output tokens.
 - **Catch up** sends its prompt through the service, as Codex's does, so nothing is typed into the window. **Stop** interrupts the turn, then ends OpenCode in its window. **Complete** and Save and close take OpenCode sessions too.
-- **Resume:** `opencode --session <id>`. *Skip permission prompts* adds `--auto`.
-- **Not yet:** starting OpenCode from a to-do or the repo menu, and OpenCode's closed sessions in History.
+- **Starting OpenCode:** choose *OpenCode* in Settings → New sessions, in the repo menu, or in a to-do's **Start with**. The repo menu opens `opencode` in the repo. A to-do's **Start** first makes the session through the service, titled after the to-do and in the to-do's folder, then opens `opencode --session <id>`, so the to-do knows its session from the start. If the service isn't running, it's started with `opencode service start`, as OpenCode's windows would.
+- **History and Resume:** closed sessions are listed, including those that closed while the dashboard wasn't running, which it reads from the service while the service is running. Resume runs `opencode --session <id>`. *Skip permission prompts* adds `--auto`.
 
 ## Cursor CLI
 
@@ -235,8 +236,9 @@ The Cursor CLI's sessions (`cursor-agent`) get cards marked **Cursor**. Cursor k
 - **Status:** turn on Cursor's status indicators, with `/status-indicators` in any Cursor window, and its tab titles say whether it's working, waiting for you or ready. The dashboard then shows *Needs you* while Cursor waits for an approval, with the command it wants to run, or for your answer. Without them, it only knows from the transcript whether a turn is running, so a chat waiting on an approval shows *Working*. A turn that failed needs you too.
 - **Activity:** the last prompt and reply, and the tool calls of the step running. Cursor's transcript has no times, so the reply's time is when the dashboard read it.
 - **Go to window**, **Catch up** and **Stop** work as they do for Claude: Catch up types its prompt into the window. **Complete** and Save and close take Cursor chats too.
+- **Starting Cursor:** choose *Cursor* in Settings → New sessions, in the repo menu, or in a to-do's **Start with**. The repo menu opens `cursor-agent` in the repo. A to-do's **Start** first makes an empty chat with `cursor-agent create-chat` in the to-do's folder, then opens `cursor-agent --resume <id>`, so the to-do knows its chat from the start. Cursor names the chat after its first prompt, not after the to-do.
 - **History and Resume:** closed chats are listed, and Resume runs `cursor-agent --resume <id>` in the chat's folder, where Cursor keeps it. *Skip permission prompts* adds `--force`.
-- **Not yet:** starting Cursor from a to-do or the repo menu, and subagents.
+- **Not yet:** subagents.
 
 ## ComfyUI and LocalAI
 
@@ -287,7 +289,7 @@ The colours are a set of eight, each tuned for light and dark and kept apart fro
 
 With a tracker in Settings → Tickets, pasting a ticket's link or key as a new to-do's title fills it in from the ticket: the ticket's title, its description as the notes if they're empty, and the ticket in *Tickets*, so the session starts linked to it. The line under the title says which ticket it came from, or why it couldn't. Jira Cloud's descriptions come as text, with lists, links and code kept. See [Tickets](#tickets).
 
-**Start** opens Claude in the to-do's folder, in your terminal, running `claude --session-id <new id> --name "<the to-do's title>"`, so the session is named after the to-do in its tab's title and Claude's session list. Once Codex or the Copilot CLI is installed, the to-do's **Start with** chooses Claude, Codex or Copilot, or leaves it to Settings; see [Codex](#codex) and [GitHub Copilot](#github-copilot). A to-do doesn't need a folder: without one, it starts in Settings → To-dos → **Start in**, your repos folder unless you set another, where Claude can make a new project. The card says where it will start.
+**Start** opens Claude in the to-do's folder, in your terminal, running `claude --session-id <new id> --name "<the to-do's title>"`, so the session is named after the to-do in its tab's title and Claude's session list. Once another app is installed, the to-do's **Start with** chooses Claude, Codex, Copilot, OpenCode or Cursor, or leaves it to Settings; see [Codex](#codex), [GitHub Copilot](#github-copilot), [OpenCode](#opencode) and [Cursor CLI](#cursor-cli). A to-do doesn't need a folder: without one, it starts in Settings → To-dos → **Start in**, your repos folder unless you set another, where Claude can make a new project. The card says where it will start.
 
 **Choose folder** picks one first, from where Settings → To-dos says:
 
@@ -306,7 +308,7 @@ The gear button in the header opens Settings, one section at a time, picked from
 
 **Claude accounts**: Claude Code keeps each account it signs in to in a folder of its own, `~/.claude` unless `CLAUDE_CONFIG_DIR` names another. Only the default folder's sessions get cards at first. Tick the other `~/.claude-*` folders listed here to watch those accounts too, or add any other folder by its full path. With more than one watched, each Claude card and History entry is tagged with its folder's name, a list beside the app list in the header shows one account's sessions, and *New Claude sessions use* chooses the account the repo menu and to-dos start Claude with. They run `claude` with `CLAUDE_CONFIG_DIR` set to that folder, and Resume uses each session's own.
 
-**New sessions**: once Codex or the Copilot CLI is installed, *Claude*, *Codex* or *Copilot* chooses the app the repo menu opens, and to-dos start in unless they name one. *Skip permission prompts* (off by default) makes every session the dashboard opens, from the repo menu, Resume or a to-do, run `claude --dangerously-skip-permissions`, `codex --dangerously-bypass-approvals-and-sandbox`, `copilot --allow-all`, `opencode --auto` or `cursor-agent --force`. They then edit files and run commands without asking first. Only turn it on if you'd run them that way yourself in those folders. *Terminal* chooses which terminal they open in, where there's more than one; see [Platform support](#platform-support).
+**New sessions**: once another app is installed, *Claude*, *Codex*, *Copilot*, *OpenCode* or *Cursor* chooses the app the repo menu opens, and to-dos start in unless they name one. *Skip permission prompts* (off by default) makes every session the dashboard opens, from the repo menu, Resume or a to-do, run `claude --dangerously-skip-permissions`, `codex --dangerously-bypass-approvals-and-sandbox`, `copilot --allow-all`, `opencode --auto` or `cursor-agent --force`. They then edit files and run commands without asking first. Only turn it on if you'd run them that way yourself in those folders. *Terminal* chooses which terminal they open in, where there's more than one; see [Platform support](#platform-support).
 
 **Appearance** has *Language*, *Theme*, *Status colours*, *Card size* and the *Memory and models* card, which can be turned off. **Language**: *Automatic* (the default) follows the browser's languages, and *English* or *Español* sets one. Changing it reloads the page. The Spanish is a first translation, so some of it may read oddly; corrections are welcome. A few of the server's messages, those with details in them, stay English. **Theme**: *System* (the default) follows the system's light or dark mode. *Light* or *Dark* sets one regardless. **Status colours**: *Colour-blind* shows Working in blue and Needs you in orange, in place of green and amber, which red-green colour blindness makes hard to tell from each other and from Idle's grey. Each status gets a shape too: a dot for Working, a triangle for Needs you, a ring for Idle, with a dashed edge on its card, and a square for Shell running.
 
@@ -499,7 +501,7 @@ All of it is read-only, from files the coding agents already write, and from the
 
 A session file whose process has exited, or whose PID now belongs to another process, is ignored.
 
-The only files the server writes are its own, in `~/.tabherd`: `settings.json` holds the settings that aren't kept in the browser, with its secrets encrypted (see [Secrets](#secrets)), `secret.key` the key for them on Windows, `history.json` the closed sessions, `todos.json` the to-dos, `groups.json` the groups, with the sessions moved between them by hand, `saved-sessions.json` the sessions Save and close saved last, `completed.json` the sessions marked complete, `tickets.json` the tickets sessions claimed and the last status of each, and `updates.json` what the last check for a new version found.
+The only files the server writes are its own, in `~/.tabherd`: `settings.json` holds the settings that aren't kept in the browser, with its secrets encrypted (see [Secrets](#secrets)), `secret.key` the key for them on Windows, `history.json` the closed sessions, `todos.json` the to-dos, `groups.json` the groups, with the sessions moved between them by hand, `saved-sessions.json` the sessions Save and close saved last, `completed.json` the sessions marked complete, `tickets.json` the tickets sessions claimed and the last status of each, `status-times.json` how long each card has spent in each status, and `updates.json` what the last check for a new version found.
 
 ## Safety
 
