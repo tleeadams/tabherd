@@ -27,6 +27,7 @@ const llamacpp = require('./lib/llamacpp');
 const saved = require('./lib/saved');
 const dismissed = require('./lib/dismissed');
 const completed = require('./lib/completed');
+const statusTimes = require('./lib/status-times');
 const secrets = require('./lib/secrets');
 const trackers = require('./lib/trackers');
 const tickets = require('./lib/tickets');
@@ -94,6 +95,13 @@ function currentSnapshot() {
       .then((snap) => {
         // Failed jobs, chats and downloads that were cleared.
         snap.agents = snap.agents.filter((a) => !dismissed.has(a.id));
+        // Time working, waiting, idle and queued, for each card's split. The
+        // turns it's worked out from stay here.
+        statusTimes.observe(snap.agents, snap.now);
+        for (const a of snap.agents) {
+          delete a.turns;
+          delete a.turnStartedAt;
+        }
         // To-dos first: a to-do goes on its session's card, and from there
         // into the history when the session closes.
         todos.observe(snap.agents, snap.now);

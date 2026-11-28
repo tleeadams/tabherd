@@ -2,6 +2,10 @@
 
 Notable changes in each release. Version numbers follow [Semantic Versioning](https://semver.org). The release build takes each release's notes from its section here.
 
+## Unreleased
+
+- Each card shows where its time went, such as *Working 1h 12m · Needs you 4m · Idle 38m*, kept up to date. A Claude session's working time comes from the turn times Claude logs, so it's right from the first look; the rest are added up from what Tabherd sees and kept across restarts. ComfyUI jobs show their time queued.
+
 ## 0.6.1 - 2026-11-26
 
 Fixes for 0.6.0. Coming from 0.5.0? [0.6.0's notes](https://github.com/tleeadams/tabherd/releases/tag/v0.6.0) have what's new: the desktop app on macOS and Linux, OpenCode and Cursor CLI, tickets on cards, **Complete**, update alerts, and npm.

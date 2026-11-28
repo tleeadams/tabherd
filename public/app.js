@@ -193,6 +193,38 @@ function tick() {
   for (const node of document.querySelectorAll('[data-since]')) {
     node.textContent = sinceText(Number(node.dataset.since), 'ago' in node.dataset);
   }
+  for (const node of document.querySelectorAll('[data-split]')) {
+    node.textContent = dur(Number(node.dataset.split) + now() - Number(node.dataset.at));
+  }
+}
+
+// How a card's time was spent, from the server's `times`: working, waiting on
+// you, queued and idle, the growing one kept up to date by tick(). Left off
+// until there's more than one to show, when it would only repeat the status.
+const SPLIT = [
+  ['working', 'busy', 'Working'],
+  ['waiting', 'waiting', 'Needs you'],
+  ['queued', 'queued', 'Queued'],
+  ['idle', 'idle', 'Idle'],
+];
+function timeSplit(t) {
+  if (!t) return null;
+  const shown = SPLIT.filter(([key]) => t[key] >= 1000 || key === t.live);
+  if (shown.length < 2) return null;
+  return el(
+    'div',
+    { class: 'split', title: tr('Time spent working, waiting on you, queued and idle') },
+    shown.map(([key, st, label]) => {
+      const live = key === t.live;
+      return el(
+        'span',
+        { class: `split-part s-${st}${live ? ' live' : ''}` },
+        el('span', { class: 'dot' }),
+        `${tr(label)} `,
+        el('span', { class: 'split-time', ...(live ? { 'data-split': t[key], 'data-at': t.at } : {}) }, live ? dur(t[key] + now() - t.at) : dur(t[key])),
+      );
+    }),
+  );
 }
 
 function tokens(n) {
@@ -1016,6 +1048,7 @@ function itemCard(a) {
       pct !== null
         ? el('div', { class: 'progress', title: `${Math.round(pct)}%` }, el('span', { class: 'bar' }, fill), el('span', { text: `${Math.round(pct)}%` }))
         : null,
+      timeSplit(a.times),
       a.preview ? el('img', { class: 'preview', src: a.preview, alt: tr('Output of {name}', { name: tr(a.name) }), loading: 'lazy' }) : null,
       a.facts?.length ? el('dl', { class: 'facts' }, a.facts.flatMap(([k, v]) => [el('dt', { text: tr(k) }), el('dd', { text: tr(v), title: tr(v) })])) : null,
       a.lastReply ? message(a, 'reply', tr('Last reply'), a.lastReply) : null,
@@ -1132,6 +1165,7 @@ function card(a) {
       'div',
       { class: 'card-body' },
       activity(a),
+      timeSplit(a.times),
       stats(a),
       subagents(a),
       a.prs?.length
@@ -3904,6 +3938,7 @@ function tourSessionCard() {
     status: 'busy',
     statusSince: t - 95e3,
     startedAt: t - 42 * 60e3,
+    times: { working: 14 * 60e3, waiting: 3 * 60e3, idle: 25 * 60e3, queued: 0, live: 'working', at: t },
     tools: [{ name: 'Bash', detail: 'npm test', at: t - 8e3 }],
     lastReply: { text: tr('The form and its checks are in. Running the tests now.'), at: t - 20e3 },
     lastPrompt: { text: tr('Add a sign-up page with email and password, and tests for it.'), at: t - 6 * 60e3 },
