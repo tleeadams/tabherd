@@ -29,6 +29,7 @@ test('defaults are safe', () => {
     newSessionApp: 'claude',
     claudeFolders: [],
     newSessionClaude: '',
+    vscodeProfiles: {},
     comfyUrl: '',
     localaiUrl: '',
     localaiKey: '',
@@ -140,4 +141,13 @@ test("a secret this computer can't decrypt counts as unset, and isn't lost by ot
   assert.notEqual(onDisk().localaiKey, foreign, 'setting it replaces it');
   assert.deepEqual(fresh.unreadableKeys(), []);
   fresh.update({ localaiKey: '' });
+});
+
+test('VS Code profiles are kept by account folder, and an empty name removes one', () => {
+  const settings = require('../lib/settings');
+  const dir = path.resolve(os.homedir(), '.claude-work');
+  assert.equal(settings.update({ vscodeProfiles: { '': 'Personal', [dir]: ' Work ', '~/.claude-old': '' } }).ok, true);
+  assert.deepEqual(settings.get().vscodeProfiles, { '': 'Personal', [dir]: 'Work' });
+  assert.equal(settings.update({ vscodeProfiles: { relative: 'x' } }).ok, false);
+  assert.equal(settings.update({ vscodeProfiles: { '': 'two\nlines' } }).ok, false);
 });

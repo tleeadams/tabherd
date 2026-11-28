@@ -136,6 +136,7 @@
       <input id="repos-filter" type="search" placeholder="Filter repos" aria-label="Filter repos" autocomplete="off" spellcheck="false">
       <div id="repos-app" class="segmented repos-app" role="radiogroup" aria-label="Open in" hidden>
         <label><input type="radio" name="repos-app" value="claude">Claude</label>
+        <label><input type="radio" name="repos-app" value="claude-vscode">Claude (VS Code)</label>
         <label><input type="radio" name="repos-app" value="codex">Codex</label>
         <label><input type="radio" name="repos-app" value="copilot">Copilot</label>
         <label><input type="radio" name="repos-app" value="opencode">OpenCode</label>
@@ -145,6 +146,7 @@
     </div>
     <nav id="repos-tree" class="tree" aria-label="Repositories"></nav>
     <p id="repos-foot" class="drawer-foot" data-i18n>Click a repo to open a terminal tab there running <code id="repos-command">claude</code>.</p>
+    <p id="repos-vscode-foot" class="drawer-foot" data-i18n hidden>Click a repo to open it in VS Code, with a new Claude tab.</p>
     <p id="repos-pick-foot" class="drawer-foot" hidden></p>
   </dialog>
 
@@ -313,6 +315,13 @@
                   <select id="claude-new"></select>
                 </label>
                 <p class="settings-help">The folder, and so the account, that the repo menu and to-dos start Claude with. Resume uses each session's own.</p>
+                <div id="claude-vscode-field" hidden>
+                  <label class="field">
+                    <span>Its VS Code profile</span>
+                    <input id="claude-vscode-profile" type="text" placeholder="None" autocomplete="off" spellcheck="false">
+                  </label>
+                  <p class="settings-help" data-i18n>Claude (VS Code) signs in with the account VS Code started with. To use this one even when VS Code is open, make a VS Code profile whose settings set <code>CLAUDE_CONFIG_DIR</code> in <code>claudeCode.environmentVariables</code>, and name it here.</p>
+                </div>
               </div>
             </fieldset>
           </section>
@@ -322,6 +331,7 @@
               <div id="app-setting" hidden>
                 <div class="segmented">
                   <label><input type="radio" name="new-app" value="claude">Claude</label>
+                  <label><input type="radio" name="new-app" value="claude-vscode">Claude (VS Code)</label>
                   <label><input type="radio" name="new-app" value="codex">Codex</label>
                   <label><input type="radio" name="new-app" value="copilot">Copilot</label>
                   <label><input type="radio" name="new-app" value="opencode">OpenCode</label>
@@ -467,6 +477,7 @@
         <select id="todo-app">
           <option value="" id="todo-app-default">As in Settings</option>
           <option value="claude">Claude</option>
+          <option value="claude-vscode">Claude (VS Code)</option>
           <option value="codex">Codex</option>
           <option value="copilot">Copilot</option>
           <option value="opencode">OpenCode</option>

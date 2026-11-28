@@ -21,6 +21,7 @@ const copilot = require('./lib/copilot');
 const opencode = require('./lib/opencode');
 const cursor = require('./lib/cursor');
 const antigravity = require('./lib/antigravity');
+const vscode = require('./lib/vscode');
 const comfy = require('./lib/comfy');
 const localai = require('./lib/localai');
 const ollama = require('./lib/ollama');
@@ -57,6 +58,14 @@ function claudeCommand(args = '', claudeDir = newSessionClaude()) {
 // The Claude Code folder new Claude sessions start with: Settings' choice
 // while it's watched, else the default.
 const newSessionClaude = () => claudeDirs.watched(settings.get().newSessionClaude);
+// How Claude (VS Code) starts for that account: its folder unless it's the
+// default, its name, and the VS Code profile Settings gives it.
+function vscodeAccount() {
+  const dir = newSessionClaude();
+  const profiles = settings.get().vscodeProfiles || {};
+  const key = claudeDirs.isDefault(dir) ? '' : Object.keys(profiles).find((p) => p && claudeDirs.same(p, dir));
+  return { claudeDir: claudeDirs.isDefault(dir) ? null : dir, account: claudeDirs.label(dir), profile: profiles[key ?? ''] || '' };
+}
 function sessionCommand(app, resume = null, claudeDir) {
   if (app === 'codex') return codex.command({ skipPermissions: settings.get().skipPermissions, resume });
   if (app === 'copilot') return copilot.command({ skipPermissions: settings.get().skipPermissions, resume });
@@ -66,7 +75,7 @@ function sessionCommand(app, resume = null, claudeDir) {
   return claudeCommand(resume ? ` --resume ${resume}` : '', claudeDir);
 }
 // Whether each app that can start sessions, other than Claude, is installed.
-const INSTALLED = { codex, copilot, opencode, cursor, antigravity };
+const INSTALLED = { 'claude-vscode': vscode, codex, copilot, opencode, cursor, antigravity };
 // The app new sessions start in, from Settings: Claude unless another is
 // chosen and installed.
 function newSessionApp() {
@@ -116,6 +125,9 @@ function currentSnapshot() {
         }
         // To-dos first: a to-do goes on its session's card, and from there
         // into the history when the session closes.
+        // To-dos started in VS Code take the first Claude session it starts
+        // in their folder.
+        vscode.settle(snap.agents, { now: snap.now, taken: todos.hasSession });
         todos.observe(snap.agents, snap.now);
         snap.todos = todos.pending(snap.now);
         snap.todoStartsIn = todoStartsIn();
@@ -138,6 +150,7 @@ function currentSnapshot() {
         snap.opencodeInstalled = opencode.installed();
         snap.cursorInstalled = cursor.installed();
         snap.antigravityInstalled = antigravity.installed();
+        snap.claudeVscodeInstalled = vscode.installed();
         snap.newSessionApp = newSessionApp();
         // The Claude Code folders watched, for the account filter and tags.
         snap.claudeAccounts = claudeDirs.list().map((dir) => ({ dir, label: claudeDirs.label(dir) }));
@@ -526,7 +539,18 @@ async function todoAction(res, id, name, body) {
       return send(res, 400, { ok: false, error: `${which} doesn't exist: ${cwd}` });
     }
     const app = todo.app || newSessionApp();
-    if (app === 'copilot') {
+    if (app === 'claude-vscode') {
+      // VS Code opens the folder and a Claude tab with the to-do filled in,
+      // for you to send. The extension picks the session's ID, so the to-do
+      // is linked to the first session it starts there.
+      const opened = await vscode.startClaude(cwd, [todo.title, todo.notes].filter(Boolean).join('\n\n'), vscodeAccount());
+      if (!opened.ok) return send(res, opened.error.startsWith('VS Code with') ? 400 : 500, opened);
+      vscode.expect(cwd, (sessionId) => {
+        todos.linked(id, sessionId);
+        groups.carry(id, sessionId);
+      });
+      result = { ...todos.started(id, null), note: opened.note };
+    } else if (app === 'copilot') {
       if (!copilot.installed()) return send(res, 400, { ok: false, error: "The Copilot CLI isn't installed on this computer." });
       // Like Claude: the server makes the session's ID, so it knows which
       // session the to-do became, and Copilot names the session after it.
@@ -606,7 +630,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/repos') {
       const { root, tree, all, count, excludedFolders } = scanRepos(url.searchParams.has('refresh'));
       const app = newSessionApp();
-      return send(res, 200, { root, home: os.homedir(), tree, all, count, excluded: excludedFolders.length, app, command: sessionCommand(app) });
+      const command = app === 'claude-vscode' ? null : sessionCommand(app);
+      return send(res, 200, { root, home: os.homedir(), tree, all, count, excluded: excludedFolders.length, app, command });
     }
 
     if (url.pathname === '/api/settings') {
@@ -655,7 +680,8 @@ const server = http.createServer(async (req, res) => {
       if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
       const dir = resolveRepo((await readJson(req)).path);
       if (!dir) return send(res, 404, { ok: false, error: 'That repo is not in the list. Rescan and try again.' });
-      const result = await openTab(dir, sessionCommand(newSessionApp()));
+      const app = newSessionApp();
+      const result = app === 'claude-vscode' ? await vscode.startClaude(dir, '', vscodeAccount()) : await openTab(dir, sessionCommand(app));
       return send(res, result.ok ? 200 : 500, result);
     }
 
