@@ -360,6 +360,10 @@
   'Open in': 'Abrir en',
   'Click a repo to open a terminal tab there running <code id="repos-command">claude</code>.':
     'Haz clic en un repositorio para abrir allí una pestaña del terminal con <code id="repos-command">claude</code>.',
+  'Its VS Code profile': 'Su perfil de VS Code',
+  None: 'Ninguno',
+  'Claude (VS Code) signs in with the account VS Code started with. To use this one even when VS Code is open, make a VS Code profile whose settings set <code>CLAUDE_CONFIG_DIR</code> in <code>claudeCode.environmentVariables</code>, and name it here.':
+    'Claude (VS Code) inicia sesión con la cuenta con la que se abrió VS Code. Para usar esta aunque VS Code esté abierto, crea un perfil de VS Code cuya configuración defina <code>CLAUDE_CONFIG_DIR</code> en <code>claudeCode.environmentVariables</code>, y escribe aquí su nombre.',
   'Click a repo to open it in VS Code, with a new Claude tab.': 'Haz clic en un repositorio para abrirlo en VS Code, con una pestaña nueva de Claude.',
   'Use {folder}': 'Usar {folder}',
   'Open {app} in {folder}': 'Abrir {app} en {folder}',

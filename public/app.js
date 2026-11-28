@@ -102,7 +102,7 @@ const PERMISSION_MODES = {
   'never-ask': tr('never asks'),
 };
 // Which app each session is, on its card and in the history.
-const APPS = { claude: 'Claude', codex: 'Codex', copilot: 'Copilot', opencode: 'OpenCode', cursor: 'Cursor', antigravity: 'Antigravity', comfy: 'Comfy', localai: 'LocalAI', ollama: 'Ollama', lmstudio: 'LM Studio', llamacpp: 'llama.cpp' };
+const APPS = { claude: 'Claude', codex: 'Codex', copilot: 'Copilot', opencode: 'OpenCode', cursor: 'Cursor', antigravity: 'Antigravity', 'claude-vscode': 'Claude (VS Code)', comfy: 'Comfy', localai: 'LocalAI', ollama: 'Ollama', lmstudio: 'LM Studio', llamacpp: 'llama.cpp' };
 // Cards for things other than sessions: ComfyUI's jobs, LocalAI's models,
 // downloads and chats, and the other model servers' loaded models.
 const isItem = (a) => ['comfy', 'localai', 'ollama', 'lmstudio', 'llamacpp'].includes(a.app);
@@ -1320,8 +1320,9 @@ function editTodo(t) {
 async function startTodo(t, button) {
   if (button) button.disabled = true;
   try {
-    await api(`/api/todos/${t.id}/start`);
-    toast(tr('Starting {app} in {folder}', { app: APPS[todoApp(t)], folder: shortPath(t.cwd || snap?.todoStartsIn || '') }));
+    const r = await api(`/api/todos/${t.id}/start`);
+    // Claude (VS Code) may say VS Code is on another account.
+    toast(r.note || tr('Starting {app} in {folder}', { app: APPS[todoApp(t)], folder: shortPath(t.cwd || snap?.todoStartsIn || '') }));
   } catch (err) {
     toast(err.message, true);
   } finally {
@@ -2787,9 +2788,9 @@ async function loadRepos(refresh) {
 async function openRepo(node, button) {
   button.disabled = true;
   try {
-    await api('/api/repos/open', { path: node.path });
+    const r = await api('/api/repos/open', { path: node.path });
     $('repos').close();
-    toast(tr('Opening {app} in {folder}', { app: APPS[repoData.app] || APPS.claude, folder: node.name }));
+    toast(r.note || tr('Opening {app} in {folder}', { app: APPS[repoData.app] || APPS.claude, folder: node.name }));
   } catch (err) {
     toast(err.message, true);
   } finally {
@@ -3462,6 +3463,11 @@ function renderClaudeAccounts() {
   const select = $('claude-new');
   select.replaceChildren(...watched.map((p, i) => el('option', { value: i ? p : '', text: baseName(p) })));
   select.value = watched.slice(1).find((p) => same(p, s.newSessionClaude || '')) || '';
+  // The VS Code profile Claude (VS Code) opens folders in for that account.
+  $('claude-vscode-field').hidden = !snap?.claudeVscodeInstalled;
+  const profiles = s.vscodeProfiles || {};
+  const key = select.value ? Object.keys(profiles).find((p) => p && same(p, select.value)) : '';
+  $('claude-vscode-profile').value = profiles[key ?? ''] || '';
 }
 
 $('claude-add').addEventListener('keydown', noSubmit((input) => input.blur()));
@@ -3474,6 +3480,13 @@ $('claude-add').addEventListener('change', async (e) => {
   }
 });
 $('claude-new').addEventListener('change', (e) => saveServerSetting({ newSessionClaude: e.currentTarget.value }).then(() => loadRepos(false)));
+$('claude-vscode-profile').addEventListener('keydown', noSubmit((input) => input.blur()));
+$('claude-vscode-profile').addEventListener('change', (e) => {
+  const dir = $('claude-new').value;
+  const same = (a, b) => (snap?.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b);
+  const profiles = Object.fromEntries(Object.entries(serverSettings?.vscodeProfiles || {}).filter(([p]) => (dir ? !p || !same(p, dir) : p)));
+  saveServerSetting({ vscodeProfiles: { ...profiles, [dir]: e.currentTarget.value } });
+});
 
 async function saveServerSetting(changes) {
   try {

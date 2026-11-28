@@ -315,6 +315,13 @@
                   <select id="claude-new"></select>
                 </label>
                 <p class="settings-help">The folder, and so the account, that the repo menu and to-dos start Claude with. Resume uses each session's own.</p>
+                <div id="claude-vscode-field" hidden>
+                  <label class="field">
+                    <span>Its VS Code profile</span>
+                    <input id="claude-vscode-profile" type="text" placeholder="None" autocomplete="off" spellcheck="false">
+                  </label>
+                  <p class="settings-help" data-i18n>Claude (VS Code) signs in with the account VS Code started with. To use this one even when VS Code is open, make a VS Code profile whose settings set <code>CLAUDE_CONFIG_DIR</code> in <code>claudeCode.environmentVariables</code>, and name it here.</p>
+                </div>
               </div>
             </fieldset>
           </section>

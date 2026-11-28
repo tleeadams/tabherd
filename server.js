@@ -58,6 +58,14 @@ function claudeCommand(args = '', claudeDir = newSessionClaude()) {
 // The Claude Code folder new Claude sessions start with: Settings' choice
 // while it's watched, else the default.
 const newSessionClaude = () => claudeDirs.watched(settings.get().newSessionClaude);
+// How Claude (VS Code) starts for that account: its folder unless it's the
+// default, its name, and the VS Code profile Settings gives it.
+function vscodeAccount() {
+  const dir = newSessionClaude();
+  const profiles = settings.get().vscodeProfiles || {};
+  const key = claudeDirs.isDefault(dir) ? '' : Object.keys(profiles).find((p) => p && claudeDirs.same(p, dir));
+  return { claudeDir: claudeDirs.isDefault(dir) ? null : dir, account: claudeDirs.label(dir), profile: profiles[key ?? ''] || '' };
+}
 function sessionCommand(app, resume = null, claudeDir) {
   if (app === 'codex') return codex.command({ skipPermissions: settings.get().skipPermissions, resume });
   if (app === 'copilot') return copilot.command({ skipPermissions: settings.get().skipPermissions, resume });
@@ -535,13 +543,13 @@ async function todoAction(res, id, name, body) {
       // VS Code opens the folder and a Claude tab with the to-do filled in,
       // for you to send. The extension picks the session's ID, so the to-do
       // is linked to the first session it starts there.
-      const opened = await vscode.startClaude(cwd, [todo.title, todo.notes].filter(Boolean).join('\n\n'));
+      const opened = await vscode.startClaude(cwd, [todo.title, todo.notes].filter(Boolean).join('\n\n'), vscodeAccount());
       if (!opened.ok) return send(res, opened.error.startsWith('VS Code with') ? 400 : 500, opened);
       vscode.expect(cwd, (sessionId) => {
         todos.linked(id, sessionId);
         groups.carry(id, sessionId);
       });
-      result = todos.started(id, null);
+      result = { ...todos.started(id, null), note: opened.note };
     } else if (app === 'copilot') {
       if (!copilot.installed()) return send(res, 400, { ok: false, error: "The Copilot CLI isn't installed on this computer." });
       // Like Claude: the server makes the session's ID, so it knows which
@@ -673,7 +681,7 @@ const server = http.createServer(async (req, res) => {
       const dir = resolveRepo((await readJson(req)).path);
       if (!dir) return send(res, 404, { ok: false, error: 'That repo is not in the list. Rescan and try again.' });
       const app = newSessionApp();
-      const result = app === 'claude-vscode' ? await vscode.startClaude(dir) : await openTab(dir, sessionCommand(app));
+      const result = app === 'claude-vscode' ? await vscode.startClaude(dir, '', vscodeAccount()) : await openTab(dir, sessionCommand(app));
       return send(res, result.ok ? 200 : 500, result);
     }
 
