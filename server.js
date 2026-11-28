@@ -52,13 +52,13 @@ function sessionCommand(app, resume = null) {
   if (app === 'cursor') return cursor.command({ skipPermissions: settings.get().skipPermissions, resume });
   return resume ? `${claudeCommand()} --resume ${resume}` : claudeCommand();
 }
-// The app new sessions start in, from Settings: Claude unless Codex is chosen
-// and installed.
+// Whether each app that can start sessions, other than Claude, is installed.
+const INSTALLED = { codex, copilot, opencode, cursor };
+// The app new sessions start in, from Settings: Claude unless another is
+// chosen and installed.
 function newSessionApp() {
   const app = settings.get().newSessionApp;
-  if (app === 'codex' && codex.installed()) return 'codex';
-  if (app === 'copilot' && copilot.installed()) return 'copilot';
-  return 'claude';
+  return INSTALLED[app]?.installed() ? app : 'claude';
 }
 // Where a to-do with no folder of its own starts: the Start in folder from
 // Settings, else the repos folder. Claude can make a new project there.
@@ -115,6 +115,8 @@ function currentSnapshot() {
         // waits for them.
         snap.settled = codex.settled();
         snap.copilotInstalled = copilot.installed();
+        snap.opencodeInstalled = opencode.installed();
+        snap.cursorInstalled = cursor.installed();
         snap.newSessionApp = newSessionApp();
         // Each session's and to-do's tickets, before the history takes the
         // sessions that closed.
@@ -504,6 +506,18 @@ async function todoAction(res, id, name, body) {
       if (!opened.ok) return send(res, 500, opened);
       groups.carry(id, sessionId);
       result = todos.started(id, sessionId);
+    } else if (app === 'opencode' || app === 'cursor') {
+      // Their sessions are made first, named after the to-do where the app
+      // allows it, so the to-do knows which one it became.
+      if (!INSTALLED[app].installed()) {
+        return send(res, 400, { ok: false, error: app === 'opencode' ? "OpenCode isn't installed on this computer." : "Cursor CLI isn't installed on this computer." });
+      }
+      const made = app === 'opencode' ? await opencode.createSession({ cwd, title: todo.title }) : await cursor.createChat(cwd);
+      if (!made.ok) return send(res, 500, made);
+      const opened = await openTab(cwd, sessionCommand(app, made.id));
+      if (!opened.ok) return send(res, 500, opened);
+      groups.carry(id, made.id);
+      result = todos.started(id, made.id);
     } else if (app === 'codex') {
       if (!codex.installed()) return send(res, 400, { ok: false, error: "Codex isn't installed on this computer." });
       const opened = await openTab(cwd, sessionCommand('codex'));
@@ -615,7 +629,7 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
-    const resume = url.pathname.match(/^\/api\/history\/([0-9a-f-]{36})\/resume$/i);
+    const resume = url.pathname.match(/^\/api\/history\/([0-9a-f-]{36}|ses_[A-Za-z0-9]{10,60})\/resume$/i);
     if (resume) {
       if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
       if (req.headers['x-agents-token'] !== TOKEN) return send(res, 403, { error: 'Missing or bad token' });
@@ -623,7 +637,7 @@ const server = http.createServer(async (req, res) => {
       if (!past) return send(res, 404, { ok: false, error: 'That session is not in the history.' });
       if (history.isLive(past.id)) return send(res, 409, { ok: false, error: 'That session is already running.' });
       if (!fs.existsSync(past.cwd)) return send(res, 400, { ok: false, error: `Its folder no longer exists: ${past.cwd}` });
-      // The ID comes from the history's own records, which only hold UUIDs.
+      // The ID comes from the history's own records, which only hold session IDs.
       const result = await openTab(past.cwd, sessionCommand(past.app || 'claude', past.id));
       return send(res, result.ok ? 200 : 500, result);
     }

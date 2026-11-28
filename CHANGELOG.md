@@ -2,6 +2,11 @@
 
 Notable changes in each release. Version numbers follow [Semantic Versioning](https://semver.org). The release build takes each release's notes from its section here.
 
+## Unreleased
+
+- To-dos and the repo menu start OpenCode and Cursor CLI sessions too: choose them in Settings → New sessions, the repo menu, or a to-do's **Start with**. A to-do's session is made before its window opens, so the to-do knows it from the start, and an OpenCode session is titled after the to-do.
+- OpenCode's closed sessions stay in History after the dashboard restarts, including those that closed while it wasn't running, and Resume works on them.
+
 ## 0.6.1 - 2026-11-26
 
 Fixes for 0.6.0. Coming from 0.5.0? [0.6.0's notes](https://github.com/tleeadams/tabherd/releases/tag/v0.6.0) have what's new: the desktop app on macOS and Linux, OpenCode and Cursor CLI, tickets on cards, **Complete**, update alerts, and npm.
