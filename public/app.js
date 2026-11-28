@@ -512,8 +512,9 @@ const APP_ADDRESSES = [
 ];
 
 // The apps other than Claude that sessions can start in, once installed.
-const OTHER_APPS = ['codex', 'copilot', 'opencode', 'cursor', 'antigravity'];
-const appInstalled = (app) => app === 'claude' || Boolean(snap?.[`${app}Installed`]);
+const OTHER_APPS = ['claude-vscode', 'codex', 'copilot', 'opencode', 'cursor', 'antigravity'];
+// Each one's flag in the snapshot, such as claudeVscodeInstalled.
+const appInstalled = (app) => app === 'claude' || Boolean(snap?.[`${app.replace(/-(\w)/g, (m, c) => c.toUpperCase())}Installed`]);
 // One of them is installed, so there's an app to choose.
 const otherAppsInstalled = () => OTHER_APPS.some(appInstalled);
 
@@ -2766,7 +2767,10 @@ async function loadRepos(refresh) {
     const excluded = repoData.excluded ? ` · ${tr('{n} hidden', { n: repoData.excluded })}` : '';
     $('repos-root').textContent = `${shortPath(repoData.root)} · ${trn(repoData.count, '{n} repo', '{n} repos')}${excluded}`;
     $('repos-root').title = excluded ? tr('Change what is hidden in Settings') : '';
-    $('repos-command').textContent = repoData.command;
+    // VS Code opens the repo with a Claude tab, not a terminal tab.
+    $('repos-foot').hidden = !repoData.command;
+    $('repos-vscode-foot').hidden = Boolean(repoData.command);
+    if (repoData.command) $('repos-command').textContent = repoData.command;
     // Claude or another app, once one is installed; it's the setting in Settings.
     $('repos-app').hidden = !otherAppsInstalled();
     showInstalledChoices('repos-app');
@@ -2801,6 +2805,7 @@ function openRepoPicker(todo, start) {
   repoPick = { todo, start };
   $('repos-title').textContent = tr('Choose a folder');
   $('repos-foot').hidden = true;
+  $('repos-vscode-foot').hidden = true;
   $('repos-pick-foot').hidden = false;
   $('repos-pick-foot').textContent = start ? tr('Click a repo to start “{title}” there.', { title: todo.title }) : tr('Click a repo to use it for “{title}”.', { title: todo.title });
   $('repos-filter').value = '';
@@ -2846,7 +2851,8 @@ $('repos').addEventListener('close', () => {
   if (!repoPick) return;
   repoPick = null;
   $('repos-title').textContent = tr('Repositories');
-  $('repos-foot').hidden = false;
+  $('repos-foot').hidden = !repoData?.command;
+  $('repos-vscode-foot').hidden = Boolean(repoData?.command);
   $('repos-pick-foot').hidden = true;
 });
 

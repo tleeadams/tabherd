@@ -360,6 +360,7 @@
   'Open in': 'Abrir en',
   'Click a repo to open a terminal tab there running <code id="repos-command">claude</code>.':
     'Haz clic en un repositorio para abrir allí una pestaña del terminal con <code id="repos-command">claude</code>.',
+  'Click a repo to open it in VS Code, with a new Claude tab.': 'Haz clic en un repositorio para abrirlo en VS Code, con una pestaña nueva de Claude.',
   'Use {folder}': 'Usar {folder}',
   'Open {app} in {folder}': 'Abrir {app} en {folder}',
   '{n} session running here': '{n} sesión en marcha aquí',
@@ -753,6 +754,7 @@
   "OpenCode isn't installed on this computer.": 'OpenCode no está instalado en este ordenador.',
   "Cursor CLI isn't installed on this computer.": 'Cursor CLI no está instalado en este ordenador.',
   "Antigravity isn't installed on this computer.": 'Antigravity no está instalado en este ordenador.',
+  "VS Code with the Claude Code extension isn't installed on this computer.": 'VS Code con la extensión de Claude Code no está instalado en este ordenador.',
   'Your answer': 'Tu respuesta',
   "Couldn't start OpenCode's background service.": 'No se pudo iniciar el servicio en segundo plano de OpenCode.',
   "OpenCode didn't say which session it made.": 'OpenCode no dijo qué sesión creó.',

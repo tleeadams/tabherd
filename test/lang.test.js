@@ -48,7 +48,7 @@ function pageKeys(html) {
 }
 
 // Names, which stay as they are in every language.
-const NAMES = new Set(['Tabherd', 'Claude', 'Codex', 'Copilot', 'OpenCode', 'Cursor', 'Antigravity', 'auto']);
+const NAMES = new Set(['Tabherd', 'Claude', 'Codex', 'Copilot', 'OpenCode', 'Cursor', 'Antigravity', 'Claude (VS Code)', 'auto']);
 
 const placeholders = (s) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 const tags = (s) => [...s.matchAll(/<[^>]+>/g)].map((m) => m[0]).sort();
