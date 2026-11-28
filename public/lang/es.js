@@ -362,8 +362,29 @@
     'Haz clic en un repositorio para abrir allí una pestaña del terminal con <code id="repos-command">claude</code>.',
   'Its VS Code profile': 'Su perfil de VS Code',
   None: 'Ninguno',
-  'Claude (VS Code) signs in with the account VS Code started with. To use this one even when VS Code is open, make a VS Code profile whose settings set <code>CLAUDE_CONFIG_DIR</code> in <code>claudeCode.environmentVariables</code>, and name it here.':
-    'Claude (VS Code) inicia sesión con la cuenta con la que se abrió VS Code. Para usar esta aunque VS Code esté abierto, crea un perfil de VS Code cuya configuración defina <code>CLAUDE_CONFIG_DIR</code> en <code>claudeCode.environmentVariables</code>, y escribe aquí su nombre.',
+  'Claude (VS Code) signs in with the account VS Code started with. To use this one even when VS Code is open, name a VS Code profile whose settings set <code>CLAUDE_CONFIG_DIR</code>, or have the <a href="/assistant">Config Assistant</a> make one.':
+    'Claude (VS Code) inicia sesión con la cuenta con la que se abrió VS Code. Para usar esta aunque VS Code esté abierto, escribe el nombre de un perfil de VS Code cuya configuración defina <code>CLAUDE_CONFIG_DIR</code>, o deja que el <a href="/assistant">Asistente de configuración</a> cree uno.',
+  // ---- the Config Assistant's page
+  'Tabherd Config Assistant': 'Asistente de configuración de Tabherd',
+  'Config Assistant': 'Asistente de configuración',
+  'Back to the dashboard': 'Volver al panel',
+  'Setup for other apps that Tabherd works with. Nothing changes until you choose Apply, and Undo puts things back.':
+    'Configuración de otras aplicaciones con las que trabaja Tabherd. Nada cambia hasta que eliges Aplicar, y Deshacer lo devuelve a como estaba.',
+  'Looking at this computer…': 'Revisando este ordenador…',
+  'Nothing to set up on this computer. Tasks show here once they apply, such as when VS Code and a second Claude account are both found.':
+    'No hay nada que configurar en este ordenador. Las tareas aparecen aquí cuando se aplican, por ejemplo cuando se encuentran VS Code y una segunda cuenta de Claude.',
+  Needed: 'Pendiente',
+  'Needs a look': 'Necesita revisión',
+  Apply: 'Aplicar',
+  Undo: 'Deshacer',
+  'Undoing…': 'Deshaciendo…',
+  'Working…': 'Trabajando…',
+  'Done.': 'Hecho.',
+  'That didn’t work.': 'No funcionó.',
+  "Couldn't reach Tabherd: {error}": 'No se pudo contactar con Tabherd: {error}',
+  'A VS Code profile for each Claude account': 'Un perfil de VS Code para cada cuenta de Claude',
+  'Claude (VS Code) signs in with the account VS Code started with. A profile for each account lets to-dos open Claude on the account Settings chooses, even while VS Code is open.':
+    'Claude (VS Code) inicia sesión con la cuenta con la que se abrió VS Code. Un perfil para cada cuenta permite que las tareas abran Claude con la cuenta que elige la Configuración, aunque VS Code esté abierto.',
   'Click a repo to open it in VS Code, with a new Claude tab.': 'Haz clic en un repositorio para abrirlo en VS Code, con una pestaña nueva de Claude.',
   'Use {folder}': 'Usar {folder}',
   'Open {app} in {folder}': 'Abrir {app} en {folder}',
