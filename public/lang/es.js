@@ -10,6 +10,7 @@
   'Shell running': 'Shell en ejecución',
   'At the prompt while a background shell task runs': 'Esperando en el prompt mientras se ejecuta una tarea de shell en segundo plano',
   Queued: 'En cola',
+  'Time spent working, waiting on you, queued and idle': 'Tiempo trabajando, esperándote, en cola e inactivo',
   'Waiting for the ones before it': 'Esperando a los anteriores',
   Idle: 'Inactiva',
   Starting: 'Iniciando',
