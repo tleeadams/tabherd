@@ -35,6 +35,7 @@
     </nav>
     <div class="view-filters">
       <select id="app-filter" class="view-select" aria-label="Show sessions from" hidden></select>
+      <select id="account-filter" class="view-select" aria-label="Show a Claude account" hidden></select>
       <select id="group-filter" class="view-select" aria-label="Show a group" hidden></select>
     </div>
     <button type="button" id="todo-new" class="todo-new" title="New to-do: a task to start a Claude session for later" aria-haspopup="dialog" aria-controls="todo-dialog">
@@ -284,6 +285,32 @@
                 <input type="checkbox" id="group-sections">
                 <span class="choice-text"><b>Sections by group</b><span>Each group's cards together under its name, and the rest after them.</span></span>
               </label>
+            </fieldset>
+          </section>
+          <section class="settings-section" id="settings-claude-accounts" data-title="Claude accounts">
+            <fieldset>
+              <legend>Claude accounts</legend>
+              <p class="settings-help" data-i18n>Claude Code keeps each account it signs in to in a folder of its own, chosen with <code>CLAUDE_CONFIG_DIR</code>. Sessions in the default folder get cards. Choose more folders to watch them too.</p>
+              <label class="choice">
+                <input type="checkbox" checked disabled>
+                <span class="choice-text"><b id="claude-default-name"></b><span id="claude-default-path"></span></span>
+              </label>
+              <div id="claude-found"></div>
+              <div id="claude-extra-field" hidden>
+                <p class="settings-help">Other folders:</p>
+                <ul id="claude-extra" class="excluded"></ul>
+              </div>
+              <label class="field">
+                <span>Add a folder</span>
+                <input id="claude-add" type="text" placeholder="Full path of a Claude Code folder" autocomplete="off" spellcheck="false">
+              </label>
+              <div id="claude-new-field" hidden>
+                <label class="field">
+                  <span>New Claude sessions use</span>
+                  <select id="claude-new"></select>
+                </label>
+                <p class="settings-help">The folder, and so the account, that the repo menu and to-dos start Claude with. Resume uses each session's own.</p>
+              </div>
             </fieldset>
           </section>
           <section class="settings-section" id="settings-new-sessions" data-title="New sessions">

@@ -2,6 +2,10 @@
 
 Notable changes in each release. Version numbers follow [Semantic Versioning](https://semver.org). The release build takes each release's notes from its section here.
 
+## Unreleased
+
+- Sessions from more than one Claude account: Settings → Claude accounts lists your other `~/.claude-*` folders to watch, and takes any other Claude Code folder by its path. Each Claude card and History entry then says which folder it's in, a list in the header shows one account's sessions, and you choose the account new Claude sessions start with. Resume uses each session's own.
+
 ## 0.6.1 - 2026-11-26
 
 Fixes for 0.6.0. Coming from 0.5.0? [0.6.0's notes](https://github.com/tleeadams/tabherd/releases/tag/v0.6.0) have what's new: the desktop app on macOS and Linux, OpenCode and Cursor CLI, tickets on cards, **Complete**, update alerts, and npm.

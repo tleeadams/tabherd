@@ -110,7 +110,7 @@ npm run serve      # serve without opening a browser
 npm run check      # print a one-off table in the terminal
 ```
 
-Set `PORT` to use another port. Set `CLAUDE_CONFIG_DIR` if your Claude config isn't in `~/.claude`. The server keeps its own settings in `~/.tabherd`; set `TABHERD_DATA_DIR` to use another folder.
+Set `PORT` to use another port. Set `CLAUDE_CONFIG_DIR` if your Claude config isn't in `~/.claude`; to watch more than one, see *Claude accounts* in [Settings](#settings). The server keeps its own settings in `~/.tabherd`; set `TABHERD_DATA_DIR` to use another folder.
 
 The same launcher and shortcuts as a release can be set up from the source:
 
@@ -304,6 +304,8 @@ When the session closes, the to-do goes too. Its title and notes stay with the s
 
 The gear button in the header opens Settings, one section at a time, picked from the list down its left side. It opens at the section last used.
 
+**Claude accounts**: Claude Code keeps each account it signs in to in a folder of its own, `~/.claude` unless `CLAUDE_CONFIG_DIR` names another. Only the default folder's sessions get cards at first. Tick the other `~/.claude-*` folders listed here to watch those accounts too, or add any other folder by its full path. With more than one watched, each Claude card and History entry is tagged with its folder's name, a list beside the app list in the header shows one account's sessions, and *New Claude sessions use* chooses the account the repo menu and to-dos start Claude with. They run `claude` with `CLAUDE_CONFIG_DIR` set to that folder, and Resume uses each session's own.
+
 **New sessions**: once Codex or the Copilot CLI is installed, *Claude*, *Codex* or *Copilot* chooses the app the repo menu opens, and to-dos start in unless they name one. *Skip permission prompts* (off by default) makes every session the dashboard opens, from the repo menu, Resume or a to-do, run `claude --dangerously-skip-permissions`, `codex --dangerously-bypass-approvals-and-sandbox`, `copilot --allow-all`, `opencode --auto` or `cursor-agent --force`. They then edit files and run commands without asking first. Only turn it on if you'd run them that way yourself in those folders. *Terminal* chooses which terminal they open in, where there's more than one; see [Platform support](#platform-support).
 
 **Appearance** has *Language*, *Theme*, *Status colours*, *Card size* and the *Memory and models* card, which can be turned off. **Language**: *Automatic* (the default) follows the browser's languages, and *English* or *Español* sets one. Changing it reloads the page. The Spanish is a first translation, so some of it may read oddly; corrections are welcome. A few of the server's messages, those with details in them, stay English. **Theme**: *System* (the default) follows the system's light or dark mode. *Light* or *Dark* sets one regardless. **Status colours**: *Colour-blind* shows Working in blue and Needs you in orange, in place of green and amber, which red-green colour blindness makes hard to tell from each other and from Idle's grey. Each status gets a shape too: a dot for Working, a triangle for Needs you, a ring for Idle, with a dashed edge on its card, and a square for Shell running.
@@ -472,7 +474,7 @@ All of it is read-only, from files the coding agents already write, and from the
 
 | Source | Used for |
 | --- | --- |
-| `~/.claude/sessions/<pid>.json` | The list of sessions, with their status, name, folder and version. The `.key` files next to them are never read. |
+| `~/.claude/sessions/<pid>.json`, and the same in each other Claude Code folder chosen in Settings | The list of sessions, with their status, name, folder and version. The `.key` files next to them are never read. |
 | `~/.claude/projects/<project>/<session>.jsonl` | Title, prompts, tool calls, model, token usage, recaps and PR links. Each poll reads only the newly appended bytes. |
 | `…/<session>/subagents/*.meta.json` and `*.jsonl` | Subagents and what they are doing. |
 | `Get-Process` (Windows) or `ps` | Memory use, and a check that each PID still belongs to the Claude process that registered it. |

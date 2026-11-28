@@ -27,6 +27,8 @@ test('defaults are safe', () => {
     todoStartFolder: '',
     terminal: 'auto',
     newSessionApp: 'claude',
+    claudeFolders: [],
+    newSessionClaude: '',
     comfyUrl: '',
     localaiUrl: '',
     localaiKey: '',

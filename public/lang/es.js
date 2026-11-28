@@ -270,6 +270,21 @@
   Title: 'Título',
   Notes: 'Notas',
   'Start with': 'Iniciar con',
+  'Claude accounts': 'Cuentas de Claude',
+  'Claude Code keeps each account it signs in to in a folder of its own, chosen with <code>CLAUDE_CONFIG_DIR</code>. Sessions in the default folder get cards. Choose more folders to watch them too.':
+    'Claude Code guarda cada cuenta con la que inicia sesión en una carpeta propia, elegida con <code>CLAUDE_CONFIG_DIR</code>. Las sesiones de la carpeta predeterminada tienen tarjeta. Elige más carpetas para seguirlas también.',
+  'Other folders:': 'Otras carpetas:',
+  'Add a folder': 'Añadir una carpeta',
+  'Full path of a Claude Code folder': 'Ruta completa de una carpeta de Claude Code',
+  'New Claude sessions use': 'Las sesiones nuevas de Claude usan',
+  "The folder, and so the account, that the repo menu and to-dos start Claude with. Resume uses each session's own.":
+    'La carpeta, y por tanto la cuenta, con la que el menú de repositorios y las tareas inician Claude. Reanudar usa la de cada sesión.',
+  'Stop watching it': 'Dejar de seguirla',
+  'Stop watching {folder}': 'Dejar de seguir {folder}',
+  'All accounts': 'Todas las cuentas',
+  'Show a Claude account': 'Mostrar una cuenta de Claude',
+  'Claude Code folder: {folder}': 'Carpeta de Claude Code: {folder}',
+  "That isn't a folder on this computer. Give its full path.": 'Esa no es una carpeta de este ordenador. Indica su ruta completa.',
   'As in Settings': 'Como en Configuración',
   'As in Settings ({app})': 'Como en Configuración ({app})',
   "Nothing here is sent to the session. To use it as a prompt, copy it in once it's started.":
