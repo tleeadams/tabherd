@@ -25,9 +25,11 @@ test("sessions opened from inside a Claude session don't inherit its variables",
     CLAUDE_CONFIG_DIR: '/home/a/.claude',
     CLAUDEX: 'not a Claude Code variable',
     ANTHROPIC_BASE_URL: 'https://example.invalid',
+    NO_COLOR: '1',
     PATH: '/usr/bin',
   });
-  assert.deepEqual(Object.keys(env).sort(), ['ANTHROPIC_BASE_URL', 'CLAUDEX', 'CLAUDE_CONFIG_DIR', 'PATH']);
+  assert.deepEqual(Object.keys(env).sort(), ['ANTHROPIC_BASE_URL', 'CLAUDEX', 'CLAUDE_CONFIG_DIR', 'PATH'], "and Claude Code's colour switch, so tabs have colour");
+  assert.equal(forgetParentSession({ NO_COLOR: '1', PATH: '/usr/bin' }).NO_COLOR, '1', 'one set outside Claude Code stays');
 });
 
 // A session (pid 30) in a shell (20) in a terminal (10), with no tmux.
