@@ -140,6 +140,7 @@
         <label><input type="radio" name="repos-app" value="copilot">Copilot</label>
         <label><input type="radio" name="repos-app" value="opencode">OpenCode</label>
         <label><input type="radio" name="repos-app" value="cursor">Cursor</label>
+        <label><input type="radio" name="repos-app" value="antigravity">Antigravity</label>
       </div>
     </div>
     <nav id="repos-tree" class="tree" aria-label="Repositories"></nav>
@@ -325,12 +326,13 @@
                   <label><input type="radio" name="new-app" value="copilot">Copilot</label>
                   <label><input type="radio" name="new-app" value="opencode">OpenCode</label>
                   <label><input type="radio" name="new-app" value="cursor">Cursor</label>
+                  <label><input type="radio" name="new-app" value="antigravity">Antigravity</label>
                 </div>
                 <p class="settings-help">The app the repo menu opens, and to-dos start in unless they name one.</p>
               </div>
               <label class="choice">
                 <input type="checkbox" id="skip-permissions">
-                <span class="choice-text"><b>Skip permission prompts</b><span data-i18n>Sessions the dashboard opens edit files and run commands without asking: <code>claude --dangerously-skip-permissions</code>, <code>codex --dangerously-bypass-approvals-and-sandbox</code>, <code>copilot --allow-all</code>, <code>opencode --auto</code> or <code>cursor-agent --force</code>. Only for folders you trust.</span></span>
+                <span class="choice-text"><b>Skip permission prompts</b><span data-i18n>Sessions the dashboard opens edit files and run commands without asking: <code>claude --dangerously-skip-permissions</code>, <code>codex --dangerously-bypass-approvals-and-sandbox</code>, <code>copilot --allow-all</code>, <code>opencode --auto</code>, <code>cursor-agent --force</code> or <code>agy --dangerously-skip-permissions</code>. Only for folders you trust.</span></span>
               </label>
               <div id="terminal-setting" hidden>
                 <label class="field">
@@ -469,6 +471,7 @@
           <option value="copilot">Copilot</option>
           <option value="opencode">OpenCode</option>
           <option value="cursor">Cursor</option>
+          <option value="antigravity">Antigravity</option>
         </select>
       </label>
       <label id="todo-tickets-field" class="field" hidden>

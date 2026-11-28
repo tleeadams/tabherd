@@ -2,7 +2,7 @@
 
 # Tabherd
 
-**A dashboard for your coding agents.** Tabherd lists every [Claude Code](https://code.claude.com), [Codex](https://github.com/openai/codex), [GitHub Copilot](https://github.com/github/copilot-cli), [OpenCode](https://opencode.ai) and [Cursor CLI](https://cursor.com/cli) session running on your computer and shows what each one is doing: which ones need you, which are working, and what they last said. It watches the sessions you start anyway, in any terminal, with nothing to set up in any of them. It runs entirely on your computer and has no dependencies beyond Node.
+**A dashboard for your coding agents.** Tabherd lists every [Claude Code](https://code.claude.com), [Codex](https://github.com/openai/codex), [GitHub Copilot](https://github.com/github/copilot-cli), [OpenCode](https://opencode.ai), [Cursor CLI](https://cursor.com/cli) and [Antigravity CLI](https://antigravity.google) session running on your computer and shows what each one is doing: which ones need you, which are working, and what they last said. It watches the sessions you start anyway, in any terminal, with nothing to set up in any of them. It runs entirely on your computer and has no dependencies beyond Node.
 
 Tabherd is an independent project. It isn't made or endorsed by Anthropic, OpenAI, GitHub, or the makers of any other app it works with. It was called Claude Agents up to version 0.1.2. Say it "Tab Herd" or "tabberd": both are right.
 
@@ -184,7 +184,7 @@ The tabs in the header filter the cards. **All** shows everything. The others ar
 
 Filters are saved in `~/.tabherd/filters.json`, for every browser. The tab you're on is remembered in the browser.
 
-Each card says which app the session is: **Claude**, **Codex**, **Copilot**, **OpenCode** or **Cursor**, or another app such as [ComfyUI](#comfyui-and-localai). Once an app other than Claude has something on the dashboard, a list beside the filters shows only one app's sessions, and once there are [groups](#groups), another shows one group, or the sessions in none. The counts on the filters follow both lists, and both are remembered in the browser.
+Each card says which app the session is: **Claude**, **Codex**, **Copilot**, **OpenCode**, **Cursor** or **Antigravity**, or another app such as [ComfyUI](#comfyui-and-localai). Once an app other than Claude has something on the dashboard, a list beside the filters shows only one app's sessions, and once there are [groups](#groups), another shows one group, or the sessions in none. The counts on the filters follow both lists, and both are remembered in the browser.
 
 ## Codex
 
@@ -195,7 +195,7 @@ Codex sessions get cards like Claude's, marked **Codex** (Claude's are marked **
 - **Go to window** finds the session's tab by its title, which Codex sets to the session's name. A session Codex hasn't named yet is matched only when it's the one unmatched Codex window, so until then its card has no Go to window.
 - **Catch up** sends the question with `codex queue`, through Codex's service, and brings the window forward if it's known. Nothing is typed into the window, so nothing there can be answered by it. An idle session starts on it at once, a busy one after its current turn.
 - **Stop** interrupts the turn the session is running, then ends the Codex in its window. If the window isn't known, it interrupts the turn and says to close the window yourself.
-- **Starting Codex**: the repo menu and to-dos start Claude, Codex, Copilot, OpenCode or Cursor, as Settings → New sessions says. The repo menu has the same choice at its top, and a to-do can name its own. A Codex to-do opens `codex` in its folder. Codex chooses its session's ID itself, so the dashboard links the to-do to the first session that starts in that folder within a minute, and names that session after the to-do.
+- **Starting Codex**: the repo menu and to-dos start Claude, Codex, Copilot, OpenCode, Cursor or Antigravity, as Settings → New sessions says. The repo menu has the same choice at its top, and a to-do can name its own. A Codex to-do opens `codex` in its folder. Codex chooses its session's ID itself, so the dashboard links the to-do to the first session that starts in that folder within a minute, and names that session after the to-do.
 - **History** lists closed Codex sessions too, and **Resume** opens your terminal in the session's folder running `codex resume <id>`.
 
 With *Skip permission prompts* on, Codex sessions the dashboard opens or resumes run with `--dangerously-bypass-approvals-and-sandbox`. A session Codex runs outside its background service, such as one in an Administrator terminal or started with `--profile` or most `-c` options, isn't shown. When a Codex window closes, its card goes at once if the dashboard knew the window, or within about a minute, when Codex unloads the session, if it didn't.
@@ -239,6 +239,18 @@ The Cursor CLI's sessions (`cursor-agent`) get cards marked **Cursor**. Cursor k
 - **Starting Cursor:** choose *Cursor* in Settings → New sessions, in the repo menu, or in a to-do's **Start with**. The repo menu opens `cursor-agent` in the repo. A to-do's **Start** first makes an empty chat with `cursor-agent create-chat` in the to-do's folder, then opens `cursor-agent --resume <id>`, so the to-do knows its chat from the start. Cursor names the chat after its first prompt, not after the to-do.
 - **History and Resume:** closed chats are listed, and Resume runs `cursor-agent --resume <id>` in the chat's folder, where Cursor keeps it. *Skip permission prompts* adds `--force`.
 - **Not yet:** subagents.
+
+## Antigravity CLI
+
+Google Antigravity's command-line agent (`agy`) gets cards marked **Antigravity**. It keeps its conversations in `~/.gemini/antigravity-cli`: `conversation_summaries.db` has each one's title, folder and status, and `conversations/<id>.db` its prompts, replies and tool calls. Both are SQLite, which the dashboard reads with Node's own `node:sqlite`, so Antigravity needs Node 22.13 or later. The desktop app and the downloads include one; with an older Node, there are no Antigravity cards.
+
+- **Which conversations have cards:** each one an `agy` window has open. agy doesn't set its tab's title, so a window is matched to its conversation by when each began: the newest open one begun since the window started, or the one it was started on with `--conversation`. On Windows, a conversation is open while agy holds its `presence/<id>.lock`. A new window has no card until its first prompt, when agy begins the conversation.
+- **Status:** *Working* while a turn runs; *Needs you* while a step waits for your approval or agy asks you something; otherwise *Idle*. A turn that ended in an error needs you too.
+- **Activity:** the last prompt and reply, and the tool calls of the step running, with agy's own summary of each.
+- **Go to window**, **Catch up** and **Stop** work as they do for Cursor: Catch up types its prompt into the window. **Complete** and Save and close take Antigravity conversations too.
+- **Starting Antigravity:** choose *Antigravity* in Settings → New sessions, in the repo menu, or in a to-do's **Start with**. They open `agy` in the folder. agy picks its conversation's ID when it's first asked something, so a to-do is linked to the first conversation begun in its folder within ten minutes of **Start**.
+- **History and Resume:** closed conversations are listed, and Resume runs `agy --conversation <id>` in the conversation's folder. *Skip permission prompts* adds `--dangerously-skip-permissions`.
+- **Not yet:** subagents, and the Antigravity desktop app's own conversations.
 
 ## ComfyUI and LocalAI
 
@@ -289,7 +301,7 @@ The colours are a set of eight, each tuned for light and dark and kept apart fro
 
 With a tracker in Settings → Tickets, pasting a ticket's link or key as a new to-do's title fills it in from the ticket: the ticket's title, its description as the notes if they're empty, and the ticket in *Tickets*, so the session starts linked to it. The line under the title says which ticket it came from, or why it couldn't. Jira Cloud's descriptions come as text, with lists, links and code kept. See [Tickets](#tickets).
 
-**Start** opens Claude in the to-do's folder, in your terminal, running `claude --session-id <new id> --name "<the to-do's title>"`, so the session is named after the to-do in its tab's title and Claude's session list. Once another app is installed, the to-do's **Start with** chooses Claude, Codex, Copilot, OpenCode or Cursor, or leaves it to Settings; see [Codex](#codex), [GitHub Copilot](#github-copilot), [OpenCode](#opencode) and [Cursor CLI](#cursor-cli). A to-do doesn't need a folder: without one, it starts in Settings → To-dos → **Start in**, your repos folder unless you set another, where Claude can make a new project. The card says where it will start.
+**Start** opens Claude in the to-do's folder, in your terminal, running `claude --session-id <new id> --name "<the to-do's title>"`, so the session is named after the to-do in its tab's title and Claude's session list. Once another app is installed, the to-do's **Start with** chooses Claude, Codex, Copilot, OpenCode, Cursor or Antigravity, or leaves it to Settings; see [Codex](#codex), [GitHub Copilot](#github-copilot), [OpenCode](#opencode), [Cursor CLI](#cursor-cli) and [Antigravity CLI](#antigravity-cli). A to-do doesn't need a folder: without one, it starts in Settings → To-dos → **Start in**, your repos folder unless you set another, where Claude can make a new project. The card says where it will start.
 
 **Choose folder** picks one first, from where Settings → To-dos says:
 
@@ -308,7 +320,7 @@ The gear button in the header opens Settings, one section at a time, picked from
 
 **Claude accounts**: Claude Code keeps each account it signs in to in a folder of its own, `~/.claude` unless `CLAUDE_CONFIG_DIR` names another. Only the default folder's sessions get cards at first. Tick the other `~/.claude-*` folders listed here to watch those accounts too, or add any other folder by its full path. With more than one watched, each Claude card and History entry is tagged with its folder's name, a list beside the app list in the header shows one account's sessions, and *New Claude sessions use* chooses the account the repo menu and to-dos start Claude with. They run `claude` with `CLAUDE_CONFIG_DIR` set to that folder, and Resume uses each session's own.
 
-**New sessions**: once another app is installed, *Claude*, *Codex*, *Copilot*, *OpenCode* or *Cursor* chooses the app the repo menu opens, and to-dos start in unless they name one. *Skip permission prompts* (off by default) makes every session the dashboard opens, from the repo menu, Resume or a to-do, run `claude --dangerously-skip-permissions`, `codex --dangerously-bypass-approvals-and-sandbox`, `copilot --allow-all`, `opencode --auto` or `cursor-agent --force`. They then edit files and run commands without asking first. Only turn it on if you'd run them that way yourself in those folders. *Terminal* chooses which terminal they open in, where there's more than one; see [Platform support](#platform-support).
+**New sessions**: once another app is installed, *Claude*, *Codex*, *Copilot*, *OpenCode*, *Cursor* or *Antigravity* chooses the app the repo menu opens, and to-dos start in unless they name one. *Skip permission prompts* (off by default) makes every session the dashboard opens, from the repo menu, Resume or a to-do, run `claude --dangerously-skip-permissions`, `codex --dangerously-bypass-approvals-and-sandbox`, `copilot --allow-all`, `opencode --auto`, `cursor-agent --force` or `agy --dangerously-skip-permissions`. They then edit files and run commands without asking first. Only turn it on if you'd run them that way yourself in those folders. *Terminal* chooses which terminal they open in, where there's more than one; see [Platform support](#platform-support).
 
 **Appearance** has *Language*, *Theme*, *Status colours*, *Card size* and the *Memory and models* card, which can be turned off. **Language**: *Automatic* (the default) follows the browser's languages, and *English* or *Español* sets one. Changing it reloads the page. The Spanish is a first translation, so some of it may read oddly; corrections are welcome. A few of the server's messages, those with details in them, stay English. **Theme**: *System* (the default) follows the system's light or dark mode. *Light* or *Dark* sets one regardless. **Status colours**: *Colour-blind* shows Working in blue and Needs you in orange, in place of green and amber, which red-green colour blindness makes hard to tell from each other and from Idle's grey. Each status gets a shape too: a dot for Working, a triangle for Needs you, a ring for Idle, with a dashed edge on its card, and a square for Shell running.
 
@@ -491,6 +503,8 @@ All of it is read-only, from files the coding agents already write, and from the
 | The `opencode` processes and their tab titles | Which window each OpenCode session is in, and its memory use. |
 | `~/.cursor/chats/<folder hash>/<chat>/meta.json` | Each Cursor chat's folder and title, and when it began and changed. |
 | `~/.cursor/projects/<folder>/agent-transcripts/<chat>/<chat>.jsonl` | A Cursor chat's prompts, replies and tool calls, and where each turn ended. |
+| `~/.gemini/antigravity-cli/conversation_summaries.db`, `conversations/<id>.db` and `presence/<id>.lock` | Each Antigravity conversation's title, folder and status, its prompts, replies and tool calls, and whether a window has it open. |
+| The `agy` processes | Which windows have Antigravity open, when each started, and their memory use. |
 | The `cursor-agent` processes and their tab titles | Which window each Cursor chat is in, its state with Cursor's status indicators on, its version and memory use. |
 | Comfy Desktop's `comfy-procs/*.json` and `installations.json` | Which ComfyUIs are running, on which ports, and their names. |
 | ComfyUI's `/api/jobs`, `/queue`, `/api/userdata` and `/view` | Its jobs, their workflows' names and the models they load, and their output images. Its window's title gives the running job's progress. |

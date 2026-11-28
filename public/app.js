@@ -102,7 +102,7 @@ const PERMISSION_MODES = {
   'never-ask': tr('never asks'),
 };
 // Which app each session is, on its card and in the history.
-const APPS = { claude: 'Claude', codex: 'Codex', copilot: 'Copilot', opencode: 'OpenCode', cursor: 'Cursor', comfy: 'Comfy', localai: 'LocalAI', ollama: 'Ollama', lmstudio: 'LM Studio', llamacpp: 'llama.cpp' };
+const APPS = { claude: 'Claude', codex: 'Codex', copilot: 'Copilot', opencode: 'OpenCode', cursor: 'Cursor', antigravity: 'Antigravity', comfy: 'Comfy', localai: 'LocalAI', ollama: 'Ollama', lmstudio: 'LM Studio', llamacpp: 'llama.cpp' };
 // Cards for things other than sessions: ComfyUI's jobs, LocalAI's models,
 // downloads and chats, and the other model servers' loaded models.
 const isItem = (a) => ['comfy', 'localai', 'ollama', 'lmstudio', 'llamacpp'].includes(a.app);
@@ -112,6 +112,7 @@ const APP_HINTS = {
   copilot: tr('A GitHub Copilot session'),
   opencode: tr('An OpenCode session'),
   cursor: tr('A Cursor CLI session'),
+  antigravity: tr('An Antigravity CLI session'),
   comfy: tr('A ComfyUI job'),
   localai: tr('From LocalAI'),
   ollama: tr('From Ollama'),
@@ -262,6 +263,7 @@ const RESUME = {
   copilot: (id) => `copilot --resume=${id}`,
   opencode: (id) => `opencode --session ${id}`,
   cursor: (id) => `cursor-agent --resume ${id}`,
+  antigravity: (id) => `agy --conversation ${id}`,
   claude: (id) => `claude --resume ${id}`,
 };
 const resumeCommand = (a) => `cd "${a.cwd}"; ${(RESUME[a.app] || RESUME.claude)(a.id)}`;
@@ -510,7 +512,7 @@ const APP_ADDRESSES = [
 ];
 
 // The apps other than Claude that sessions can start in, once installed.
-const OTHER_APPS = ['codex', 'copilot', 'opencode', 'cursor'];
+const OTHER_APPS = ['codex', 'copilot', 'opencode', 'cursor', 'antigravity'];
 const appInstalled = (app) => app === 'claude' || Boolean(snap?.[`${app}Installed`]);
 // One of them is installed, so there's an app to choose.
 const otherAppsInstalled = () => OTHER_APPS.some(appInstalled);
@@ -522,13 +524,14 @@ function showInstalledChoices(name) {
 
 // ---- save and close, resume ----------------------------------------------------
 
-// The sessions Save and close takes: Claude's, Codex's, OpenCode's and
-// Cursor's in a terminal.
+// The sessions Save and close takes: Claude's, Codex's, OpenCode's, Cursor's
+// and Antigravity's in a terminal.
 const closable = (a) =>
   (a.app === 'claude' && !a.background && (!a.kind || a.kind === 'interactive') && (!a.entrypoint || a.entrypoint === 'cli')) ||
   a.app === 'codex' ||
   a.app === 'opencode' ||
   a.app === 'cursor' ||
+  a.app === 'antigravity' ||
   (a.app === 'copilot' && a.entrypoint === 'cli');
 const isWorking = (a) => a.status === 'busy' || a.status === 'shell';
 
@@ -885,7 +888,7 @@ function keepTicks(rows) {
 // The comment a ticket is offered: the session that did the work, what it
 // said last, and its pull requests. It goes to the ticket as written, so
 // it's in English, and can be changed before it's posted.
-const APP_NAMES = { claude: 'Claude Code', codex: 'Codex', copilot: 'GitHub Copilot', opencode: 'OpenCode', cursor: 'Cursor CLI' };
+const APP_NAMES = { claude: 'Claude Code', codex: 'Codex', copilot: 'GitHub Copilot', opencode: 'OpenCode', cursor: 'Cursor CLI', antigravity: 'Antigravity CLI' };
 function doneComment(a) {
   const said = (a.recap?.text || a.lastReply?.text || '').trim();
   const parts = [`Done in a ${APP_NAMES[a.app] || 'coding'} session (${displayName(a)})${said ? `: ${said}` : '.'}`];
@@ -3957,7 +3960,7 @@ const TOUR_STEPS = [
     text: () => {
       const n = sessionCount();
       const yours = n ? ` ${trn(n, 'The one running now is on the page.', 'The {n} running now are on the page.')}` : '';
-      return `${tr('Every Claude Code, Codex, Copilot, OpenCode and Cursor session on this computer gets a card here, and a ding when it needs you.')}${yours} ${tr(
+      return `${tr('Every Claude Code, Codex, Copilot, OpenCode, Cursor and Antigravity session on this computer gets a card here, and a ding when it needs you.')}${yours} ${tr(
         'This is a quick look around: nothing on the page changes while it runs, and your sessions carry on as usual.',
       )}`;
     },

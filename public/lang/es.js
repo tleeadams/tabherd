@@ -25,6 +25,7 @@
   'A GitHub Copilot session': 'Una sesión de GitHub Copilot',
   'An OpenCode session': 'Una sesión de OpenCode',
   'A Cursor CLI session': 'Una sesión de Cursor CLI',
+  'An Antigravity CLI session': 'Una sesión de Antigravity CLI',
   'A ComfyUI job': 'Un trabajo de ComfyUI',
   'From LocalAI': 'De LocalAI',
   'From Ollama': 'De Ollama',
@@ -448,8 +449,8 @@
   'New sessions': 'Sesiones nuevas',
   'The app the repo menu opens, and to-dos start in unless they name one.': 'La app que abre el menú de repositorios, y en la que empiezan las tareas si no indican otra.',
   'Skip permission prompts': 'Omitir las preguntas de permisos',
-  'Sessions the dashboard opens edit files and run commands without asking: <code>claude --dangerously-skip-permissions</code>, <code>codex --dangerously-bypass-approvals-and-sandbox</code>, <code>copilot --allow-all</code>, <code>opencode --auto</code> or <code>cursor-agent --force</code>. Only for folders you trust.':
-    'Las sesiones que abre el panel editan archivos y ejecutan comandos sin preguntar: <code>claude --dangerously-skip-permissions</code>, <code>codex --dangerously-bypass-approvals-and-sandbox</code>, <code>copilot --allow-all</code>, <code>opencode --auto</code> o <code>cursor-agent --force</code>. Solo para carpetas de confianza.',
+  'Sessions the dashboard opens edit files and run commands without asking: <code>claude --dangerously-skip-permissions</code>, <code>codex --dangerously-bypass-approvals-and-sandbox</code>, <code>copilot --allow-all</code>, <code>opencode --auto</code>, <code>cursor-agent --force</code> or <code>agy --dangerously-skip-permissions</code>. Only for folders you trust.':
+    'Las sesiones que abre el panel editan archivos y ejecutan comandos sin preguntar: <code>claude --dangerously-skip-permissions</code>, <code>codex --dangerously-bypass-approvals-and-sandbox</code>, <code>copilot --allow-all</code>, <code>opencode --auto</code>, <code>cursor-agent --force</code> o <code>agy --dangerously-skip-permissions</code>. Solo para carpetas de confianza.',
   Terminal: 'Terminal',
   'Where the repo menu, Resume and to-dos open Claude. Automatic uses one this computer has.': 'Dónde abren Claude el menú de repositorios, Reanudar y las tareas. Automático usa uno que tenga este ordenador.',
   Automatic: 'Automático',
@@ -661,8 +662,8 @@
   'See the release': 'Ver la versión publicada',
   // ---- tour
   'Welcome to Tabherd': 'Te damos la bienvenida a Tabherd',
-  'Every Claude Code, Codex, Copilot, OpenCode and Cursor session on this computer gets a card here, and a ding when it needs you.':
-    'Cada sesión de Claude Code, Codex, Copilot, OpenCode y Cursor de este ordenador tiene aquí una tarjeta, y un aviso sonoro cuando te necesita.',
+  'Every Claude Code, Codex, Copilot, OpenCode, Cursor and Antigravity session on this computer gets a card here, and a ding when it needs you.':
+    'Cada sesión de Claude Code, Codex, Copilot, OpenCode, Cursor y Antigravity de este ordenador tiene aquí una tarjeta, y un aviso sonoro cuando te necesita.',
   'The one running now is on the page.': 'La que está en marcha ya está en la página.',
   'The {n} running now are on the page.': 'Las {n} que están en marcha ya están en la página.',
   'This is a quick look around: nothing on the page changes while it runs, and your sessions carry on as usual.':
@@ -729,7 +730,6 @@
   Download: 'Descarga',
   'Agent job': 'Trabajo de agente',
   Approval: 'Aprobación',
-  'Your answer': 'Tu respuesta',
   'Waiting for approval in LocalAI': 'Esperando aprobación en LocalAI',
   'Paused: reply to continue': 'En pausa: responde para continuar',
   'Its last turn failed': 'Su último turno falló',
@@ -752,6 +752,8 @@
   "Codex isn't installed on this computer.": 'Codex no está instalado en este ordenador.',
   "OpenCode isn't installed on this computer.": 'OpenCode no está instalado en este ordenador.',
   "Cursor CLI isn't installed on this computer.": 'Cursor CLI no está instalado en este ordenador.',
+  "Antigravity isn't installed on this computer.": 'Antigravity no está instalado en este ordenador.',
+  'Your answer': 'Tu respuesta',
   "Couldn't start OpenCode's background service.": 'No se pudo iniciar el servicio en segundo plano de OpenCode.',
   "OpenCode didn't say which session it made.": 'OpenCode no dijo qué sesión creó.',
   'That session is not in the history.': 'Esa sesión no está en el historial.',
